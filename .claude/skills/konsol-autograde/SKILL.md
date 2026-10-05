@@ -105,6 +105,18 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Kolom terakhirnya dilepas dari paku `#sec-timbangan td:last-child`. KAMUS `riwayatBatalJudul`,
   `thJamDatang`, `thJamBatal`, `thOleh`. Tes: `test_console_html_riwayat_batal.py`,
   `tests/browser/test_browser_riwayat_batal.py`.
+- Sesi geser (batch 5.7, aturan 19): `tandaiAktif` (pointerdown/keydown, capture) menandai
+  aktivitas; `pantauSesi` tiap 1 dtk mengirim `perpanjangLatar()` (= `perpanjangSesi(null)`
+  dibungkus `sekaliJalan`) kalau `perluPerpanjang` (aktif DAN 5 menit sejak renew terakhir, atau
+  sisa 15 menit atau kurang). Akhir sesi disimpan di jam browser (`sesiBerakhirPada`, dari
+  `sisa_detik` login, `/me` dan renew lewat `aturSisaSesi`); sisa nol = `cekSesiLatar()` dulu,
+  bukan langsung gerbang (tab lain di browser yang sama bisa sudah memperpanjang). Pita
+  `#pita-sesi` + tombol `#pita-sesi-perpanjang` (toast cuma dari tombol). Polling tidak boleh
+  memanggil renew atau `tandaiAktif`. Login dihitung sebagai renew. Route:
+  `routes/console_sesi.py` (`POST /api/console/session/renew`, `pasang_cookie_sesi` dipakai juga
+  oleh login). Tes: `test_console_html_sesi_geser.py`, `test_operator_login.py`,
+  `tests/integration/test_sesi_geser_integrasi.py`, `tests/e2e/test_sesi_geser_lane.py`,
+  `tests/browser/test_browser_sesi_geser.py`.
 - Satu komponen dropdown untuk seluruh konsol (batch 5.6, 2026-10-05): tidak ada `<select>`
   bawaan lagi (`test_console_html_pilih_cari.py` menjaganya). Bentuknya `.pilih` dengan
   `data-nilai`, `.pilih-tombol` dan `.pilih-panel`; kerangkanya ditulis di markup, isinya lewat

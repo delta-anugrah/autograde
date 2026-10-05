@@ -19,6 +19,7 @@ from ..domain.operator_auth import (
     SESSION_TTL_S,
     lockout_seconds_left,
     new_session_token,
+    sisa_detik,
     verify_password,
 )
 from ..domain.operator_error import SANDI_SALAH, TERKUNCI, InvalidInput, OperatorError
@@ -115,7 +116,20 @@ class AuthService:
         """Who is holding this cookie, or None — unknown, expired, or switched off."""
         if not token:
             return None
-        return self._store.session(token, now=self._now())
+        now = self._now()
+        row = self._store.session(token, now=now)
+        if row is None:
+            return None
+        return {**row, "sisa_detik": sisa_detik(row["expires_at"], now)}
+
+    def renew(self, token: str | None) -> dict[str, int] | None:
+        """The operator did something (batch 5.7): the session runs `ttl_s` from now. None
+        when it has already ended, so the screen goes back to the gate."""
+        if not token:
+            return None
+        now = self._now()
+        expires_at = self._store.extend_session(token, now=now, ttl_s=self._ttl_s)
+        return None if expires_at is None else {"sisa_detik": sisa_detik(expires_at, now)}
 
     def logout(self, token: str | None) -> None:
         if token:

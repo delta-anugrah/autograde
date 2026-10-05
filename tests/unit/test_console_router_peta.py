@@ -16,6 +16,7 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/login"),
     ("POST", "/api/console/logout"),
     ("GET", "/api/console/me"),
+    ("POST", "/api/console/session/renew"),
     ("GET", "/api/console/state"),
     ("GET", "/api/console/history"),
     ("GET", "/api/console/riwayat"),

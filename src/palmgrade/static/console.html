@@ -1047,6 +1047,13 @@
                       padding:0; border:0; background:transparent; color:inherit;
                       font-size:1.4rem; line-height:1; opacity:.7; cursor:pointer; }
   #pita-disk .tutup:hover { opacity:1; }
+  /* Sesi hampir habis (batch 5.7): palet --warn seperti pita disk, tombol Perpanjang di kanan. */
+  #pita-sesi { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin:10px var(--pad) 0;
+               padding:9px 13px; border-radius:var(--r-sm); background:var(--warn-bg); color:var(--warn);
+               border-left:4px solid var(--warn); font-weight:700; }
+  #pita-sesi[hidden] { display:none; }
+  #pita-sesi span { flex:1 1 16rem; }
+  #pita-sesi button { min-height:2.6rem; min-width:9rem; }
   /* Pita pembaruan: kabar baik, jadi tanpa denyut dan tanpa merah. Seluruh pita satu tombol
      (target besar untuk sarung tangan), × di pojok seperti pita disk. */
   #pita-pembaruan { margin:10px var(--pad) 0; }
@@ -1756,6 +1763,8 @@
 <div id="pita-pembaruan" hidden></div>
 <div id="pita-alarm" hidden></div>
 <div id="pita-disk" hidden></div>
+<!-- Batch 5.7: 15 minutes before the session ends. Any touch renews it; the button is the spare. -->
+<div id="pita-sesi" role="status" hidden><span id="pita-sesi-teks"></span><button type="button" id="pita-sesi-perpanjang" class="utama" data-t="btnPerpanjangSesi">Perpanjang</button></div>
 <!--
   Antrean bongkar (2026-10-01): truk yang sudah timbang isi tapi belum di line. Satu truk di
   line sampai selesai; truk berikutnya menunggu di sini sampai truk sebelumnya timbang
@@ -3057,6 +3066,9 @@ const KAMUS = {
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
+    sesiAkanHabis:"Sesi berakhir dalam {menit} menit. Sentuh layar atau tekan Perpanjang supaya tidak keluar sendiri.",
+    btnPerpanjangSesi:"Perpanjang", sukPerpanjangSesi:"Sesi diperpanjang 12 jam",
+    gagalPerpanjangSesi:"Sesi belum bisa diperpanjang",
     segarPada:"Diperbarui {jam}", basiSejak:"Data lama, terakhir diperbarui {jam}",
     tombolSegarkan:"Segarkan data", sukSegarkan:"Data sudah diperbarui",
     gagalSegarkan:"Data belum bisa diperbarui. Konsol belum menjawab, coba lagi sebentar.",
@@ -3552,6 +3564,9 @@ const KAMUS = {
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
+    sesiAkanHabis:"The session ends in {menit} min. Touch the screen or press Extend to stay signed in.",
+    btnPerpanjangSesi:"Extend", sukPerpanjangSesi:"Session extended by 12 hours",
+    gagalPerpanjangSesi:"The session could not be extended",
     segarPada:"Updated {jam}", basiSejak:"Old data, last updated {jam}",
     tombolSegarkan:"Refresh data", sukSegarkan:"Data refreshed",
     gagalSegarkan:"The data could not be refreshed. The console is not answering, try again shortly.",
@@ -6475,6 +6490,7 @@ function tutupSandi() { lihatSandi(false); }
 
 async function bukaGerbang() {
   $("gerbang").hidden = false;
+  aturSisaSesi(null);
   $("operator-aktif").hidden = true;
   $("keluar").hidden = true;
   $("gerbang-sandi").value = "";
@@ -6567,10 +6583,14 @@ async function kirimSandi() {
   $("gerbang-masuk").disabled = true;
   $("gerbang-masuk").classList.add("sibuk");
   try {
-    const { operator } = await api("/api/console/login", {
+    const { operator, sisa_detik } = await api("/api/console/login", {
       method: "POST", body: JSON.stringify({ email, sandi }),
     });
     tutupGerbang(operator);
+    // A sign-in is as good as a renew: the next one is due in 5 minutes, not at the next tap.
+    perpanjangTerakhir = Date.now();
+    aktifSejakPerpanjang = false;
+    aturSisaSesi(sisa_detik);
     tampilkanHasilTertunda();
     aturTabDeveloper(operator.role);
     pastikanTabTersedia();
@@ -6605,10 +6625,84 @@ async function kirimSandi() {
   }
 }
 
+// ── sesi geser (batch 5.7) ──────────────────────────────────────────────
+// The mill runs about 20 hours and a fixed 12 h session dropped the sign-in gate over the
+// cameras mid-shift. A touch or a key renews it (the server slides it 12 h from then); the
+// screen's own polls never do, so a screen left alone still signs itself out. The end is
+// kept on the browser's clock from the seconds the server reports, never a clock time.
+const JEDA_PERPANJANG_MS = 5 * 60 * 1000;
+const PERINGATAN_SESI_MS = 15 * 60 * 1000;
+let sesiBerakhirPada = null;
+let aktifSejakPerpanjang = false;
+let perpanjangTerakhir = 0;
+
+function tandaiAktif() {
+  aktifSejakPerpanjang = true;
+}
+
+["pointerdown", "keydown"].forEach((jenis) => document.addEventListener(jenis, tandaiAktif, { capture: true, passive: true }));
+
+function dalamPeringatan(sisaMs) {
+  return sisaMs !== null && sisaMs <= PERINGATAN_SESI_MS;
+}
+
+// At most one renew per 5 minutes of activity; inside the warning, the first touch renews.
+function perluPerpanjang({ aktif, terakhir, sekarang, sisaMs }) {
+  return aktif && (sekarang - terakhir >= JEDA_PERPANJANG_MS || dalamPeringatan(sisaMs));
+}
+
+function teksSesi(sisaMs) {
+  return t("sesiAkanHabis").replace("{menit}", Math.max(1, Math.ceil(sisaMs / 60000)));
+}
+
+function aturSisaSesi(detik) {
+  sesiBerakhirPada = detik === null || detik === undefined ? null : Date.now() + Number(detik) * 1000;
+  gambarSesi();
+}
+
+function gambarSesi(sekarang = Date.now()) {
+  const sisa = sesiBerakhirPada === null ? null : sesiBerakhirPada - sekarang;
+  const tampil = $("gerbang").hidden && dalamPeringatan(sisa);
+  $("pita-sesi").hidden = !tampil;
+  if (tampil) tulisKalauBeda($("pita-sesi-teks"), esc(teksSesi(sisa)));
+}
+
+// `tombol` = the ribbon's button (says so with a toast); null = the background renew.
+function perpanjangSesi(tombol) {
+  return denganSibuk(tombol, async () => {
+    try {
+      const r = await api("/api/console/session/renew", { method: "POST" });
+      perpanjangTerakhir = Date.now();
+      aktifSejakPerpanjang = false;
+      aturSisaSesi(r.sisa_detik);
+      if (tombol) toastSukses(t("sukPerpanjangSesi"));
+    } catch (e) {
+      // An ended session has already brought the gate up (api, 401 belum_masuk).
+      if (tombol && e.kode !== "belum_masuk") toastGagal(gagalKarena("gagalPerpanjangSesi", e));
+    }
+  });
+}
+
+const perpanjangLatar = sekaliJalan(() => perpanjangSesi(null));
+const cekSesiLatar = sekaliJalan(cekSesi);
+
+function pantauSesi() {
+  if (sesiBerakhirPada === null || !$("gerbang").hidden) return;
+  const sekarang = Date.now();
+  const sisa = sesiBerakhirPada - sekarang;
+  // Asked, not assumed: another tab of this browser may have renewed the same cookie.
+  if (sisa <= 0) { cekSesiLatar(); return; }
+  if (perluPerpanjang({ aktif: aktifSejakPerpanjang, terakhir: perpanjangTerakhir, sekarang, sisaMs: sisa })) perpanjangLatar();
+  gambarSesi(sekarang);
+}
+
+$("pita-sesi-perpanjang").addEventListener("click", (ev) => perpanjangSesi(ev.currentTarget));
+
 async function cekSesi() {
   try {
-    const { operator } = await api("/api/console/me");
+    const { operator, sisa_detik } = await api("/api/console/me");
     tutupGerbang(operator);
+    aturSisaSesi(sisa_detik);
     aturTabDeveloper(operator.role);
     pastikanTabTersedia();
   }
@@ -9912,6 +10006,7 @@ $("plc-kartu").addEventListener("click", (ev) => {
   setInterval(detak, 1000);
   setInterval(cekKamera, 5000);
   setInterval(pantauRestart, 1000);
+  setInterval(pantauSesi, 1000);
   // Still signed in (cookie valid): the name goes in the bar and the gate comes down.
   // If not, the gate stays up — before four polls each find that out on their own.
   await cekSesi();
