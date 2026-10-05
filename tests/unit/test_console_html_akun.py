@@ -136,9 +136,11 @@ def test_kolom_sandi_tidak_pernah_terlihat_atau_diisi_otomatis_browser():
 
 
 def test_pilihan_role_cuma_operator_dan_support_dengan_operator_bawaan():
-    pilih = re.search(r'<select id="akun-role">(.*?)</select>', _panel(), re.S).group(1)
-    nilai = re.findall(r'<option value="([^"]+)"', pilih)
+    panel = _panel()
+    pilih = panel[panel.index('<div class="pilih" id="akun-role" data-nilai="operator">') :].split("</div></div>", 1)[0]
+    nilai = re.findall(r'role="option" tabindex="-1" data-nilai="([^"]+)"', pilih)
     assert nilai == ["operator", "support"]
+    assert 'aturPilih($("akun-role"), "operator")' in HTML, "a closed form goes back to Operator"
 
 
 def test_catatan_menyebut_akun_lokal_tidak_masuk_autoerp():

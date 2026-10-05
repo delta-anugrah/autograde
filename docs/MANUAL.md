@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.11"
+versi: "2.12"
 tanggal: 4 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -147,6 +147,14 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   tabel jadi abu-abu: angkanya angka lama, jangan dipakai untuk memutuskan. Gambar kamera tetap
   berwarna karena datang langsung dari line. Begitu konsol menjawab lagi semuanya kembali
   sendiri.
+- **Semua daftar pilihan** di konsol satu bentuk (termasuk Role di tab Akun, Arah conveyor di
+  Setelan, Berkas di Sumber Kamera, dan Model di Model Deteksi). Daftar yang panjang (8 pilihan
+  ke atas, misalnya **Pilih Truk**) punya kotak **Ketik untuk mencari** di atasnya: ketik
+  sebagian plat, huruf besar-kecil dan spasi tidak berpengaruh (`be1234` menemukan
+  `BE 1234 AB`), lalu Enter mengambil baris teratas yang tersisa. Panah atas-bawah berpindah
+  baris, Esc menutup. Di **Pilih Truk** kartu line, truk yang sudah timbang isi dan belum
+  timbang kosong ada di bagian **Di lokasi** paling atas, sisanya di **Truk lain**. Daftar
+  yang sedang terbuka tidak pernah tertutup atau berubah sendiri.
 - **Tombol bundar panah melingkar** di kanan atas (**Segarkan data**): cadangan kalau ragu
   layarnya tertinggal. Menarik ulang semua data sekaligus, lalu menjawab "Data sudah
   diperbarui" atau, kalau konsol tidak menjawab, notifikasi merah.
@@ -993,6 +1001,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.12 | 5 Oktober 2026 | §3.2: semua daftar pilihan satu bentuk; daftar panjang bisa **diketik untuk mencari**; truk yang sedang di lokasi (sudah timbang isi) di bagian **Di lokasi** paling atas **Pilih Truk** kartu line. |
 | 2.11 | 4 Oktober 2026 | §3.2: tulisan **Diperbarui HH:MM:SS** di bawah jam, layar jadi abu-abu dengan tulisan merah **Data lama** kalau konsol berhenti menjawab, tombol **Segarkan data**, daftar **Pilih Truk** di kartu line ikut truk baru tanpa memuat ulang, dan layar memuat ulang dirinya sendiri sesudah versi baru terpasang. |
 | 2.10 | 4 Oktober 2026 | Tab Setelan: **kotak area deteksi** bisa diatur dari layar, dua saklar tampilkan garis capture dan kotak area deteksi, bagian Kamera & Conveyor jadi tiga kotak. Tab Status: kartu Diagnostik berkelompok dan tertutup dari awal, Manifest R2 jadi bagian sendiri. Kartu line: pemilih truk selebar Reject Manual, Tugaskan dan Lepas / Lepas paksa berbagi sisanya (§3.2, §3.5). |
 | 2.9 | 4 Oktober 2026 | Tombol **Sambung ulang** (sambung ulang kamera) di kotak kamera tiap kartu line, di bawah "Kamera tidak tersambung", untuk semua akun, bertanya dulu, tercatat di tab Log; cadangan kalau sambung ulang otomatis tidak membawa gambar kembali (§3.2, §7). |

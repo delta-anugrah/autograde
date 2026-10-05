@@ -18,6 +18,28 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · One dropdown everywhere: type to filter, trucks on site first (batch 5.6) (PR #232)
+Changed:        `static/console.html`: a list with 8 rows or more gets a search field while it is
+                open (`pasangCari`, `saringPilih`, `cocokCari`, `hasilSaring`); arrows walk only the
+                rows left, Enter in the field takes the first, a letter typed on a row goes to the
+                field. Rows can be shown but not pickable (`mati`, `judul`). The three pickers that
+                were replaced whole (`outerHTML`: plat-datang, plat-timbang, riwayat-line) are
+                refilled in place (`isiUlangPilih`). The eight native `<select>` (Role, Arah conveyor,
+                Berkas x3, Model x3) are the same component; read through `dataset.nilai`, set
+                through `aturPilih`, event `pilih`. The card truck list puts trucks on site first
+                in their own section. Server: `GET /api/console/trucks` carries `di_lokasi`.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                14 mutations, each turned its test red.
+Not validated:  Sumber Kamera and Model Deteksi with real media and model files (the browser
+                harness has none; the option building is covered by unit tests only). A touch
+                screen. Nothing on the factory PC.
+Decisions:      "On site" = weighed in and not yet weighed out (open ticket inside the 12 h visit
+                window), decided by the server, the same rule as the unloading queue. Not applied
+                to the scan 1 picker: a truck already on site is not arriving. An open list is
+                left alone until it closes (kept from PR #229) rather than updated under the finger.
+                Search only from 8 rows: Rows per page and Layout stay as they were.
+Next:           PR 3, sliding session (5.7).
+
 ## 2026-10-04 · console · Fresh data without a manual refresh, taps never lost (batch 5.3, 5.4, 5.8, 6.4) (PR #229)
 Changed:        `static/console.html`: the 2 s poll takes a turn (`kunciAntre`), a timer tick that
                 lands while a pull is in flight is dropped (`detakRefresh`, `sekaliJalan` for the

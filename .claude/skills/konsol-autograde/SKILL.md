@@ -105,6 +105,24 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Kolom terakhirnya dilepas dari paku `#sec-timbangan td:last-child`. KAMUS `riwayatBatalJudul`,
   `thJamDatang`, `thJamBatal`, `thOleh`. Tes: `test_console_html_riwayat_batal.py`,
   `tests/browser/test_browser_riwayat_batal.py`.
+- Satu komponen dropdown untuk seluruh konsol (batch 5.6, 2026-10-05): tidak ada `<select>`
+  bawaan lagi (`test_console_html_pilih_cari.py` menjaganya). Bentuknya `.pilih` dengan
+  `data-nilai`, `.pilih-tombol` dan `.pilih-panel`; kerangkanya ditulis di markup, isinya lewat
+  `isiUlangPilih(root, opsi)` (jangan `outerHTML = komponenPilih(...)`: itu menutup daftar dan
+  membuang fokus). Baca nilainya dari `root.dataset.nilai`, setel tanpa event lewat
+  `aturPilih(root, v)`, dengan event lewat `pilihNilai`; dengarkan event `pilih`, bukan `change`.
+  Opsi boleh membawa `grup` (kepala bagian), `catatan`, `mati` (tampil tapi tidak bisa dipilih,
+  `aria-disabled`) dan `judul` (alasan, jadi `title`). Jangan bungkus `.pilih` dengan `<label>`
+  (klik pada baris diteruskan ke tombolnya dan membuka daftar lagi): pakai `<div class="label">`.
+  - Ketik untuk mencari: daftar dengan `AMBANG_CARI` (8) opsi ke atas mendapat `.pilih-cari`
+    selama terbuka (`pasangCari` di `bukaPilih`, dicabut `lepasCari` di `tutupPilih`, jadi panel
+    yang tertutup isinya cuma baris). `cocokCari` mengabaikan huruf besar-kecil, spasi, titik
+    dan tanda hubung; `hasilSaring` menjaga kepala bagian cuma tampil selama ada baris di
+    bawahnya; papan ketik berjalan di `opsiTampak`. Baris tersaring memakai atribut `hidden`.
+  - Truk di lokasi dulu: `GET /api/console/trucks` membawa `di_lokasi` (server yang menentukan,
+    `store.trucks_with_open_ticket`), `opsiTrukKartu` menaruhnya di bagian `grupDiLokasi`.
+  - Tes: `test_console_html_pilih_cari.py`, `tests/integration/test_pilih_truk_integrasi.py`,
+    `tests/e2e/test_pilih_truk_lane.py`, `tests/browser/test_browser_pilih_cari.py`.
 - Registri: `TAB_SAH`, `SUB_LINE`, `MUAT_TAB`, `MUAT_SUB_LINE`. Tab lama yang tersimpan di
   localStorage dipetakan `tabDariSimpanan` / `TAB_LAMA` (riwayat → rekap, diagnostik/antrean/versi
   → status, empat layar per line → line + pilihannya).

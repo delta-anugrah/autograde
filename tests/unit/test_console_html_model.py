@@ -34,7 +34,7 @@ def test_tab_terdaftar_di_tab_sah_dan_muat_tab():
 @pytest.mark.parametrize("n", [1, 2, 3])
 def test_tiga_line_punya_kartu_pilihan_dan_rincian(n):
     assert f'data-model-line="line-{n}"' in HTML
-    assert f'<select data-model="line-{n}"' in HTML
+    assert f'<div class="pilih" data-model="line-{n}"' in HTML
     assert f'data-model-rinci="line-{n}"' in HTML
     assert f'data-model-jalan="line-{n}"' in HTML
 
@@ -78,7 +78,7 @@ def test_model_tidak_cocok_tidak_bisa_dipilih():
     awal = HTML.find("function opsiModel")
     assert awal != -1
     blok = HTML[awal : HTML.find("\n}\n", awal)]
-    assert "disabled = !m.cocok" in blok
+    assert "mati: true, judul: alasanModel(m)" in blok
 
 
 @pytest.mark.parametrize(
