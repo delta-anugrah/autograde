@@ -17,6 +17,7 @@ from ..core.constants import (
 )
 from ..domain.garis_capture import MENDATAR, TEGAK
 from ..domain.grade_class import TP, grade_class_or_none, verdict_for_class
+from ..domain.skala_tampilan import TANPA_SKALA, gaya_berskala, kotak_berskala
 from .model_registry import ModelRegistry
 
 # Jarak garis pemicu dari tepi kanan frame saat ROI memenuhi layar. Cukup untuk
@@ -42,7 +43,8 @@ class RealtimeInspectionPipeline:
     # ------------------------------------------------------------------ draw
 
     def draw_boxes(
-        self, frame: np.ndarray, results: Any, *, tampilkan_confidence: bool = False
+        self, frame: np.ndarray, results: Any, *, tampilkan_confidence: bool = False,
+        skala: tuple[float, float] = TANPA_SKALA,
     ) -> np.ndarray:
         """`tampilkan_confidence` = mode dev (setelan `mode_dev` dari konsol).
 
@@ -50,14 +52,20 @@ class RealtimeInspectionPipeline:
         keyakinan model, bukan mutu buah, dan dari beberapa meter "54%"
         terbaca seperti "54% matang". Support yang menyetel `CONF_THRESHOLD`
         justru butuh angka itu — makanya jadi saklar, bukan dihapus.
+
+        `skala` (batch 6.3) = from the frame the model saw to `frame`. `DisplayWorker`
+        shrinks the picture first and draws here on the small frame, so the boxes and the
+        `.env` style (written for the sensor frame) shrink with it. Left at its default,
+        as for the saved evidence photo, nothing is scaled and the drawing is unchanged.
         """
         if results.boxes is None:
             return frame
-        bt = self.settings.border_thickness
-        fs = self.settings.font_scale
-        ft = self.settings.font_thickness
+        bt, fs, ft, jarak = gaya_berskala(
+            self.settings.border_thickness, self.settings.font_scale,
+            self.settings.font_thickness, skala,
+        )
         for box in results.boxes:
-            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+            x1, y1, x2, y2 = kotak_berskala(*map(int, box.xyxy[0].tolist()), skala)
             label = results.names[int(box.cls[0].item())]
             score = float(box.conf[0].item())
             # Warna ikut VERDICT, bukan substring nama kelas. Dulu barisnya
@@ -92,7 +100,7 @@ class RealtimeInspectionPipeline:
             if tampilkan_confidence:
                 text = f"{text} {score * 100:.0f}%"
             (tw, th), bl = cv2.getTextSize(text, FONT, fs, ft)
-            ty = y1 - 10 if y1 - th - 10 >= 0 else y1 + th + 10
+            ty = y1 - jarak if y1 - th - jarak >= 0 else y1 + th + jarak
             cv2.putText(frame, text, (x1, ty), FONT, fs, (0, 0, 0), ft + 4, cv2.LINE_AA)  # outline tebal
             cv2.putText(frame, text, (x1, ty), FONT, fs, color, ft + 1, cv2.LINE_AA)      # teks warna, agak tebal
         return frame
