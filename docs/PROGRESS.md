@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · vision · Camera health without a temperature sensor (PR pending)
+## 2026-10-05 · vision · Camera health without a temperature sensor (PR #238)
 Changed:        Lampung cameras (MV-CS050-10GC, firmware V4.0.43) report `DeviceTemperature` as
                 not implemented (access mode NI, checked on the camera with
                 `sawit/scripts/cek-suhu-kamera.sh`). The Diagnostics card now grades what the
