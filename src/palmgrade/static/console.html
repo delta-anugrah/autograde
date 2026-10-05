@@ -99,7 +99,8 @@
   .muted { color:var(--muted); }
 
   /* ---- status bar ---- */
-  #topbar { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px;
+  /* `position` + `z-index`: a tooltip under a top-bar button lies over the tally strip. */
+  #topbar { position:relative; z-index:30; display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px;
             padding:7px var(--pad); background:var(--card);
             border-bottom:3px solid var(--acc); }
   h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
@@ -108,6 +109,23 @@
   h1::before { content:""; flex:none; width:.7rem; height:.7rem; background:var(--acc); border-radius:50%; }
   /* Tombol berikon di kepala layar: ikon dan kata di tengah vertikal, satu jarak. */
   .tombol-ikon { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+  /* Tooltip (user 2026-10-05): ONE component for every hover hint. Put `data-t-tip="<KAMUS
+     key>"` on the element; `terapkanBahasa` writes the sentence into `data-tip` and the CSS
+     draws it under the element on hover and on keyboard focus, after a short delay so a hand
+     passing over the bar does not flash it. `data-tip-sisi="akhir"` lines it up with the
+     element's right edge: for an element near the screen's right side, so the hint never
+     reaches past the page. Only `::after`: `button.sibuk::before` is the busy spinner. */
+  [data-tip] { position:relative; }
+  /* Drawn only while shown: a hidden but laid-out hint still widens the page on a narrow
+     screen (a 390 px phone scrolled sideways by 89 px). The delay lives in the animation. */
+  [data-tip]:is(:hover, :focus-visible)::after { content:attr(data-tip); position:absolute;
+    top:calc(100% + 8px); left:50%; z-index:60; width:max-content; max-width:min(18rem, 80vw);
+    padding:7px 11px; border-radius:var(--r-xs); background:var(--fg); color:var(--bg);
+    font:600 .82rem/1.35 var(--font); letter-spacing:0; text-transform:none; text-align:left;
+    white-space:normal; box-shadow:var(--tinggi-2); pointer-events:none;
+    transform:translateX(-50%); animation:tip-muncul .12s ease .35s backwards; }
+  [data-tip][data-tip-sisi="akhir"]:is(:hover, :focus-visible)::after { left:auto; right:0; transform:none; }
+  @keyframes tip-muncul { from { opacity:0; translate:0 -4px; } to { opacity:1; translate:0 0; } }
   .tombol-ikon[hidden] { display:none; }
   .tombol-ikon svg { flex:none; }
   .merek { display:flex; flex-direction:column; gap:1px; }
@@ -392,14 +410,30 @@
      tabel dan langkahnya tersambung sekali lihat. */
   .timbang-langkah { list-style:none; margin:0; padding:0; display:grid;
                      grid-template-columns:minmax(0, 1fr); gap:8px; }
-  .langkah-ruas { position:relative; min-width:0; display:flex; flex-direction:column; gap:4px;
-                  padding:8px 10px 10px; background:var(--zebra); border:1px solid var(--line);
+  /* Redrawn 2026-10-05 (user: "more attractive"): a card washed in its stage colour, an icon
+     tile in that colour from 1280 px (below it the pill needs the width), the pill and the
+     sentence beside it. `color-mix` tints; a browser without it keeps the plain card. */
+  .langkah-ruas { position:relative; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr);
+                  align-content:start; row-gap:6px; column-gap:12px;
+                  padding:12px 14px; background:var(--card); border:1px solid var(--line);
                   border-top:4px solid var(--warna-tahap, var(--line-kuat));
-                  border-radius:var(--r-sm); }
-  .ruas-datang  { --warna-tahap:var(--line-kuat); }
-  .ruas-bongkar { --warna-tahap:var(--warn); }
-  .ruas-kosong  { --warna-tahap:var(--info); }
-  .ruas-selesai { --warna-tahap:var(--acc); }
+                  border-radius:var(--r-md); box-shadow:var(--tinggi-1);
+                  background:linear-gradient(135deg, color-mix(in srgb, var(--latar-tahap) 70%, var(--card)), var(--card) 75%);
+                  border-color:color-mix(in srgb, var(--warna-tahap) 35%, var(--line)); }
+  .ruas-datang  { --warna-tahap:var(--line-kuat); --latar-tahap:var(--zebra); --ikon-tahap:var(--muted); }
+  .ruas-bongkar { --warna-tahap:var(--warn); --latar-tahap:var(--warn-bg); --ikon-tahap:var(--warn); }
+  .ruas-kosong  { --warna-tahap:var(--info); --latar-tahap:var(--info-bg); --ikon-tahap:var(--info); }
+  .ruas-selesai { --warna-tahap:var(--acc); --latar-tahap:var(--acc-bg); --ikon-tahap:var(--acc); }
+  .langkah-ruas { border-top-color:var(--warna-tahap); }
+  .langkah-ikon { display:none; place-items:center; width:2.9rem; height:2.9rem; border-radius:var(--r-sm);
+                  color:var(--ikon-tahap); background:var(--latar-tahap);
+                  border:1px solid color-mix(in srgb, var(--warna-tahap) 45%, transparent); }
+  .langkah-ikon svg { width:1.5rem; height:1.5rem; }
+  @media (min-width:1280px) {
+    .langkah-ruas { grid-template-columns:auto minmax(0, 1fr); }
+    .langkah-ikon { display:grid; grid-row:1 / span 3; align-self:center; }
+    .langkah-ruas > :not(.langkah-ikon) { grid-column:2; }
+  }
   /* Langkah 3 menyala selama bar tara terbuka: bar di bawah dan ruasnya satu warna. Cuma
      warna yang berubah, garisnya sama tebal, jadi tidak ada yang bergeser. */
   .langkah-ruas.aktif { background:var(--info-bg); border-color:var(--info); }
@@ -414,7 +448,7 @@
                     background:var(--card); border:1px solid var(--line-kuat);
                     font-size:.75rem; font-weight:700; line-height:1.3; color:var(--fg); }
   .langkah-hitung[hidden] { display:none; }
-  .langkah-di { font-size:.85rem; line-height:1.3; color:var(--muted); }
+  .langkah-di { font-size:.9rem; line-height:1.35; color:var(--muted); }
   /* Pesan langkah 4 (scan keluar dan tombol Keluar di baris) menggantikan kalimat petunjuknya
      selama ada, di tempat yang sama: ruasnya tidak bertambah satu baris kosong untuk pesan
      yang belum ada. */
@@ -432,9 +466,13 @@
   }
   @media (min-width:960px) {
     .timbang-langkah { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; }
-    .langkah-ruas:not(:last-child)::after { content:""; position:absolute; top:50%; right:-11px;
-      width:8px; height:8px; border:solid var(--muted); border-width:2px 2px 0 0;
-      transform:translateY(-50%) rotate(45deg); }
+    /* The arrow between two cards: a small round chip on the gap, so it reads as a step
+       onward rather than a stray mark. */
+    .langkah-ruas:not(:last-child)::after { content:""; position:absolute; top:50%; right:-15px;
+      z-index:1; width:16px; height:16px; border-radius:50%; background:var(--card);
+      border:1px solid var(--line-kuat); transform:translateY(-50%);
+      background-image:var(--chev); background-size:12px; background-repeat:no-repeat;
+      background-position:center; rotate:-90deg; }
   }
 
   /* Dua form, berdampingan dari 1100 px, bertumpuk di bawahnya. Garis kiri berwarna tahapnya,
@@ -738,7 +776,7 @@
      di #sub-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
      supaya tidak ikut terhapus saat kartu dibangun ulang oleh polling. */
   .plc-konfirmasi { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-                     margin:12px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
+                     margin:12px 0 0; padding:11px 13px; border-radius:var(--r-sm);
                      border:1px solid var(--danger-line); background:var(--danger-bg); }
   .plc-konfirmasi[hidden] { display:none; }
   .plc-konfirmasi b { flex:1 1 100%; color:var(--danger-fg); font-weight:600; }
@@ -763,10 +801,10 @@
   .daftar-definisi dd { margin:0; font-weight:600; }
 
   /* Akun: catatan sandi di atas tabel, selebar tabelnya. */
-  #sec-akun .akun-catatan { margin:0 var(--pad) 12px; }
+  #sec-akun .akun-catatan { margin:0 0 12px; }
   /* Tombol Tambah akun berdiri sendiri di atas, tanpa kotak `.tools`: kotak itu
      dirancang menempel ke tabel di bawahnya, dan di sini yang di bawahnya form. */
-  .akun-alat { display:flex; gap:8px; flex-wrap:wrap; margin:0 var(--pad) 12px; }
+  .akun-alat { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
   .akun-alat button { min-height:2.6rem; }
   #akun-tambah { margin-bottom:12px; }
   /* `.setelan-form` memakai display:grid, yang mengalahkan `[hidden]` bawaan browser:
@@ -1195,15 +1233,16 @@
   .log-level button { flex:0 0 auto; min-width:5rem; background:var(--zebra);
                        color:var(--muted); border:1px solid var(--line); }
   .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
-  /* Log filter (user 2026-10-05): each level keeps its own colour, chosen or not (All white,
-     WARNING yellow, ERROR red), so the colour says which level, and a dark ring plus a tick
-     say which one is chosen. Fixed colours, not theme tokens: the same in both themes. */
-  #log-level button { min-width:7rem; border-width:2px; }
-  #log-level button[data-nilai=""] { background:#ffffff; color:#1b2129; border-color:#9aa4b1; }
-  #log-level button[data-nilai="WARNING"] { background:#ffd44d; color:#2b2100; border-color:#c99a00; }
-  #log-level button[data-nilai="ERROR"] { background:#c62828; color:#ffffff; border-color:#8e1c1c; }
-  #log-level button.aktif { box-shadow:0 0 0 3px var(--bg), 0 0 0 6px var(--fg); }
-  #log-level button.aktif::before { content:"\2713\00a0"; }
+  /* Log filter (user 2026-10-05): outlined, never filled, each level in its own colour chosen
+     or not (All = the text colour, white in the dark theme; WARNING yellow; ERROR red). The
+     chosen one is fully opaque with a doubled outline; the others are dimmed. No tick. */
+  #log-level button { min-width:7rem; border-width:2px; background:transparent; opacity:.6; }
+  #log-level button[data-nilai=""] { color:var(--fg); border-color:var(--fg); }
+  #log-level button[data-nilai="WARNING"] { color:var(--warn); border-color:var(--warn); }
+  #log-level button[data-nilai="ERROR"] { color:var(--rej); border-color:var(--rej); }
+  #log-level button:hover:not(:disabled) { opacity:1; box-shadow:none; }
+  #log-level button.aktif, #log-level button.aktif:hover:not(:disabled) {
+    opacity:1; box-shadow:0 0 0 2px currentColor; }
 
   /* Sub-tabs (user 2026-10-05): the bar under a main tab is as wide as the main tab bar (the
      panel's own padding, no second indent) and reads as tabs, not as a row of buttons: plain
@@ -1225,7 +1264,7 @@
   .log-detail summary { cursor:pointer; }
   .log-detail pre { margin:6px 0 0; max-height:18rem; overflow:auto; white-space:pre-wrap;
                     font:.78rem/1.35 var(--mono); }
-  .log-discord { margin:0 var(--pad) 10px; font-size:.9rem; }
+  .log-discord { margin:0 0 10px; font-size:.9rem; }
   .log-discord.peringatan { color:var(--warn); font-weight:600; }
   .log-discord.gagal { color:var(--rej); font-weight:700; }
   /* Empat pilihan Line membentang selebar panel, dibagi empat sama rata (permintaan
@@ -1246,7 +1285,7 @@
            border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
   /* The R2 manifest table is a second block under the ERP queue table, not a part of it. */
-  #manifest-nonaktif { margin:0 var(--pad) 8px; }
+  #manifest-nonaktif { margin:0 0 8px; }
   /* No summary to show (R2 not set): no empty bar above the table, which then closes its
      own top edge. A browser without :has() just keeps the empty bar. */
   .tools:has(> #manifest-ringkas:empty) { display:none; }
@@ -1453,10 +1492,16 @@
 
   /* Baris catatan di atas tabel + sisa disk di bawahnya: keduanya keterangan,
      jadi diberi jarak yang sama dengan panel lain, bukan menempel di tepi. */
-  #sub-rekam .rekam-catatan { margin:0 var(--pad) 12px; }
-  #sub-rekam .tabel { margin:0 var(--pad); }
+  /* All of it at the panel's width, the sub-tab bar's (user 2026-10-05: the note and the
+     table sat 20 px inside the settings card, which touched the table). */
+  #sub-rekam .rekam-catatan { margin:0 0 12px; }
   #sub-rekam .rekam-kaki { display:flex; flex-wrap:wrap; gap:12px 24px;
-                           align-items:center; margin:12px var(--pad) 0; }
+                           align-items:center; margin:12px 0 0; }
+  #sub-rekam .setelan-form { margin-top:16px; }
+  /* Its one collapsible group: the heading is the card's own title row. */
+  details.setelan-grup > summary { cursor:pointer; padding:2px 0; font-weight:700; user-select:none;
+                                   list-style:revert; }
+  details.setelan-grup[open] > summary { margin-bottom:14px; }
   .setelan-form :is(label, .label) > span:first-child { font-weight:600; }
   .setelan-form input {
     padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
@@ -1689,10 +1734,10 @@
     <!-- Ikon di tiap tombol (user 2026-10-04): bola dunia = bahasa, lingkaran setengah = tema,
          pintu = keluar. Katanya di span, supaya ganti bahasa/tema tidak menghapus ikonnya. -->
     <!-- Batch 5.3: every part of the screen refreshes itself; this is the spare. -->
-    <button id="segarkan" class="tombol-ikon" data-t-lb="tombolSegarkan" data-t-title="tombolSegarkan"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.5L21 15"/><path d="M21 20v-5h-5"/></svg></button>
-    <button id="bahasa" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="bahasa-teks">EN</span></button>
-    <button id="tema" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg><span id="tema-teks">Terang</span></button>
-    <button id="keluar" class="bahaya tombol-ikon" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span id="keluar-teks" data-t="tombolKeluar">Keluar</span></button>
+    <button id="segarkan" class="tombol-ikon" data-t-lb="tombolSegarkan" data-t-tip="tipSegarkan"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.5L21 15"/><path d="M21 20v-5h-5"/></svg></button>
+    <button id="bahasa" class="tombol-ikon" data-t-tip="tipBahasa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="bahasa-teks">EN</span></button>
+    <button id="tema" class="tombol-ikon" data-t-tip="tipTema" data-tip-sisi="akhir"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg><span id="tema-teks">Terang</span></button>
+    <button id="keluar" class="bahaya tombol-ikon" data-t-tip="tipKeluar" data-tip-sisi="akhir" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span id="keluar-teks" data-t="tombolKeluar">Keluar</span></button>
   </span>
 </header>
 <div id="err"></div>
@@ -1965,6 +2010,7 @@
     -->
     <ol class="timbang-langkah">
       <li class="langkah-ruas ruas-datang">
+        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 4v2h-8"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></span>
         <span class="langkah-kepala">
           <label class="lb langkah tahap-datang" id="lb-langkah-datang" for="scan-datang" data-t="lbDatang">1. Datang</label>
           <!-- Jumlah truk yang menunggu timbang isi; platnya di `title` dan sebagai baris
@@ -1974,12 +2020,14 @@
         <span class="langkah-di" data-t="hintDatang">Pilih truk, lalu Catat datang</span>
       </li>
       <li class="langkah-ruas ruas-bongkar">
+        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M8 8l4 4 4-4"/><path d="M3 16h18v4H3z"/></svg></span>
         <span class="langkah-kepala">
           <label class="lb langkah tahap-bongkar" id="lb-langkah-isi" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
         </span>
         <span class="langkah-di" data-t="hintTimbangIsi">Pilih truk, isi Bruto, lalu Timbang isi</span>
       </li>
       <li class="langkah-ruas ruas-kosong" id="ruas-kosong">
+        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12V3"/><path d="M8 7l4-4 4 4"/><path d="M3 16h18v4H3z"/></svg></span>
         <span class="langkah-kepala">
           <label class="lb langkah tahap-kosong" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
         </span>
@@ -1989,6 +2037,7 @@
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
       </li>
       <li class="langkah-ruas ruas-selesai">
+        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg></span>
         <span class="langkah-kepala">
           <label class="lb langkah tahap-selesai" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
         </span>
@@ -3204,6 +3253,10 @@ const KAMUS = {
     gagalPerpanjangSesi:"Sesi belum bisa diperpanjang",
     segarPada:"Diperbarui {jam}", basiSejak:"Data lama, terakhir diperbarui {jam}",
     tombolSegarkan:"Segarkan data", sukSegarkan:"Data sudah diperbarui",
+    tipSegarkan:"Ambil data terbaru sekarang. Layar juga menyegarkan dirinya sendiri.",
+    tipBahasa:"Ganti bahasa layar (Indonesia / English)",
+    tipTema:"Ganti tampilan terang / gelap, cuma di browser ini",
+    tipKeluar:"Keluar dari konsol di browser ini",
     gagalSegarkan:"Data belum bisa diperbarui. Konsol belum menjawab, coba lagi sebentar.",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     grupMenungguTimbang:"Menunggu timbang", grupTrukLain:"Truk lain", grupDiLokasi:"Di lokasi",
@@ -3721,6 +3774,10 @@ const KAMUS = {
     gagalPerpanjangSesi:"The session could not be extended",
     segarPada:"Updated {jam}", basiSejak:"Old data, last updated {jam}",
     tombolSegarkan:"Refresh data", sukSegarkan:"Data refreshed",
+    tipSegarkan:"Fetch the latest data now. The screen also refreshes itself.",
+    tipBahasa:"Change the screen language (Indonesian / English)",
+    tipTema:"Switch the light / dark display, on this browser only",
+    tipKeluar:"Sign out of the console on this browser",
     gagalSegarkan:"The data could not be refreshed. The console is not answering, try again shortly.",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     grupMenungguTimbang:"Waiting to weigh", grupTrukLain:"Other trucks", grupDiLokasi:"On site",
@@ -4081,6 +4138,8 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
   // A hover hint is its own channel too (Bruto carries the decimal hint, 2026-10-03).
   document.querySelectorAll("[data-t-title]").forEach((el) => { el.title = t(el.dataset.tTitle); });
+  // The tooltip component (2026-10-05): CSS draws `data-tip`, so only the sentence is set here.
+  document.querySelectorAll("[data-t-tip]").forEach((el) => { el.dataset.tip = t(el.dataset.tTip); });
   // So are labels read only by a screen reader - a button whose face is an icon says
   // nothing at all without one.
   document.querySelectorAll("[data-t-lb]").forEach((el) => {

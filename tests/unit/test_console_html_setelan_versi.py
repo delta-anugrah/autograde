@@ -126,12 +126,41 @@ def test_semua_bar_sub_tab_satu_komponen_selebar_tab_utama():
     assert bar and "padding:0 0 16px" in bar.group(1)
 
 
-def test_filter_log_berwarna_tetap_saat_dipilih():
-    for nilai, warna in (('""', "#ffffff"), ('"WARNING"', "#ffd44d"), ('"ERROR"', "#c62828")):
+def test_filter_log_bergaris_tepi_berwarna_tanpa_isi_dan_tanpa_centang():
+    """User 2026-10-05: outlined, not filled; All = text colour, WARNING yellow, ERROR red, kept
+    when chosen; no tick."""
+    dasar = re.search(r"#log-level button\s*\{([^}]*)\}", HTML)
+    assert dasar and "background:transparent" in dasar.group(1)
+    for nilai, warna in (('""', "var(--fg)"), ('"WARNING"', "var(--warn)"), ('"ERROR"', "var(--rej)")):
         aturan = re.search(rf"#log-level button\[data-nilai={nilai}\]\s*\{{([^}}]*)\}}", HTML)
-        assert aturan and f"background:{warna}" in aturan.group(1), nilai
-    aktif = re.search(r"#log-level button\.aktif\s*\{([^}]*)\}", HTML)
-    assert aktif and "background" not in aktif.group(1), "the chosen filter must keep its colour"
+        assert aturan, nilai
+        assert f"color:{warna}" in aturan.group(1) and f"border-color:{warna}" in aturan.group(1), nilai
+        assert "background" not in aturan.group(1), nilai
+    aktif = re.search(r"#log-level button\.aktif[^{]*\{([^}]*)\}", HTML)
+    assert aktif and "background" not in aktif.group(1), "the chosen filter must stay unfilled"
+    assert "#log-level button.aktif::before" not in HTML, "no tick"
+
+
+def test_tooltip_satu_komponen_di_tombol_bar_atas():
+    """User 2026-10-05: hover hints on the top-bar buttons through one reusable component."""
+    for tombol, kunci in (("segarkan", "tipSegarkan"), ("bahasa", "tipBahasa"), ("tema", "tipTema"),
+                          ("keluar", "tipKeluar")):
+        assert re.search(rf'<button id="{tombol}"[^>]*data-t-tip="{kunci}"', HTML), tombol
+        assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in id and en"
+    assert 'document.querySelectorAll("[data-t-tip]").forEach((el) => { el.dataset.tip = t(el.dataset.tTip); });' in HTML
+    # Drawn only while shown: a laid-out hidden hint widens the page on a phone.
+    assert "[data-tip]:is(:hover, :focus-visible)::after { content:attr(data-tip);" in HTML
+    assert "[data-tip]::after" not in HTML
+    # The busy spinner owns `::before`; the tooltip must never use it.
+    assert "[data-tip]::before" not in HTML
+    # The two right-most buttons open their hint leftwards, so the page never widens.
+    for tombol in ("tema", "keluar"):
+        assert re.search(rf'<button id="{tombol}"[^>]*data-tip-sisi="akhir"', HTML), tombol
+
+
+def test_strip_langkah_timbangan_punya_ikon_per_langkah():
+    blok = HTML.split('<ol class="timbang-langkah">', 1)[1].split("</ol>", 1)[0]
+    assert blok.count('<span class="langkah-ikon" aria-hidden="true"><svg') == 4
 
 
 def test_kartu_setelan_tanpa_kotak_dalam_kotak():

@@ -18,6 +18,27 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · Outlined Log filters, tooltip component, step cards, Record Video width (PR #243)
+Changed:        Log filters are outlined only (All `--fg`, WARNING `--warn`, ERROR `--rej`), the
+                chosen one at full opacity with a doubled outline, no tick. New tooltip component:
+                `data-t-tip="<KAMUS key>"`, text set by `terapkanBahasa` into `data-tip`, drawn by
+                `[data-tip]:is(:hover, :focus-visible)::after` only while shown; on the four top-bar
+                buttons (`tipSegarkan`, `tipBahasa`, `tipTema`, `tipKeluar`), replacing the native
+                title on Refresh. Weighbridge step cards: tinted in their stage colour, icon tile
+                from 1280 px, round arrow chip between cards. Panel content lost its second
+                `var(--pad)` indent (Record Video note/table/footer, Accounts, Log Discord line,
+                Manifest note, PLC confirm); the Record Video settings card sits 16 px below the
+                table with a styled heading (its summary style had gone with the accordion CSS).
+Validated:      `pytest tests --ignore=tests/browser --deselect tests/unit/test_doc_links.py` → 5647
+                passed, 0 failed; ruff clean; full browser suite (both browsers) found the hidden
+                tooltip widening a 390 px page (`test_the_four_steps_never_scroll_sideways`), fixed
+                by drawing it only on hover; then `test_browser_gerbang.py`, `test_browser_status.py`,
+                `test_browser_semua_halaman.py` in Chromium + Firefox → all passed. Screenshots of Log,
+                tooltips, Weighbridge (1600 and 1100 px), Record Video, Accounts, Manifest checked in
+                id/en and light/dark. `docs/MANUAL.pdf` rebuilt.
+Not validated:  The full browser suite after the tooltip fix (left to CI). Factory PC.
+Next:           Release v1.25.0 (#244).
+
 ## 2026-10-05 · console · Status in sub-tabs, flat Settings card, tab-style sub-tabs, Log colours (PR #243)
 Changed:        Status is five sub-tabs (Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean
                 ERP, Manifest R2), the Settings pattern (`SUB_STATUS`, `terapkanSubStatus`, remembered

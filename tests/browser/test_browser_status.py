@@ -94,13 +94,34 @@ def test_sub_tab_bars_are_as_wide_as_the_main_tab_bar(halaman):
         assert abs(kotak["x"] + kotak["width"] - utama[1]) <= 1, (tab, kotak, utama)
 
 
-def test_log_filters_keep_their_colour_when_chosen(halaman):
-    """User 2026-10-05: All white, WARNING yellow, ERROR red, chosen or not."""
+def test_log_filters_are_outlined_in_their_colour_when_chosen(halaman):
+    """User 2026-10-05: outlined, never filled, each in its level's colour, no tick."""
     masuk(halaman, SUPPORT)
     halaman.click('#tabs [data-tab="log"]')
-    warna = {"": "rgb(255, 255, 255)", "WARNING": "rgb(255, 212, 77)", "ERROR": "rgb(198, 40, 40)"}
+    warna = halaman.evaluate("""() => { const s = getComputedStyle(document.documentElement);
+      const v = (n) => { const el = document.createElement('i'); el.style.color = s.getPropertyValue(n);
+        document.body.append(el); const c = getComputedStyle(el).color; el.remove(); return c; };
+      return {"": v('--fg'), WARNING: v('--warn'), ERROR: v('--rej')}; }""")
     for dipilih in ("WARNING", "ERROR", ""):
         halaman.click(f'#log-level button[data-nilai="{dipilih}"]')
         expect(halaman.locator(f'#log-level button[data-nilai="{dipilih}"]')).to_have_class(re.compile(r"\baktif\b"))
         for nilai, rgb in warna.items():
-            expect(halaman.locator(f'#log-level button[data-nilai="{nilai}"]')).to_have_css("background-color", rgb)
+            tombol = halaman.locator(f'#log-level button[data-nilai="{nilai}"]')
+            expect(tombol).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+            expect(tombol).to_have_css("border-top-color", rgb)
+            expect(tombol).to_have_css("color", rgb)
+            assert tombol.evaluate("(el) => getComputedStyle(el, '::before').content") in ("none", "normal")
+
+
+def test_top_bar_buttons_show_a_tooltip_on_hover(halaman):
+    """One tooltip component (2026-10-05): the sentence follows the language and shows on hover."""
+    masuk(halaman, SUPPORT)
+    tombol = halaman.locator("#segarkan")
+    expect(tombol).to_have_attribute("data-tip", kamus(halaman, "tipSegarkan"))
+    isi = "(el) => getComputedStyle(el, '::after').content"
+    assert tombol.evaluate(isi) in ("none", "normal"), "nothing drawn before the hover"
+    tombol.hover()
+    halaman.wait_for_function("() => { const g = getComputedStyle(document.querySelector('#segarkan'), '::after');"
+                              " return g.content.includes(document.querySelector('#segarkan').dataset.tip) && g.opacity === '1'; }")
+    halaman.click("#bahasa")
+    expect(halaman.locator("#keluar")).to_have_attribute("data-tip", kamus(halaman, "tipKeluar"))
