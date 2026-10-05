@@ -18,6 +18,27 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #PRNUM)
+Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, 00:00 to
+                12:00, default 00:00 = old behaviour). `work_date` = date of `timestamp - cutoff`,
+                computed only in `services/hari_kerja.py` (ingest, weighing, gate scans, "Hari
+                ini"); stored rows never move (rule 10). `GET/POST /api/console/dev/shift`,
+                `/api/console/state` carries `cutoff_shift`, the Rekap tab says "Hari kerja dipotong
+                jam HH:MM" when not midnight. State route moved to `routes/console_keadaan.py`
+                (console.py 999 -> 972 lines). Review fixes: Impor CSV reads its own export under a
+                cutoff, gate windows keep a day of slack, a cutoff raised at night keeps the truck on
+                the Timbangan table, every change logged with old, new and who.
+Validated:      unit 5072 passed / 28 skipped, e2e 412 passed / 20 skipped, integration 191 passed,
+                ruff clean, cek_skrip_konsol OK (all on 582e3644). make test-browser 312 passed,
+                2 failed in Firefox (test_browser_gerbang, test_browser_setelan, unrelated); both
+                files rerun twice in Chromium and Firefox: 62 passed each time.
+Not validated:  On the factory PC (needs a release). Not tried with a real night shift.
+Decisions:      User 2026-10-05: option A, support only, new rows only, no end-of-shift summary.
+                Accepted: AutoERP dates tickets from the local date of `time_in`, so for trucks
+                weighed between 00:00 and the cutoff the console day and the AutoERP date differ;
+                totals do not change.
+Next:           Release with the next tag; support sets the real cutoff at Lampung.
+
 ## 2026-10-05 · console · Outlined Log filters, tooltip component, step cards, Record Video width (PR #243)
 Changed:        Log filters are outlined only (All `--fg`, WARNING `--warn`, ERROR `--rej`), the
                 chosen one at full opacity with a doubled outline, no tick. New tooltip component:
