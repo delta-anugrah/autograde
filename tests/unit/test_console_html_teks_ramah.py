@@ -186,6 +186,7 @@ MENTAH = "line-1 did not answer: Client error '404 Not Found' for url 'http://12
 POTONGAN_MENTAH = ("404", "Not Found", "http", "did not answer", "internal/status", "HTTP", "Client error")
 DASH = 'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));'
 DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu",
+        "spanTingkat", "diagFpsKamera", "diagFrameHilang", "diagPutus", "diagTandaGrupKamera",
         "kunciSebabTakTerbaca", "kartuDiagnostik"]
 ANTREAN_LINE = ["kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "teksMenit", "lamaProses"]
 SEHAT = {"terjangkau": True, "aktif": True, "lama_tertinggal": False, "menunggu": 3, "tersambung": True}

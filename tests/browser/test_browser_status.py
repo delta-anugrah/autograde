@@ -1,5 +1,5 @@
-"""Status tab, Diagnostics card: the camera temperature a line reports reaches the support
-screen, and a line that does not answer shows no number for it."""
+"""Status tab, Diagnostics card: the camera temperature and camera health a line reports reach
+the support screen, and a line that does not answer shows no number for them."""
 
 from __future__ import annotations
 
@@ -37,3 +37,18 @@ def test_diagnostics_groups_start_closed_and_an_opened_one_stays_open(halaman):
     expect(halaman.locator('#diagnostik-kartu .card[data-line="line-1"] details[data-grup="data"]')).not_to_have_attribute("open", "")
     grup.locator("summary").click()
     expect(grup).not_to_have_attribute("open", "")
+
+
+def test_camera_health_rows_and_the_closed_group_flags_a_problem(halaman):
+    """Lost frames are graded on the line; the screen colours the row and flags the group
+    header, which stays visible while the group is closed."""
+    masuk(halaman, SUPPORT)
+    buka_tab(halaman, "status")
+    grup = halaman.locator('#diagnostik-kartu .card[data-line="line-1"] details[data-grup="kamera"]')
+    expect(grup).not_to_have_attribute("open", "")
+    expect(grup.locator("summary .tanda-waspada")).to_have_text(kamus(halaman, "diagKameraPerluDicek"))
+    grup.locator("summary").click()
+    hilang = _baris(halaman, "line-1", kamus(halaman, "thFrameHilang"))
+    expect(hilang).to_have_text("12 (0,1%)")
+    expect(hilang.locator(".tanda-waspada")).to_have_count(1)
+    expect(_baris(halaman, "line-1", kamus(halaman, "thPutusKamera"))).to_have_text("0")

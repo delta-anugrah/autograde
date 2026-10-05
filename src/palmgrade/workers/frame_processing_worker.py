@@ -18,6 +18,7 @@ from ..domain.grade_class import TP, grade_class_of, is_fruit_class, verdict_for
 from ..domain.plc_signal import plc_status_for
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..license.gate import grading_blocked
+from ..pipelines.kotak_deteksi import baca_kotak
 from ..plc import submit_grading
 from ..services.capture_writer import CaptureWriter
 from .capture_save_worker import CaptureSaveWorker, SaveJob
@@ -255,20 +256,24 @@ class FrameProcessingWorker:
         self.state.last_yolo_results = results    # paired: box selalu aligned dengan last_yolo_frame
         self.state.last_yolo_frame_at = time.time()
 
+        # Batch 6.1: the boxes cross from the GPU ONCE per frame. The three scans below (and
+        # the DEBUG line) used to call `.item()` / `.tolist()` per value, each one a wait on
+        # the GPU. They now read this list; nothing below touches `results.boxes` again.
+        kotak_frame = baca_kotak(results)
+
         if logger.isEnabledFor(logging.DEBUG):
-            if results.boxes is not None and len(results.boxes) > 0:
+            if kotak_frame:
                 detections = []
-                for b in results.boxes:
-                    cls_id = int(b.cls[0].item())
-                    tid = int(b.id[0].item()) if b.id is not None else -1
-                    lbl = results.names[cls_id]
-                    conf = float(b.conf[0].item())
-                    bx1, by1, bx2, by2 = map(int, b.xyxy[0].tolist())
-                    area = (bx2 - bx1) * (by2 - by1)
-                    bcx, bcy = (bx1 + bx2) // 2, (by1 + by2) // 2
-                    detections.append(f"id={tid} {lbl} conf={conf:.2f} bbox=({bx1},{by1},{bx2},{by2}) area={area} center=({bcx},{bcy})")
+                for k in kotak_frame:
+                    lbl = results.names[k.cls_id]
+                    area = (k.x2 - k.x1) * (k.y2 - k.y1)
+                    bcx, bcy = (k.x1 + k.x2) // 2, (k.y1 + k.y2) // 2
+                    detections.append(
+                        f"id={k.track_id} {lbl} conf={k.conf:.2f} "
+                        f"bbox=({k.x1},{k.y1},{k.x2},{k.y2}) area={area} center=({bcx},{bcy})"
+                    )
                 logger.debug("[MODEL] frame=%d n=%d roi=%s | %s",
-                             self._frame_count, len(results.boxes),
+                             self._frame_count, len(kotak_frame),
                              roi,
                              " | ".join(detections))
             else:
@@ -292,13 +297,13 @@ class FrameProcessingWorker:
         # memutuskan TP itu milik siapa. Dikumpulkan di loop yang SUDAH ADA,
         # bukan loop baru: ini jalan tiap frame pada 8-20 fps per line.
         janjang_frame_ini: list[tuple[int, int, int, int]] = []
-        if results.boxes is not None:
-            for _box in results.boxes:
-                _tid = int(_box.id[0].item()) if _box.id is not None else -1
-                _lbl = _grade_class_or_none(results.names[int(_box.cls[0].item())])
+        if kotak_frame:
+            for _k in kotak_frame:
+                _tid = _k.track_id
+                _lbl = _grade_class_or_none(results.names[_k.cls_id])
                 if not (_lbl is not None and is_fruit_class(_lbl)):
                     continue
-                _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
+                _bx1, _by1, _bx2, _by2 = _k.x1, _k.y1, _k.x2, _k.y2
                 # Saingan pemilik TP: janjang yang BISA memiliki tangkai, yaitu
                 # yang kelasnya ACC. Yang sudah diproses ikut — tangkai milik
                 # janjang yang baru saja difoto tidak boleh pindah ke tetangganya
@@ -331,11 +336,11 @@ class FrameProcessingWorker:
         # kotak dalam satu frame tidak dijamin: TP yang kebetulan disebut
         # sesudah janjangnya akan terlewat kalau dibaca sambil jalan.
         tp_frame_ini: list[dict] = []
-        if results.boxes is not None:
-            for _box in results.boxes:
-                if _grade_class_or_none(results.names[int(_box.cls[0].item())]) != TP:
+        if kotak_frame:
+            for _k in kotak_frame:
+                if _grade_class_or_none(results.names[_k.cls_id]) != TP:
                     continue
-                _tid = int(_box.id[0].item()) if _box.id is not None else -1
+                _tid = _k.track_id
                 # Gerbang yang sama dengan kode sebelum pasangan-lewat-jarak:
                 # kotak tanpa track id adalah deteksi yang ByteTrack sendiri
                 # belum yakini, dan tangkai yang sudah menempel ke satu janjang
@@ -344,21 +349,16 @@ class FrameProcessingWorker:
                     track_id=_tid, sudah_diproses=_tid in self._processed_objects
                 ):
                     continue
-                _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
                 tp_frame_ini.append({
                     "track_id": _tid,
                     "tp_status": "PASS",
-                    "tp_confidence": float(_box.conf[0].item()),
-                    "bbox": (_bx1, _by1, _bx2, _by2),
+                    "tp_confidence": _k.conf,
+                    "bbox": (_k.x1, _k.y1, _k.x2, _k.y2),
                 })
 
-        if results.boxes is not None and len(results.boxes) > 0:
-            for box in results.boxes:
-                cls_id = int(box.cls[0].item())
-                track_id = int(box.id[0].item()) if box.id is not None else -1
+        if kotak_frame:
+            for track_id, cls_id, score, x1, y1, x2, y2 in kotak_frame:
                 label = results.names[cls_id]
-                score = float(box.conf[0].item())
-                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
 
                 # Kelas dibaca dari NAMA, bukan urutan id. Model yang dilatih ulang
                 # boleh menukar urutan kelasnya; dulu baris ini `cls_id in (0, 1)`

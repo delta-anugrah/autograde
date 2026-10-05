@@ -18,6 +18,7 @@ from ai_palsu import LinePalsu
 from fastapi import FastAPI
 
 from palmgrade.core.config import LineEndpoint, Settings
+from palmgrade.domain.kesehatan_kamera import StatistikAliran
 from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.repositories.log_repository import LogStore
 from palmgrade.schemas.common_schema import HealthDetailSchema
@@ -76,3 +77,20 @@ def test_suhu_basi_sampai_konsol_sebagai_null(tmp_path, torch_palsu):
     line.jalan(1)
     line.jam.sekarang += 120
     assert _diagnostik(tmp_path, line)["suhu_kamera_c"] is None
+
+
+def test_kesehatan_kamera_sampai_ke_jawaban_diagnostik_konsol(tmp_path, torch_palsu):
+    """No temperature sensor (Lampung): the card gets "not supported", lost frames and the
+    group level instead, through the real console pass-through."""
+    line = LinePalsu()
+    line.mulai()
+    line.kamera.suhu_didukung = False
+    line.kamera.statistik = StatistikAliran(diterima=0, hilang=0)
+    line.jalan(10)
+    line.kamera.statistik = StatistikAliran(diterima=990, hilang=10)
+    line.jalan(10)
+    kartu = _diagnostik(tmp_path, line)
+    assert kartu["suhu_kamera_didukung"] is False
+    assert kartu["frame_hilang"] == {"hilang": 10, "total": 1000, "persen": 1.0, "tingkat": "waspada"}
+    assert kartu["putus_kamera"] == {"jumlah": 0, "tingkat": "aman"}
+    assert kartu["kamera_tingkat"] == "waspada"
