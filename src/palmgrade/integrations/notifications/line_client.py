@@ -28,10 +28,14 @@ from ...domain.operator_error import (
     LINE_TIDAK_MENJAWAB,
     OperatorError,
 )
+from ..klien_http import KlienBersama
 
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_S = 10.0
+#: `hidup()` is asked every quarter second while the console waits for a line to exit; a
+#: line that is going down is expected not to answer.
+_TIMEOUT_HIDUP_S = 0.5
 #: The line answers a reconnect request before it touches the camera, so the button
 #: never waits on the camera itself; a line that needs longer than this is not answering.
 TIMEOUT_SAMBUNG_ULANG_S = 5.0
@@ -89,7 +93,14 @@ class LineClient:
         self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
     ) -> None:
         self._settings = settings
-        self._transport = transport  # tests swap the network, like ErpClient
+        # One client for every call to every line (batch 6.5). Each call passes its own
+        # timeout; `_TIMEOUT_S` only covers a call that forgets to. Tests swap the network
+        # through `transport`, like ErpClient.
+        self._http = KlienBersama(timeout=_TIMEOUT_S, transport=transport)
+
+    async def aclose(self) -> None:
+        """Close the kept HTTP client (console shutdown)."""
+        await self._http.tutup()
 
     async def assign_truck(
         self,
@@ -156,12 +167,12 @@ class LineClient:
         """
         url = f"{self._settings.console_line_host}:{line.port}/internal/camera/reconnect"
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT_SAMBUNG_ULANG_S, transport=self._transport) as client:
-                res = await client.post(
-                    url,
-                    json={"requested_by": requested_by},
-                    headers={"x-internal-secret": self._settings.internal_secret},
-                )
+            res = await self._http.ambil().post(
+                url,
+                json={"requested_by": requested_by},
+                headers={"x-internal-secret": self._settings.internal_secret},
+                timeout=TIMEOUT_SAMBUNG_ULANG_S,
+            )
         except httpx.HTTPError as exc:
             logger.warning("Camera reconnect on %s failed: %s", line.line_code, exc)
             raise LineUnavailable(
@@ -196,12 +207,12 @@ class LineClient:
         the caller (DevService) must see the reason, not a silent no-op."""
         url = f"{self._settings.console_line_host}:{line.port}/internal/plc/coil"
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
-                res = await client.post(
-                    url,
-                    json={"machine_id": line.machine_id, "coil": coil, "requested_by": requested_by},
-                    headers={"x-internal-secret": self._settings.internal_secret},
-                )
+            res = await self._http.ambil().post(
+                url,
+                json={"machine_id": line.machine_id, "coil": coil, "requested_by": requested_by},
+                headers={"x-internal-secret": self._settings.internal_secret},
+                timeout=_TIMEOUT_S,
+            )
         except httpx.HTTPError as exc:
             logger.warning("PLC test coil %s to %s failed: %s", coil, line.line_code, exc)
             raise LineUnavailable(
@@ -235,21 +246,21 @@ class LineClient:
         """
         url = f"{self._settings.console_line_host}:{line.port}/internal/setelan"
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
-                res = await client.post(
-                    url,
-                    json={
-                        "conf_threshold": conf_threshold,
-                        "minimum_size": minimum_size,
-                        "garis_capture": garis_capture,
-                        "sumbu_garis": sumbu_garis,
-                        "mode_dev": mode_dev,
-                        "tampil_garis": tampil_garis,
-                        "tampil_roi": tampil_roi,
-                        **kotak,  # roi_x1..roi_y2, None = the line keeps its `.env` box
-                    },
-                    headers={"x-internal-secret": self._settings.internal_secret},
-                )
+            res = await self._http.ambil().post(
+                url,
+                json={
+                    "conf_threshold": conf_threshold,
+                    "minimum_size": minimum_size,
+                    "garis_capture": garis_capture,
+                    "sumbu_garis": sumbu_garis,
+                    "mode_dev": mode_dev,
+                    "tampil_garis": tampil_garis,
+                    "tampil_roi": tampil_roi,
+                    **kotak,  # roi_x1..roi_y2, None = the line keeps its `.env` box
+                },
+                headers={"x-internal-secret": self._settings.internal_secret},
+                timeout=_TIMEOUT_S,
+            )
         except httpx.HTTPError as exc:
             logger.warning("Kirim setelan ke %s gagal: %s", line.line_code, exc)
             raise LineUnavailable(
@@ -404,8 +415,7 @@ class LineClient:
         """
         url = f"{self._settings.console_line_host}:{line.port}/health"
         try:
-            async with httpx.AsyncClient(timeout=0.5, transport=self._transport) as client:
-                res = await client.get(url)
+            res = await self._http.ambil().get(url, timeout=_TIMEOUT_HIDUP_S)
         except httpx.HTTPError:
             return False
         if res.status_code == 200:
@@ -438,10 +448,11 @@ class LineClient:
         """
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:
-            async with httpx.AsyncClient(timeout=timeout_s, transport=self._transport) as client:
-                res = await client.get(
-                    url, headers={"x-internal-secret": self._settings.internal_secret}
-                )
+            res = await self._http.ambil().get(
+                url,
+                headers={"x-internal-secret": self._settings.internal_secret},
+                timeout=timeout_s,
+            )
         except httpx.HTTPError as exc:
             raise LineUnavailable(
                 LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
@@ -481,12 +492,12 @@ class LineClient:
         """
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
-                res = await client.post(
-                    url,
-                    json=body,
-                    headers={"x-internal-secret": self._settings.internal_secret},
-                )
+            res = await self._http.ambil().post(
+                url,
+                json=body,
+                headers={"x-internal-secret": self._settings.internal_secret},
+                timeout=_TIMEOUT_S,
+            )
         except httpx.HTTPError as exc:
             logger.warning("Perintah %s ke %s gagal: %s", path, line.line_code, exc)
             raise LineUnavailable(
@@ -502,12 +513,12 @@ class LineClient:
     async def _post(self, line: LineEndpoint, path: str, body: dict[str, Any]) -> None:
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
-                res = await client.post(
-                    url,
-                    json=body,
-                    headers={"x-internal-secret": self._settings.internal_secret},
-                )
+            res = await self._http.ambil().post(
+                url,
+                json=body,
+                headers={"x-internal-secret": self._settings.internal_secret},
+                timeout=_TIMEOUT_S,
+            )
         except httpx.HTTPError as exc:
             # The screen shows a translated sentence; the httpx cause lives in the log.
             logger.warning("Command %s to %s failed: %s", path, line.line_code, exc)

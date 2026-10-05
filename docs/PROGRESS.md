@@ -35,6 +35,25 @@ Decisions:      `draw_boxes` still reads per value (once per saved bunch and per
                 for a follow-up so this PR stays on the detection loop.
 Next:           Run `scripts/bench_baca_kotak.py` inside a line container in Lampung for the CUDA number.
 
+## 2026-10-04 · console · Batch 6.5: lines read side by side, one kept HTTP client (PR #228)
+Changed:        `LineStatusWorker` asks the three lines at the same time (`asyncio.gather`, one loop
+                per line in `run_loop`); an answer is recorded when it arrives. An unreadable answer
+                marks only that line (it used to end the status loop for good). `LineClient` and
+                `ErpClient` keep one `httpx.AsyncClient` (`integrations/klien_http.KlienBersama`):
+                per-call timeouts unchanged, cookies never stored, a client from another event loop
+                replaced. New `scripts/bench_status_line.py`.
+Validated:      unit 4639 passed, e2e 391, integration 169, ruff clean; new tests red on the old code,
+                mutations fail them. Benchmark on the MacBook (M2), loopback stubs: healthy lines
+                recorded 1,526.9 ms after the round started with one hanging line, now 3.2 ms; a
+                round of three healthy lines 22.7 ms to 2.4 ms; building a client 6.14 ms (3 per
+                second before); 50 messages to an AutoERP stub 8.07 to 1.11 ms each.
+Not validated:  The factory PC and the real AutoERP (TLS) were not measured. Browser suite left to CI.
+                No console or line started.
+Decisions:      Each line keeps its own pace in `run_loop`, so a dead line is read every 2.5 s and
+                the others every second. Cookies are not stored on the kept client, to behave as a
+                client per message did.
+Next:           Watch the Log tab on the factory PC after the release for any new "tidak terbaca" row.
+
 ## 2026-10-04 · console + vision · Detection area box from the console, collapsible Diagnostics (PR #225)
 Changed:        The ROI box is set from Settings, Camera & Conveyor (four stream-space pixels,
                 `roi_x1..roi_y2`) through the grading settings path: `domain/setelan_grading`
