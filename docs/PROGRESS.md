@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · Grading filter by line and truck, small photos in tables (batch 5.10, 5.12) (PR #PRNUM)
+## 2026-10-05 · console · Grading filter by line and truck, small photos in tables (batch 5.10, 5.12) (PR #234)
 Changed:        Server: every grading and history row carries `thumb_url` (the 400 px copy in
                 `thumb/` that the line already writes and uploads), from `_with_foto` in the new
                 `services/tampilan_baris.py`. The row-view helpers moved there from
