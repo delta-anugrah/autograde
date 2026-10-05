@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · The console page is always fetched fresh after an update (PR pending)
+## 2026-10-05 · console · The console page is always fetched fresh after an update (PR #236)
 
 ```
 Changed:        GET /console now answers with `Cache-Control: no-cache` (routes/console.py). Before, the
