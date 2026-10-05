@@ -151,6 +151,8 @@ async def lifespan(app: FastAPI):
     yield
     for task in tasks:
         task.cancel()
+    # The line client keeps one HTTP client for the life of the console (batch 6.5).
+    await service.line_client.aclose()
     if handler_lapor is not None:
         logging.getLogger().removeHandler(handler_lapor)
     pemasangan_log.lepas()
