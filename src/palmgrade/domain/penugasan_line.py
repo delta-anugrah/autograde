@@ -35,14 +35,22 @@ class SetelanPenugasan:
 
 
 def setelan_bawaan(line_dikenal: list[str]) -> SetelanPenugasan:
-    """Off, every configured line chosen: an update never changes how a mill works on
-    the day it lands (decision D13)."""
+    """On, every configured line chosen, for a console that never saved this setting (user
+    2026-10-05; it used to start off, decision D13). Off when no line is configured: on with
+    no line would put a truck nowhere."""
+    return SetelanPenugasan(aktif=bool(line_dikenal), lines=tuple(line_dikenal))
+
+
+def _tak_terbaca(line_dikenal: list[str]) -> SetelanPenugasan:
+    """A stored row this code cannot read was saved by someone: read it as off, never as
+    the never-saved default."""
     return SetelanPenugasan(aktif=False, lines=tuple(line_dikenal))
 
 
 def baca_setelan(tersimpan: str | None, line_dikenal: list[str]) -> SetelanPenugasan:
-    """The stored setting, or the default. A line no longer configured is dropped; a
-    setting left with no line, or with an `aktif` that is not JSON true, reads as off.
+    """The stored setting, or the default when none was saved. A line no longer configured
+    is dropped; a setting left with no line, or with an `aktif` that is not JSON true, or a
+    row that cannot be read, reads as off.
 
     Never raises: the `state()` poll reads it every 2 s, so text that is not JSON, JSON
     that is not an object, or a `lines` of the wrong shape all fall back instead.
@@ -52,14 +60,14 @@ def baca_setelan(tersimpan: str | None, line_dikenal: list[str]) -> SetelanPenug
     try:
         nilai = json.loads(tersimpan)
     except ValueError:
-        return setelan_bawaan(line_dikenal)
+        return _tak_terbaca(line_dikenal)
     if not isinstance(nilai, dict):
-        return setelan_bawaan(line_dikenal)
+        return _tak_terbaca(line_dikenal)
     daftar = nilai.get("lines")
     pilihan = {kode for kode in daftar if isinstance(kode, str)} if isinstance(daftar, list) else set()
     lines = tuple(kode for kode in line_dikenal if kode in pilihan)
     # Only a real JSON true turns it on: `bool("false")` is True, and anything this code
-    # did not write must read as the safe default, off (D13).
+    # did not write must read as off.
     return SetelanPenugasan(aktif=nilai.get("aktif") is True and bool(lines), lines=lines)
 
 

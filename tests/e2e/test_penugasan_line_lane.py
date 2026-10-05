@@ -6,6 +6,7 @@ bukan antrean line ke konsol di tab Status.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -16,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from palmgrade.core.config import Settings
 from palmgrade.domain.operator_auth import hash_password
+from palmgrade.domain.penugasan_line import KUNCI_PENUGASAN
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import get_auth_service, get_console_service
 from palmgrade.routes.console import router as console_router
@@ -40,6 +42,8 @@ def konsol(tmp_path):
         store.upsert_operator_manual(
             {"email": email, "full_name": email, "password_hash": hash_password(SANDI), "role": role}
         )
+    # Start from "turned off"; a never-saved console starts on (2026-10-05), see the test below.
+    store.set_state(KUNCI_PENUGASAN, json.dumps({"aktif": False, "lines": ["line-1", "line-2", "line-3"]}))
     service = ConsoleService(replace(Settings(), factory_tz="Asia/Jakarta"), store, FakeLine())
     app = FastAPI()
     app.include_router(console_router)
@@ -219,3 +223,27 @@ def test_selama_pembaruan_truk_menunggu_dan_tugaskan_sekarang_409(konsol):
     assert [a["plate_number"] for a in antrean] == ["BE 1 AA"]
     r = op.post(f"/api/console/unloading-queue/{antrean[0]['weighing_id']}/assign")
     assert r.status_code == 409 and r.json()["detail"]["code"] == "pembaruan_berjalan", r.text
+
+
+def test_konsol_baru_bawaannya_nyala_dan_timbang_isi_langsung_memasang(tmp_path):
+    """User 2026-10-05: a console that never saved this setting assigns automatically on every
+    line, so the first weigh-in after an install already puts the truck on the lines."""
+    store = ConsoleStore(tmp_path / "baru.db")
+    store.upsert_operator_manual(
+        {"email": SUPPORT, "full_name": SUPPORT, "password_hash": hash_password(SANDI), "role": "support"}
+    )
+    service = ConsoleService(replace(Settings(), factory_tz="Asia/Jakarta"), store, FakeLine())
+    app = FastAPI()
+    app.include_router(console_router)
+    pasang_penangan_validasi(app)
+    app.dependency_overrides[get_console_service] = lambda: service
+    app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
+    support = _masuk(app, SUPPORT)
+
+    setelan = support.get("/api/console/dev/auto-assign").json()
+    assert setelan["aktif"] is True and setelan["lines"] == ["line-1", "line-2", "line-3"]
+
+    tiket = _isi(support, "BE 1 BARU")
+    dipasang = service.store.assignments()
+    assert len(dipasang) == 3, ("the first weigh-in must go on all three lines", tiket, dipasang)
+    assert len({a["truck_id"] for a in dipasang.values()}) == 1

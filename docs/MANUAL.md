@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.17"
+versi: "2.19"
 tanggal: 5 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -163,6 +163,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - **Tombol bundar panah melingkar** di kanan atas (**Segarkan data**): cadangan kalau ragu
   layarnya tertinggal. Menarik ulang semua data sekaligus, lalu menjawab "Data sudah
   diperbarui" atau, kalau konsol tidak menjawab, notifikasi merah.
+- Arahkan kursor ke tombol di kanan atas (Segarkan, bahasa, tema, Keluar): sesudah sebentar
+  muncul kotak kecil yang menjelaskan gunanya, dalam bahasa layar.
 - Sesudah versi baru terpasang, layar yang sedang terbuka **memuat ulang dirinya sendiri**
   (tidak perlu F5). Ia menunggu dulu kalau ada kotak dialog terbuka, tombol yang masih
   berputar, atau isian yang sedang diketik.
@@ -238,7 +240,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - Sumber TBS **Internal** ditandai "REJ tidak dibuang": buah kebun sendiri tetap dinilai, tapi
   piston tidak membuangnya.
 - Di atas tabel Timbangan ada strip empat langkah: **1. Datang**, **2. Timbang isi**,
-  **3. Timbang kosong**, **4. Keluar**, sama lebar dan sama tinggi, dengan panah di antaranya.
+  **3. Timbang kosong**, **4. Keluar**, sama lebar dan sama tinggi, dengan panah di antaranya;
+  tiap kartu berwarna tahapnya dan, di layar lebar, berikon (truk, timbang isi, timbang kosong, bendera).
   Tiap langkah menulis di mana ia dikerjakan (misalnya "Tekan Keluar di baris truknya"); langkah
   1 juga menampilkan lencana **Menunggu n**, jumlah truk yang sudah datang tapi belum timbang
   isi. Di bawah strip ada dua form yang sama lebar: **Datang** (pilih truk, **Catat datang**)
@@ -331,7 +334,7 @@ scan 4. Scan di kolom **3. Timbang kosong** juga mencari tiket 12
 jam ke belakang, bukan cuma tiket hari ini. Tiketnya tetap milik tanggal kerja kemarin: strip
 "Hari ini", Rekap, CSV dan AutoERP menghitungnya di hari itu, tidak dua kali.
 
-**Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
+**Penugasan otomatis** (bawaannya nyala di semua line sejak 5 Oktober 2026; support bisa mematikannya di tab **Setelan**, sub-tab Penugasan line). Selama
 mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
 Kalau dinyalakan, truk yang timbang isi langsung ditugaskan ke line yang dipilih support, dan
 notifikasi menyebut line-nya. Truk yang sudah menunggu saat saklar disimpan nyala langsung ikut
@@ -372,7 +375,7 @@ Aturan angka yang dijaga konsol:
   1.000 kg pada bruto dan tara, karena terbaca 14,82 kg.
 - **Tanggal kerja** dihitung saat data masuk dengan `FACTORY_TZ`. Pabrik jalan ±20 jam lewat
   tengah malam; ini yang mencegah satu shift terbelah jadi dua hari. Support bisa menggeser awal
-  hari kerja di tab Setelan (bagian **Hari kerja**, misal 05:00; bawaannya 00:00). Data yang sudah
+  hari kerja di tab Setelan (sub-tab **Hari kerja**, misal 05:00; bawaannya 00:00). Data yang sudah
   tersimpan tidak pindah tanggal.
 - Buah REJ dinaikkan lagi ke truk dan ikut ditimbang saat keluar, jadi otomatis tidak dibayar.
 
@@ -395,7 +398,7 @@ Ganti tanggal untuk melihat hari-hari sebelumnya. Rekap menyandingkan dua sumber
 dan timbangan): neto dijumlah per truk, dan satu truk boleh punya lebih dari satu tiket sehari.
 Baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan.
 
-Kalau support menggeser awal hari kerja (tab Setelan, **Hari kerja**), di atas tabel tertulis
+Kalau support menggeser awal hari kerja (tab Setelan, sub-tab **Hari kerja**), di atas tabel tertulis
 **Hari kerja dipotong jam 05:00** (jamnya ikut setelan). Truk yang timbang isi antara 00:00 dan jam
 itu masuk hari kerja kemarin di konsol, tapi di AutoERP tiketnya tetap bertanggal hari timbang isi.
 Totalnya sama; cuma tanggalnya yang beda.
@@ -433,23 +436,29 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 
 Sejak 2026-09-28 tab-tabnya digabung (dulu sepuluh). Nama lama yang mungkin masih tertulis di
 runbook: **Diagnostik, Antrean ERP, Versi** → tab **Status**; **Sumber Kamera, Model Deteksi,
-Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riwayat** → tab
+Uji PLC, Rekam Video** → tab **Line** (empat sub-tab di atasnya); **Riwayat** → tab
 **Rekap** (operator). Tab lama yang masih diingat browser dibuka di tempat barunya.
+
+Tab **Status**, **Line**, dan **Setelan** punya baris sub-tab di bawah baris tab utama, sama
+lebarnya, dengan garis bawah tebal di sub-tab yang terbuka. Satu bagian tampil sekaligus, dan
+sub-tab terakhir diingat browser. Status punya lima: **Versi & pembaruan**, **Diagnostik**,
+**Antrean line ke konsol**, **Antrean ERP**, **Manifest R2** (sejak 5 Oktober 2026; dulu
+kelimanya bertumpuk dalam satu halaman).
 
 | Tab | Isi |
 |---|---|
-| **Log** | galat dan peringatan konsol DAN ketiga line (kolom Sumber menyebut line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord. 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
-| **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
-| **Status**, bagian Diagnostik | tiga kartu line, tiap kartu berisi empat kelompok yang **tertutup dari awal** dan dibuka dengan menekan judulnya (**Kamera dan gambar**, **Mesin**, **Data**, **Workers**); kelompok yang dibuka tetap terbuka di browser itu, dan judul kelompok jadi **merah** kalau ada baris bermasalah di dalamnya, dan judul **Kamera dan gambar** menulis **perlu dicek** (kuning atau merah) kalau laju, frame hilang, atau putus-nyambung kameranya bermasalah. Ini pengganti indikator suhu: kamera yang kepanasan biasanya turun lajunya, kehilangan gambar, atau putus-nyambung. Isinya: kamera, suhu kamera (°C, `-` kalau kamera tidak melaporkan atau sudah lebih dari 60 detik tidak terbaca, **tidak didukung kamera** kalau kameranya memang tanpa sensor suhu seperti kamera Lampung; belum ada batas aman atau warna), FPS kamera / deteksi (terukur, 0 kalau gambar berhenti; FPS kamera **kuning** kalau tertahan di bawah 90% target kamera lebih dari 2 menit), umur gambar terakhir (merah kalau kamera berhenti mengirim), **Frame hilang (10 mnt)** (hijau 0, kuning ada yang hilang, merah mulai 5%), **Putus-nyambung (24 jam)** (hijau 0, kuning 1-2, merah 3 ke atas), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
-| **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), jam pengiriman terakhir yang gagal (teks galatnya di tab Log); tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
-| **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang** |
-| **Status**, bagian Manifest R2 | antrean manifest foto per truk ke R2, tabel sendiri di bawah Antrean ERP; kalau R2 belum disetel tertulis begitu, bukan angka nol |
+| **Log** | tombol saring bergaris tepi (tanpa isi warna): **Semua** (putih di tema gelap), **WARNING** (kuning), **ERROR** (merah); yang dipilih garisnya lebih tebal dan terang, yang lain redup. Isinya galat dan peringatan konsol DAN ketiga line (kolom Sumber menyebut line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord. 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
+| **Status** → Versi & pembaruan | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
+| **Status** → Diagnostik | tiga kartu line, tiap kartu berisi empat kelompok yang **tertutup dari awal** dan dibuka dengan menekan judulnya (**Kamera dan gambar**, **Mesin**, **Data**, **Workers**); kelompok yang dibuka tetap terbuka di browser itu, dan judul kelompok jadi **merah** kalau ada baris bermasalah di dalamnya, dan judul **Kamera dan gambar** menulis **perlu dicek** (kuning atau merah) kalau laju, frame hilang, atau putus-nyambung kameranya bermasalah. Ini pengganti indikator suhu: kamera yang kepanasan biasanya turun lajunya, kehilangan gambar, atau putus-nyambung. Isinya: kamera, suhu kamera (°C, `-` kalau kamera tidak melaporkan atau sudah lebih dari 60 detik tidak terbaca, **tidak didukung kamera** kalau kameranya memang tanpa sensor suhu seperti kamera Lampung; belum ada batas aman atau warna), FPS kamera / deteksi (terukur, 0 kalau gambar berhenti; FPS kamera **kuning** kalau tertahan di bawah 90% target kamera lebih dari 2 menit), umur gambar terakhir (merah kalau kamera berhenti mengirim), **Frame hilang (10 mnt)** (hijau 0, kuning ada yang hilang, merah mulai 5%), **Putus-nyambung (24 jam)** (hijau 0, kuning 1-2, merah 3 ke atas), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
+| **Status** → Antrean line ke konsol | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), jam pengiriman terakhir yang gagal (teks galatnya di tab Log); tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
+| **Status** → Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang** |
+| **Status** → Manifest R2 | antrean manifest foto per truk ke R2; kalau R2 belum disetel tertulis begitu, bukan angka nol |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
 | **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik); kotak kamera line itu menulis "sedang dinyalakan ulang" sampai gambarnya muncul lagi (§3.2) |
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; hasilnya notifikasi (hijau coil menyala, kuning coil tidak menyala karena antrean pulse PLC penuh); heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Stop menulis dulu gambar yang sudah antre saat tombol ditekan (paling banyak 30 gambar; di Mac sekitar 0,6 detik, belum diukur di Lampung); yang berhenti karena disk mepet tetap berhenti seketika. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
-| **Setelan** | saklar **Slip grading** (tombol Cetak di tab Rekap untuk semua akun, simpan sendiri lewat **Simpan slip**; bawaan mati); ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di bagian Tampilan video (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati. Paling bawah **Hari kerja**: jam mulai hari kerja, 00:00 sampai 12:00, simpan sendiri lewat **Simpan hari kerja**. 00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal. Ubah di siang hari: kalau dinaikkan antara tengah malam dan jam barunya, janjang yang ter-grading sejak tengah malam tidak masuk strip **Hari ini** sampai jam itu (truk yang masih di timbangan tetap tampil di tabel Timbangan) |
+| **Setelan** | tujuh sub-tab, satu bagian tampil sekaligus (pilihan terakhir diingat browser), tiap bagian satu kartu: saklar **Slip grading** (tombol Cetak di tab Rekap untuk semua akun, simpan sendiri lewat **Simpan slip**; bawaan mati); ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, dan angka bawaan itu tampil abu-abu di kolom serta di kalimat "Bawaan PC ini: ..."; tombol **Kembalikan ke bawaan** mengosongkan keempatnya, berlaku sesudah **Simpan**; `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di kotak Conveyor & tampilan (sub-tab Kamera & Conveyor) (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya nyala di semua line (sejak 5 Oktober 2026; sebelumnya mati). Sub-tab **Hari kerja**: jam mulai hari kerja, 00:00 sampai 12:00, simpan sendiri lewat **Simpan hari kerja**. 00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal. Ubah di siang hari: kalau dinaikkan antara tengah malam dan jam barunya, janjang yang ter-grading sejak tengah malam tidak masuk strip **Hari ini** sampai jam itu (truk yang masih di timbangan tetap tampil di tabel Timbangan) |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -1002,7 +1011,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 | **Assignment** | penugasan truk ke line; janjang di antara Tugaskan dan Lepas milik truk itu |
 | **Kunjungan (visit)** | satu truk dari timbang isi sampai timbang kosong; satu tiket timbangan (jam datang dan keluar gerbang dicatat di PC pabrik saja) |
 | **Bruto / tara / neto** | berat masuk / berat keluar / selisih yang dibayar |
-| **Hari kerja (`work_date`)** | tanggal operasional menurut `FACTORY_TZ`, dihitung saat data masuk |
+| **Hari kerja (`work_date`)** | tanggal operasional menurut `FACTORY_TZ`, dihitung saat data masuk; mulai jam yang disetel support (bawaan 00:00) |
 | **Outbox** | antrean SQLite di disk untuk kiriman yang belum sampai (ke konsol, ke ERP, ke R2) |
 | **`.mfs`** | berkas setelan kamera Hikrobot (fps, exposure, gain); dikirim ke kamera saat tersambung |
 | **Engine TensorRT** | model yang dikompilasi untuk satu GPU; opsional, hanya mempercepat |
@@ -1013,7 +1022,9 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.17 | 5 Oktober 2026 | §3.4 dan §3.5: support bisa menggeser awal hari kerja (tab Setelan, bagian **Hari kerja**, 00:00 sampai 12:00); tab Rekap menulis **Hari kerja dipotong jam HH:MM** kalau bukan tengah malam. |
+| 2.19 | 5 Oktober 2026 | §3.4 dan §3.5: sub-tab Setelan baru **Hari kerja**: support bisa menggeser awal hari kerja (00:00 sampai 12:00); tab Rekap menulis **Hari kerja dipotong jam HH:MM** kalau bukan tengah malam. |
+| 2.18 | 5 Oktober 2026 | Tab Setelan jadi enam sub-tab (Grading, Kamera & Conveyor, Mode Developer, Penugasan line, Slip grading, Danger Zone), satu bagian tampil sekaligus. **Ukuran tulisan label** pindah ke Kamera & Conveyor, kotak **Conveyor & tampilan**. **Penugasan line otomatis** bawaannya nyala di semua line; **Line yang dipakai** satu kotak dengan centang sejajar. Tab **Status** juga jadi lima sub-tab (Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2). Baris sub-tab Setelan, Line, Status, dan tampilan Rekap selebar baris tab utama dan bergaris bawah, bukan deretan tombol. Setelan tanpa kotak bertumpuk: satu kartu per bagian. Tombol saring tab Log bergaris tepi berwarna: Semua putih, WARNING kuning, ERROR merah. Tombol kanan atas menampilkan keterangan saat kursor di atasnya. Strip empat langkah Timbangan berikon dan berwarna tahap. Rekam Video selebar sub-tab, setelan rekaman tidak lagi menempel di tabel. |
+| 2.17 | 5 Oktober 2026 | Tab Setelan, kotak area deteksi: angka **bawaan PC** (kotak dari `.env` line) tampil di kolom dan di satu kalimat di bawahnya; tombol **Kembalikan ke bawaan** mengosongkan keempat kolom, lalu **Simpan**. |
 | 2.16 | 5 Oktober 2026 | Tab Setelan, bagian baru **Tampilan video**: **Ukuran tulisan label (%)** untuk tulisan kelas di atas kotak deteksi pada video (100 = bawaan). |
 | 2.15 | 5 Oktober 2026 | §3.4 dan §3.5: slip grading per truk yang bisa dicetak dari tab Rekap, dinyalakan support di tab Setelan. |
 | 2.14 | 5 Oktober 2026 | §3.4: saringan **Line** dan **Truk** di tab Grading; tabel Grading dan Riwayat memuat foto kecil, foto penuh hanya saat diklik. |

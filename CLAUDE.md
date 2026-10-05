@@ -105,7 +105,7 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 33. Logging: one install for lines and console, lines tagged with zone and line code, a fault logged once when it starts and once when it ends.
 34. Line log and Discord: line warnings and errors reach the Log tab through a cursor pull; errors reach Discord as a digest, off while `DISCORD_WEBHOOK_URL` is empty.
 35. Honest health and disk monitor: a connected camera that stops sending frames is a fault; free disk is watched on every line, with or without R2, and nothing is deleted; camera health without a temperature sensor is graded on the line (rate held low, frames lost, disconnects).
-36. Automatic line assignment: one truck on the lines until weighed out; the next waits in the unloading queue; off until support turns it on.
+36. Automatic line assignment: one truck on the lines until weighed out; the next waits in the unloading queue; on by default on every line since 2026-10-05, support can turn it off.
 37. Gate times (scan 1 arrive, scan 4 leave) stay on the factory PC and never go to AutoERP; scan 1 may be skipped; scan 4 before the weigh-out is refused; a cancelled arrival is kept as history; a weighed-out ticket with no scan 4 counts as finished after 24 h or when the truck returns, nothing written.
 38. Update now: the console never touches Docker, it only writes a marker in `UPDATE_DIR` for the host watcher; refused while any truck is assigned.
 

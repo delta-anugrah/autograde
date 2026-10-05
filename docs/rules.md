@@ -479,10 +479,11 @@ end of this file.
     (`pastikanTabTersedia`). Dulu cuma dibuang: operator yang mewarisi tab Setelan dapat
     layar kosong, dan support sesudahnya harus memuat ulang halaman (tes staging 2026-09-28).
     **Sembilan tab sejak 2026-09-28** (dulu 15, "tab kebanyakan"): **Rekap** = Rekap + Riwayat
-    (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean line + Antrean ERP
-    bertumpuk,
-    **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat tombol
-    pilihan (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang
+    (dibuka di Hari ini, Per truk), **Status** = lima sub-tab sejak 2026-10-05 (Versi & pembaruan,
+    Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2; `SUB_STATUS`, diingat
+    `subStatus`, satu bagian tampil sekaligus; dulu bertumpuk),
+    **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat sub-tab
+    bergaris bawah (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang
     masih tersimpan dipetakan `tabDariSimpanan`/`TAB_LAMA`, bukan jatuh ke Grading. Timer ikut
     yang terlihat (`bukaTabDev`): diagnostik 5 s di Status, PLC 1 s dan rekam 3 s cuma di
     pilihan Line-nya, Rekap 15 s (`segarkanRekap`) hanya kalau rentangnya memuat hari ini dan
@@ -1226,9 +1227,11 @@ end of this file.
     menunggu; memasangnya sekarang membuat sisa janjang truk lama tercatat ke truk baru.
     Timbang kosong atau Lepas manual pada line TERAKHIR yang memegang truk memasang truk
     berikutnya. Setelannya di `sync_state` (`setelan_penugasan_line`, selamat dari Danger
-    Zone), **mati sampai support menyalakannya** (bawaan mati, supaya pembaruan tidak mengubah
-    cara kerja pabrik di hari ia terpasang: selama mati strip antrean bongkar tidak tampil),
-    dan hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
+    Zone). **Bawaannya NYALA di semua line sejak 2026-10-05** (permintaan user; sebelumnya mati
+    sampai support menyalakannya, keputusan D13): konsol yang belum pernah menyimpan saklar ini
+    langsung menugaskan truk saat timbang isi. Baris tersimpan yang tidak terbaca dibaca MATI
+    (`domain/penugasan_line._tak_terbaca`), bukan bawaan. Selama mati strip antrean bongkar
+    tidak tampil. Hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
     saklar nyala langsung menjalankan `isi_line_otomatis()` (truk yang sudah menunggu naik
     sekarang); rute itu `async def` karena bertanya ke line (aturan 30). `baca_setelan` tidak pernah melempar (dibaca tiap polling
     `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.

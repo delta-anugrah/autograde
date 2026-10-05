@@ -141,6 +141,7 @@ async def setelan_grading_aktif(
         tampil_garis=state.tampil_garis_override is not False,
         tampil_roi=state.tampil_roi_override is not False,
         ukuran_label=state.ukuran_label_override or UKURAN_LABEL_BAWAAN,
+        roi_env=[settings.roi_x1, settings.roi_y1, settings.roi_x2, settings.roi_y2],
         **dict(zip(KOTAK, state.roi_override or (
             settings.roi_x1, settings.roi_y1, settings.roi_x2, settings.roi_y2), strict=True)),
         sumber="konsol" if ditimpa else "env",
