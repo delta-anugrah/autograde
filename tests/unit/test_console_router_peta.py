@@ -43,6 +43,7 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/lines/{line_code}/manual-reject"),
     ("POST", "/api/console/lines/{line_code}/piston"),
     ("POST", "/api/console/lines/{line_code}/reconnect-camera"),
+    ("GET", "/api/console/dev/camera-settings"),
     ("GET", "/api/console/update"),
     ("POST", "/api/console/update/install"),
     ("GET", "/api/console/dev/ping"),

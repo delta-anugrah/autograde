@@ -1,4 +1,4 @@
-"""Reconnect camera button on every line card (2026-10-04). Included by `routes/console.py`.
+"""Reconnect camera button on every line card (2026-10-04) and the support camera settings read (2026-10-05).
 
 A module of its own because `routes/console.py` stays under 1,000 lines
 (`tests/unit/test_ukuran_berkas.py`). Included right after the piston route, so
@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends
 
 from ..integrations.notifications.line_client import KameraTanpaSambungUlang, LineUnavailable
 from ..services.sambung_ulang_kamera import SambungUlangKamera
-from .console_deps import Operator, Service, _operator_error
+from ..services.setelan_kamera_konsol import SetelanKameraKonsol
+from .console_deps import Operator, Service, Support, _operator_error
 
 kamera_router = APIRouter(tags=["console"])
 
@@ -43,3 +44,20 @@ async def reconnect_camera(line_code: str, kamera: Kamera, operator: Operator) -
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc
+
+
+def get_setelan_kamera(service: Service) -> SetelanKameraKonsol:
+    """Same lines and `LineClient` as the console service, so one test override covers both."""
+    return SetelanKameraKonsol(service.lines, service.line_client)
+
+
+SetelanKamera = Annotated[SetelanKameraKonsol, Depends(get_setelan_kamera)]
+
+
+@kamera_router.get("/api/console/dev/camera-settings")
+async def dev_camera_settings(setelan: SetelanKamera, operator: Support) -> dict:
+    """Camera settings of every line for the Setelan Kamera screen, support only (spec §3.2).
+
+    `async` on purpose (rule 30): no SQLite, it only waits on the lines.
+    """
+    return await setelan.baca_semua()

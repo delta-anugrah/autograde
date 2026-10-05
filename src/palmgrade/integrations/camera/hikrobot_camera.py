@@ -8,10 +8,12 @@ import cv2
 import numpy as np
 
 from ...domain.kesehatan_kamera import StatistikAliran
+from ...domain.setelan_kamera import NilaiSetelan
 from .base import CameraSource
 from .device_selector import extract_serial, find_index_by_serial
 from .frame_utils import _validate_frame_len
 from .mvs_error import format_mvs_ret
+from .setelan_hikrobot import baca_setelan_hikrobot
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ except ImportError:
 
 
 class HikrobotCamera(CameraSource):
+    punya_setelan = True
     #: `connect()` yang sudah dipanggil OBJEK kamera ini (nilai kelas cuma bawaan; tiap
     #: objek menghitung sendiri, dan satu line memakai satu objek seumur prosesnya).
     #: Rincian sambung (perangkat, handle, grabbing) INFO cuma untuk yang pertama: kamera
@@ -280,6 +283,12 @@ class HikrobotCamera(CameraSource):
             format_mvs_ret(ret),
         )
         return None
+
+    def baca_setelan(self) -> list[NilaiSetelan]:
+        """Capture thread only, under `state.lock`, through `state.perintah_kamera` (rule 3)."""
+        if not self.connected:
+            raise RuntimeError("camera not connected")
+        return baca_setelan_hikrobot(self.cam)
 
     def grab_frame(self):
         if not self.connected:

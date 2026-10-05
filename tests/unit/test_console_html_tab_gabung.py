@@ -24,7 +24,7 @@ NODE = shutil.which("node")
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
 
 TAB_BARU = ["grading", "truk", "timbangan", "rekap", "log", "status", "akun", "line", "setelan"]
-SUB_LINE = ["sumber-kamera", "model-deteksi", "plc", "rekam"]
+SUB_LINE = ["sumber-kamera", "setelan-kamera", "model-deteksi", "plc", "rekam"]
 
 
 def _fungsi(nama: str) -> str:
@@ -97,11 +97,11 @@ def test_status_memuat_versi_diagnostik_dan_antrean_berurutan():
         assert f in muat, f
 
 
-def test_line_punya_empat_pilihan_dan_isinya():
+def test_line_punya_lima_pilihan_dan_isinya():
     assert re.search(r'<section id="sec-line"[^>]*data-dev="1"', HTML)
     panel = _panel("line")
     assert re.findall(r'data-sub="([^"]+)"', panel) == SUB_LINE
-    isi = {"sumber-kamera": "sumber-kamera-panel", "model-deteksi": "model-baris",
+    isi = {"sumber-kamera": "sumber-kamera-panel", "setelan-kamera": "setelan-kamera-kartu", "model-deteksi": "model-baris",
            "plc": "plc-kartu", "rekam": "rekam-baris"}
     for sub, id_ in isi.items():
         blok = panel.split(f'<div id="sub-{sub}"', 1)
@@ -172,7 +172,8 @@ def test_pilihan_line_diingat_dan_memuat_ulang():
     assert 'simpan("subLine", subLine)' in klik
     assert 'bukaTabDev("line")' in klik
     assert "MUAT_SUB_LINE[subLine]" in _fungsi("muatLine")
-    for sub, fungsi in (("sumber-kamera", "muatSumberKamera"), ("model-deteksi", "muatModelDeteksi"),
+    for sub, fungsi in (("sumber-kamera", "muatSumberKamera"), ("setelan-kamera", "muatSetelanKamera"),
+                        ("model-deteksi", "muatModelDeteksi"),
                         ("plc", "muatPlc"), ("rekam", "muatRekam")):
         assert f'"{sub}": {fungsi}' in HTML or f"{sub}: {fungsi}" in HTML, sub
 
@@ -236,7 +237,7 @@ def test_kamus_tab_baru_dua_bahasa():
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
 
 
-# ── permintaan operator 2026-09-29: empat pilihan Line selebar panel, dibagi empat ──
+# ── permintaan operator 2026-09-29: pilihan Line selebar panel, dibagi rata (lima sejak Setelan Kamera) ──
 
 
 def _aturan(selektor: str, css: str) -> str:
@@ -245,15 +246,15 @@ def _aturan(selektor: str, css: str) -> str:
     return cocok.group(1).replace(" ", "")
 
 
-def test_pilihan_line_empat_kolom_sama_lebar_selebar_panel():
+def test_pilihan_line_lima_kolom_sama_lebar_selebar_panel():
     css = HTML.split("<style>", 1)[1].split("</style>", 1)[0]
     grup = _aturan("#line-sub", css)
     assert "display:grid" in grup
-    assert "grid-template-columns:repeat(4,minmax(0,1fr))" in grup
+    assert "grid-template-columns:repeat(5,minmax(0,1fr))" in grup
     assert "flex:11100%" in grup  # `flex:1 1 100%` di `.line-sub-bar` yang flex
     assert "width:100%" in _aturan("#line-sub button", css)
     sempit = re.search(r"@media \(max-width:600px\)\s*\{\s*#line-sub\s*\{([^}]*)\}", css)
     assert sempit, "2 x 2 di layar sempit tidak ada"
     assert "grid-template-columns:repeat(2,minmax(0,1fr))" in sempit.group(1).replace(" ", "")
     tombol = HTML.split('<div class="sub-tab" id="line-sub" role="group">', 1)[1].split("</div>", 1)[0]
-    assert tombol.count("data-sub=") == 4
+    assert tombol.count("data-sub=") == 5
