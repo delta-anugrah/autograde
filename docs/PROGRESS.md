@@ -18,6 +18,27 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · vision · Camera health without a temperature sensor (PR #238)
+Changed:        Lampung cameras (MV-CS050-10GC, firmware V4.0.43) report `DeviceTemperature` as
+                not implemented (access mode NI, checked on the camera with
+                `sawit/scripts/cek-suhu-kamera.sh`). The Diagnostics card now grades what the
+                camera does instead: rate held below 90 % of the camera's own target for 2 min
+                (clears after 1 min normal), frames lost on the wire in the last 10 min
+                (`MV_MATCH_TYPE_NET_DETECT`, yellow any, red from 5 %), disconnects in the last 24 h
+                (yellow 1-2, red 3+). Rules in `domain/kesehatan_kamera.py`; the capture thread asks
+                every `PANTAU_KAMERA_JEDA_DETIK` (10 s, renamed from `SUHU_JEDA_DETIK`) under the
+                camera lock; `/health/detail` gains `suhu_kamera_didukung`, `fps_kamera_target`,
+                `fps_kamera_turun`, `frame_hilang`, `putus_kamera`, `kamera_tingkat`. The card colours
+                the rows, writes "perlu dicek" on the closed group header, and says "tidak didukung
+                kamera" instead of a dash; a camera answering NI is asked once per connect. Low rate
+                and lost frames log one WARNING at start and one at the end (rule 33). Rule 35,
+                `backend-overview.md`, `MANUAL.md`, `camera-spec.md` §6.4 updated.
+Validated:      unit 4814 passed, e2e 397, integration 176, ruff clean; browser status tests 6/6
+                (chromium + firefox).
+Not validated:  stream counters never read from a real camera (SDK call per the vendored wrapper,
+                tested with ctypes fakes); thresholds are first guesses; `MANUAL.pdf` not rebuilt.
+Next:           release, then read the card on the Lampung PC for a day and tune the thresholds.
+
 ## 2026-10-05 · vision · Batch 6.3: display shrinks first and rests with no viewer (PR #231)
 Changed:        `DisplayWorker` shrinks the frame to stream size first and draws the boxes on the
                 small frame (`draw_boxes(skala=...)`, geometry in `domain/skala_tampilan.py`); the

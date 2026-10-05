@@ -12,6 +12,7 @@ from dataclasses import replace
 import numpy as np
 
 from palmgrade.core.config import Settings
+from palmgrade.domain.kesehatan_kamera import StatistikAliran
 from palmgrade.integrations.camera.base import CameraSource
 from palmgrade.services.penjaga_ai import PenjagaAi
 from palmgrade.workers.frame_capture_worker import FrameCaptureWorker
@@ -47,6 +48,8 @@ class KameraPalsu(CameraSource):
         self.suhu: float | None = None      # None = sumber tanpa sensor (webcam/video)
         self.suhu_dibaca = 0                # berapa kali line bertanya
         self.suhu_melempar = False          # SDK melempar, bukan memberi kode
+        self.statistik: StatistikAliran | None = None   # None = sumber tanpa hitungan aliran
+        self.statistik_melempar = False
 
     def connect(self, index=0, serial=None, feature_file=None) -> None:
         if self.sambung_gagal:
@@ -66,6 +69,11 @@ class KameraPalsu(CameraSource):
         if self.suhu_melempar:
             raise OSError("handle kamera sudah dilepas")
         return self.suhu
+
+    def get_statistik_aliran(self) -> StatistikAliran | None:
+        if self.statistik_melempar:
+            raise OSError("handle kamera sudah dilepas")
+        return self.statistik
 
     @property
     def exhausted(self) -> bool:
