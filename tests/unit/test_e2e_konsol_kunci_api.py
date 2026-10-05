@@ -34,7 +34,7 @@ E2E = Path(__file__).resolve().parents[1] / "e2e" / "test_console_autoerp.py"
 # API konsol. Kalau salah satu berubah nama, tes ini merah di CI hari itu juga,
 # bukan berbulan-bulan kemudian saat ada yang kebetulan punya ERP hidup.
 KUNCI_API = (
-    ("source_label", SRC / "services" / "console_service.py"),
+    ("source_label", SRC / "services" / "tampilan_baris.py"),
     ("full_name", SRC / "routes" / "console.py"),
     ("supplier_name", SRC / "repositories" / "console_repository.py"),
     ("plate_number", SRC / "repositories" / "console_repository.py"),
@@ -94,7 +94,8 @@ def test_source_label_lahir_di_satu_tempat():
     Kalau muncul tempat kedua, dua jalur bisa memberi label berbeda untuk truk yang
     sama — dan itu label yang menentukan potongan yang dibayar ke supplier.
     """
-    service = (SRC / "services" / "console_service.py").read_text(encoding="utf-8")
+    # Batch 5.12: the row views moved to their own module; still one place in all services.
+    service = "".join(p.read_text(encoding="utf-8") for p in (SRC / "services").glob("*.py"))
 
     assert service.count('row["source_label"] =') == 1, (
         "lebih dari satu tempat memasang source_label"

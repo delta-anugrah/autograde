@@ -292,6 +292,9 @@
   .sandi-lihat[aria-pressed="true"] { color:var(--acc); }
 
   /* ---- pagination ---- */
+  .grading-saring { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-bottom:12px; }
+  .grading-saring .pilih { flex:0 1 14rem; min-width:10rem; }
+  .grading-saring .lb + .pilih { margin-right:8px; }
   .halaman { display:flex; flex-wrap:wrap; align-items:center; gap:12px;
              padding:12px 0 0; }
   .halaman .pilih { flex:0 0 7rem; }
@@ -1791,6 +1794,19 @@
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
+  <!-- Batch 5.10: the server always filtered by line and truck; now the screen can ask. -->
+  <div class="grading-saring">
+    <span class="lb" data-t="saringLine">Line</span>
+    <div class="pilih" id="grading-line" data-nilai="">
+      <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+      <div class="pilih-panel" role="listbox" hidden></div>
+    </div>
+    <span class="lb" data-t="saringTruk">Truk</span>
+    <div class="pilih" id="grading-truk" data-nilai="">
+      <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+      <div class="pilih-panel" role="listbox" hidden></div>
+    </div>
+  </div>
   <div class="tabel">
     <table>
       <thead><tr><th class="no" data-t="thNo">No</th>
@@ -3078,6 +3094,8 @@ const KAMUS = {
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     erpFinalBeda:"Cek AutoERP", erpFinalBedaJudul:"Tiket {tiket} sudah final di AutoERP saat data terbaru tiba. Angka yang dibukukan tidak berubah; minta backoffice memeriksa tiket ini.", erpBatal:"Tiket batal", erpBatalJudul:"Tiket {tiket} dibatalkan di AutoERP, kunjungan ini tidak dibukukan. Minta backoffice memeriksanya.", erpTanpaNomor:"(tanpa nomor)",
     kosongGrading:"Belum ada grading hari ini",
+    saringLine:"Line", saringTruk:"Truk", saringSemuaLine:"Semua line", saringSemuaTruk:"Semua truk",
+    kosongGradingSaring:"Tidak ada grading hari ini untuk line dan truk yang dipilih",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
     wajibIsi:"Plat dan bruto wajib diisi",
     gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
@@ -3576,6 +3594,8 @@ const KAMUS = {
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     erpFinalBeda:"Check AutoERP", erpFinalBedaJudul:"Ticket {tiket} was already final in AutoERP when the latest data arrived. The booked figures did not change; ask the back office to review this ticket.", erpBatal:"Ticket cancelled", erpBatalJudul:"Ticket {tiket} was cancelled in AutoERP, so this visit is not booked. Ask the back office to look at it.", erpTanpaNomor:"(no number)",
     kosongGrading:"No grading yet today",
+    saringLine:"Line", saringTruk:"Truck", saringSemuaLine:"All lines", saringSemuaTruk:"All trucks",
+    kosongGradingSaring:"No grading today for the chosen line and truck",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
     wajibIsi:"Plate and gross weight are required",
     gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
@@ -4320,10 +4340,52 @@ let gradingPer = PER_SAH.includes(baca("gradingPer", "25")) ? baca("gradingPer",
 let gradingOffset = 0;
 let gradingTotal = 0;
 
+// The Grading filter (batch 5.10). Kept in memory, like the page: coming back to the screen
+// lands on everything happening now, not on yesterday's filter.
+const gradingSaring = { line: "", truk: "" };
+
+function paramGrading(per, offset, saring) {
+  const q = new URLSearchParams({ limit: String(per), offset: String(offset) });
+  if (saring.line) q.set("line_code", saring.line);
+  if (saring.truk) q.set("truck_id", saring.truk);
+  return q.toString();
+}
+
+function adaSaringan() {
+  return Boolean(gradingSaring.line || gradingSaring.truk);
+}
+
+function opsiSaringLine() {
+  return [{ v: "", teks: t("saringSemuaLine") }]
+    .concat([...urutan].sort().map((k) => ({ v: k, teks: namaLineKartu[k] || k })));
+}
+
+function opsiSaringTruk() {
+  return [{ v: "", teks: t("saringSemuaTruk") }]
+    .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
+}
+
+// Both lists follow what the server says (lines from the 2 s poll, trucks from the 60 s one).
+function segarkanSaringGrading() {
+  isiUlangPilih($("grading-line"), opsiSaringLine());
+  isiUlangPilih($("grading-truk"), opsiSaringTruk());
+}
+
+function gantiSaringGrading() {
+  gradingSaring.line = $("grading-line").dataset.nilai;
+  gradingSaring.truk = $("grading-truk").dataset.nilai;
+  // Back to page one: page 7 of everything is not page 7 of one truck.
+  gradingOffset = 0;
+  return muatGrading();
+}
+
+$("grading-line").addEventListener("pilih", gantiSaringGrading);
+$("grading-truk").addEventListener("pilih", gantiSaringGrading);
+
 async function muatGrading() {
   const per = Number(gradingPer);
   try {
-    const r = await api(`/api/console/history?limit=${per}&offset=${gradingOffset}`);
+    const r = await api(`/api/console/history?${paramGrading(per, gradingOffset, gradingSaring)}`);
     gradingTotal = r.total;
     // Deleted rows, or a filter that shrank the day, can leave the offset past the end.
     // Step back one page rather than showing an empty table with a live Previous button.
@@ -4334,7 +4396,7 @@ async function muatGrading() {
     // Only when it changed (batch 5.4): this runs every 2 s on page 1, and a rewrite of the
     // same rows asked for every photo again and swallowed a tap on one.
     tulisKalauBeda($("recent"), r.items.length
-      ? r.items.map(barisRecent).join("") : barisKosong(7, "kosongGrading"));
+      ? r.items.map(barisRecent).join("") : barisKosong(7, adaSaringan() ? "kosongGradingSaring" : "kosongGrading"));
     segarkanHalaman();
   } catch (e) { /* the gate is already up on 401; the screen keeps working */ }
 }
@@ -5453,6 +5515,27 @@ function tandaErp(w) {
 // Conf is parked, not deleted. To bring it back, uncomment the <th> in the
 // table head and this cell together:
 //   <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
+// The photo cell of the Grading and History tables (batch 5.12): the 400 px copy the line
+// writes beside every capture (`thumb_url`), the full size only in the dialog (`data-foto`).
+// A photo older than that layout has no small copy and shows the full one.
+function selFoto(r, judul) {
+  if (!r.image_url) return KOSONG;
+  const kecil = r.thumb_url || r.image_url;
+  const cadangan = r.thumb_url ? ` data-penuh="${esc(r.image_url)}"` : "";
+  return `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(judul)}"><img src="${esc(kecil)}"${cadangan} alt="" loading="lazy"></button>`;
+}
+
+// A small copy that is missing (deleted, or a write that failed) falls back to the full photo,
+// once: a broken picture in the table reads like a lost capture. `error` does not bubble,
+// hence the capture phase.
+document.addEventListener("error", (ev) => {
+  const img = ev.target;
+  if (!(img instanceof HTMLImageElement) || !img.dataset.penuh) return;
+  const penuh = img.dataset.penuh;
+  img.removeAttribute("data-penuh");
+  img.src = penuh;
+}, true);
+
 function barisRecent(r, i) {
   // Page offset + position, not position alone. Found on the factory PC with
   // 130,506 rows: without the offset every page numbers 1..200 again, so two
@@ -5465,14 +5548,11 @@ function barisRecent(r, i) {
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
-    <td>${r.image_url
-      ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(
-          // `toUpperCase()` di sini, bukan CSS: judulnya string di dalam
-          // atribut `data-judul`, dan `text-transform` tidak menjangkau teks
-          // yang belum jadi elemen. Yang dikapitalkan cuma yang tampil.
-          `${waktu(r.timestamp)} · ${String(r.line_code || "").toUpperCase()} · ${r.grade_class || r.ripeness_status || ""}`,
-        )}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
-      : KOSONG}</td>
+    <td>${selFoto(r,
+      // `toUpperCase()` di sini, bukan CSS: judulnya string di dalam
+      // atribut `data-judul`, dan `text-transform` tidak menjangkau teks
+      // yang belum jadi elemen. Yang dikapitalkan cuma yang tampil.
+      `${waktu(r.timestamp)} · ${String(r.line_code || "").toUpperCase()} · ${r.grade_class || r.ripeness_status || ""}`)}</td>
   </tr>`;
 }
 
@@ -7022,6 +7102,7 @@ async function refresh() {
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     selarasUrutan(s.lines);
+    segarkanSaringGrading();
     isiTally(s.lines);
     isiTallyTimbangan(s.timbangan);
     isiSinkron(s.sinkron);
@@ -7263,9 +7344,7 @@ function barisRiwayatJanjang(r, i) {
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
-    <td>${r.image_url
-      ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(judul)}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
-      : KOSONG}</td>
+    <td>${selFoto(r, judul)}</td>
   </tr>`;
 }
 
@@ -7757,6 +7836,7 @@ function isiTrucks() {
   // sini lewat `muatTrucks()` pada setiap scan masuk.
   isiUlangPilih($("plat-datang"), opsi);
   segarkanPilihTruk();
+  segarkanSaringGrading();
   segarkanTombol();
 }
 

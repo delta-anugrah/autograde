@@ -29,6 +29,23 @@ Validated:      newest capture on the Lampung PC read with cv2: `(1024, 1224, 3)
 Not validated:  `docs/MANUAL.pdf` not rebuilt (it already lags `MANUAL.md`).
 Next:           None.
 
+## 2026-10-05 · console · Grading filter by line and truck, small photos in tables (batch 5.10, 5.12) (PR #234)
+Changed:        Server: every grading and history row carries `thumb_url` (the 400 px copy in
+                `thumb/` that the line already writes and uploads), from `_with_foto` in the new
+                `services/tampilan_baris.py`. The row-view helpers moved there from
+                `console_service.py`, which had reached 1,010 lines. Screen: `#grading-line` and
+                `#grading-truk` above the Grading table (dropdown component with search), sent as
+                `line_code` / `truck_id`, page one on every change, kept by the 2 s poll. The Grading
+                and History tables draw `selFoto`: small copy in the table, full size only in the
+                dialog, one fallback to the full photo when the small one fails to load.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                7 mutations, each turned its test red.
+Not validated:  Thumbnails on the factory PC or from R2 (the browser test answers `/history` itself).
+Decisions:      A photo older than the bbox/clean/thumb layout has no small copy: the table shows the
+                full one (rare, old days only) rather than no picture. The filter is not remembered
+                across reloads, like the page number.
+Next:           PR 5, printable grading slip (5.9).
+
 ## 2026-10-05 · console · Sliding session with a warning 15 minutes before the end (batch 5.7) (PR #233)
 Changed:        Server: `AuthService.renew` + `ConsoleStore.extend_session` slide a live session to
                 12 h from now (never an ended one, never for a switched-off operator); new route
