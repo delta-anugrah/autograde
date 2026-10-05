@@ -62,7 +62,7 @@ def test_a_weighing_lands_on_the_working_day_of_its_weigh_in(konsol):
 
 def test_a_cutoff_outside_the_range_is_refused_and_not_saved(konsol):
     with pytest.raises(OperatorError) as e:
-        konsol.hari_kerja.atur("13:00")
+        konsol.hari_kerja.atur("24:00")
     assert e.value.code == CUTOFF_TIDAK_SAH
     assert konsol.store.get_state(KUNCI_CUTOFF) is None
 

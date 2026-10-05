@@ -116,7 +116,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Tes: `test_console_html_slip.py`, `test_slip_grading.py`,
   `tests/integration/test_slip_grading_integrasi.py`, `tests/e2e/test_slip_grading_lane.py`,
   `tests/browser/test_browser_slip.py`.
-- Cutoff hari kerja (batch 5.11): `#set-cutoff` (`<input type="time">`, 00:00 sampai 12:00) +
+- Cutoff hari kerja (batch 5.11): `#set-cutoff` (`<input type="time">`, 00:00 sampai 23:59; lewat 12:00 `cutoffPerluTanya` -> `tanyaKonfirmasi` dengan contoh efeknya; zona dari `/state` `timezone` di `#set-cutoff-zona`) +
   `#set-cutoff-simpan` di Setelan (`GET/POST /api/console/dev/shift`, `services/hari_kerja.py`,
   kunci `sync_state` `setelan_cutoff_shift`, ikut selamat dari Danger Zone, bawaan 00:00). `/state`
   membawa `cutoff_shift` -> `aturCutoffShift` -> `cutoffShift` + label `#riwayat-cutoff` di kepala

@@ -86,6 +86,6 @@ def test_support_saves_the_cutoff_and_every_account_sees_it(klien):
 def test_an_operator_cannot_change_it_and_a_bad_value_is_refused(klien):
     operator, support, _ = klien
     assert operator.post("/api/console/dev/shift", json={"cutoff": "05:00"}).status_code == 403
-    salah = support.post("/api/console/dev/shift", json={"cutoff": "13:00"})
+    salah = support.post("/api/console/dev/shift", json={"cutoff": "24:00"})
     assert (salah.status_code, salah.json()["detail"]["code"]) == (400, "cutoff_tidak_sah")
     assert support.post("/api/console/dev/shift", json={"cutoff": 5}).status_code == 400

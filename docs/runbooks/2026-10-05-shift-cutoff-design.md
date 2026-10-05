@@ -89,7 +89,9 @@ Decision: **option A**, as listed in §7, without the end-of-shift summary.
    when the cutoff is not midnight. No AutoERP change.
 2. **Cutoff time at Lampung**: what time does the last shift really end? (The plan says about
    20 hours of operation; 05:00 is a guess.)
-   **Answer:** a setting, default 00:00 (today's behaviour), latest 12:00. Support sets the real
+   **Answer:** a setting, default 00:00 (today's behaviour), any hour (first 12:00 at most; the
+   user widened it the same evening: after 12:00 the screen warns with an example and asks).
+   Support sets the real
    hour at the factory.
 3. **One cutoff or several shifts?** "Ringkasan akhir shift" could mean one summary per working
    day, or one per shift (for example 06:00 to 14:00, 14:00 to 22:00). Several shifts per day is a

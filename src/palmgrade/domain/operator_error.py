@@ -92,7 +92,7 @@ KAMERA_TIDAK_MENJAWAB = "kamera_tidak_menjawab"
 # for a truck with no bunch on that working day (404).
 SLIP_MATI = "slip_mati"
 SLIP_TIDAK_ADA = "slip_tidak_ada"
-# Shift cutoff (batch 5.11): HH:MM between 00:00 and 12:00.
+# Shift cutoff (batch 5.11): HH:MM between 00:00 and 23:59.
 CUTOFF_TIDAK_SAH = "cutoff_tidak_sah"
 
 CODES = (

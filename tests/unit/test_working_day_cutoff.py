@@ -16,6 +16,8 @@ LIMA = time(5, 0)
 @pytest.mark.parametrize(
     ("ts", "cutoff", "hari"),
     [
+        ("2026-10-06T10:00:00+07:00", time(18, 0), "2026-10-05"),  # after noon: the start's date
+        ("2026-10-06T18:00:00+07:00", time(18, 0), "2026-10-06"),
         ("2026-10-05T23:59:59+07:00", time(0, 0), "2026-10-05"),
         ("2026-10-06T00:00:00+07:00", time(0, 0), "2026-10-06"),
         ("2026-10-06T02:30:00+07:00", LIMA, "2026-10-05"),
@@ -39,13 +41,14 @@ def test_the_working_day_now_follows_the_same_rule():
 
 
 @pytest.mark.parametrize(("teks", "nilai"), [("05:00", LIMA), ("5:00", LIMA), ("05.00", LIMA), ("", time(0)),
-                                             (None, time(0)), ("12:00", time(12)), ("00:30", time(0, 30))])
+                                             (None, time(0)), ("12:00", time(12)), ("00:30", time(0, 30)),
+                                             ("13:00", time(13)), ("18.30", time(18, 30)), ("23:59", time(23, 59))])
 def test_the_cutoff_is_read_the_way_people_type_it(teks, nilai):
     assert baca_cutoff(teks) == nilai
 
 
-@pytest.mark.parametrize("teks", ["24:00", "13:00", "12:01", "5", "jam lima", "05:60", "-1:00"])
-def test_a_cutoff_outside_midnight_to_noon_is_refused(teks):
+@pytest.mark.parametrize("teks", ["24:00", "23:60", "5", "jam lima", "05:60", "-1:00"])
+def test_a_cutoff_that_is_not_a_time_of_day_is_refused(teks):
     with pytest.raises(OperatorError) as e:
         baca_cutoff(teks)
     assert e.value.code == CUTOFF_TIDAK_SAH

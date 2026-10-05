@@ -18,6 +18,12 @@ def _atur(konsol, cutoff: str) -> None:
         c.post("/api/console/dev/shift", json={"cutoff": cutoff}).raise_for_status()
 
 
+def _baca(konsol) -> str:
+    with httpx.Client(base_url=konsol.url, timeout=10) as c:
+        c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
+        return c.get("/api/console/dev/shift").json()["cutoff"]
+
+
 @pytest.fixture
 def tengah_malam(konsol) -> Iterator[None]:
     _atur(konsol, "00:00")
@@ -46,10 +52,21 @@ def test_midnight_shows_no_label(halaman, tengah_malam):
     expect(halaman.locator("#riwayat-cutoff")).to_be_hidden()
 
 
-def test_a_time_after_noon_is_refused_in_words(halaman, tengah_malam):
+def test_a_time_after_noon_asks_first_and_cancel_saves_nothing(halaman, tengah_malam, konsol):
     masuk(halaman, SUPPORT)
     buka_setelan(halaman, "harikerja")
     halaman.evaluate("() => MUAT_TAB.setelan()")
-    halaman.evaluate("() => { const el = document.getElementById('set-cutoff'); el.removeAttribute('max'); el.value = '13:00'; }")
+    expect(halaman.locator("#set-cutoff-zona")).to_have_text("(Asia/Jakarta)")
+    halaman.fill("#set-cutoff", "13:00")
+
     halaman.click("#set-cutoff-simpan")
-    expect(halaman.locator("#toasts .toast.gagal")).to_contain_text(kamus(halaman, "err_cutoff_tidak_sah"))
+    expect(halaman.locator("#konfirmasi-modal")).to_be_visible()
+    expect(halaman.locator("#konfirmasi-judul")).to_have_text(kamus(halaman, "konfirmasiCutoffJudul").replace("{jam}", "13:00"))
+    halaman.click("#konfirmasi-tidak")
+    expect(halaman.locator("#konfirmasi-modal")).to_be_hidden()
+    assert _baca(konsol) == "00:00", "Batal saves nothing"
+
+    halaman.click("#set-cutoff-simpan")
+    halaman.click("#konfirmasi-ya")
+    expect(halaman.locator("#toasts .toast.sukses", has_text=kamus(halaman, "cutoffTersimpan"))).to_be_visible()
+    assert _baca(konsol) == "13:00"

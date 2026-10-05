@@ -2469,8 +2469,8 @@
     <div class="setelan-grup" data-setelan-grup="harikerja">
       <div class="setelan-grup-isi">
         <label>
-          <span data-t="labelCutoff">Hari kerja mulai jam</span>
-          <input id="set-cutoff" type="time" step="60" min="00:00" max="12:00">
+          <span><span data-t="labelCutoff">Hari kerja mulai jam</span> <span id="set-cutoff-zona" class="muted"></span></span>
+          <input id="set-cutoff" type="time" step="60">
           <small class="muted" data-t="bantuCutoff">00:00 = tengah malam seperti biasa.</small>
         </label>
       </div>
@@ -3303,7 +3303,9 @@ const KAMUS = {
     btnSimpanSlip:"Simpan slip", slipTersimpan:"Setelan slip tersimpan.",
     err_slip_mati:"Slip grading sedang dimatikan. Minta support menyalakannya di tab Setelan",
     err_slip_tidak_ada:"Truk ini tidak punya janjang pada tanggal itu",
-    err_cutoff_tidak_sah:"Jam tidak sah. Isi antara 00:00 dan 12:00",
+    err_cutoff_tidak_sah:"Jam tidak sah. Isi antara 00:00 dan 23:59",
+    konfirmasiCutoffJudul:"Hari kerja mulai jam {jam}?",
+    konfirmasiCutoffPesan:"Lewat jam 12:00, sebagian besar hari kerja jatuh di tanggal berikutnya tapi tetap memakai tanggal awalnya. Contoh: janjang Selasa jam 09:00 masuk hari kerja Senin. Di AutoERP, tiket truk yang timbang antara 00:00 dan {jam} tetap bertanggal hari timbangnya.",
     grupHariKerja:"Hari kerja", labelCutoff:"Hari kerja mulai jam",
     bantuCutoff:"00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal.",
     btnSimpanCutoff:"Simpan hari kerja", cutoffTersimpan:"Jam mulai hari kerja tersimpan.",
@@ -3841,7 +3843,9 @@ const KAMUS = {
     btnSimpanSlip:"Save slip", slipTersimpan:"Slip setting saved.",
     err_slip_mati:"The grading slip is switched off. Ask support to switch it on in the Settings tab",
     err_slip_tidak_ada:"This truck has no bunches on that day",
-    err_cutoff_tidak_sah:"Not a valid time. Enter one between 00:00 and 12:00",
+    err_cutoff_tidak_sah:"Not a valid time. Enter one between 00:00 and 23:59",
+    konfirmasiCutoffJudul:"Start the working day at {jam}?",
+    konfirmasiCutoffPesan:"After 12:00, most of the working day falls on the next date but keeps its start date. Example: a bunch graded Tuesday 09:00 belongs to Monday's working day. In AutoERP, tickets of trucks weighed between 00:00 and {jam} keep the date they were weighed.",
     grupHariKerja:"Working day", labelCutoff:"Working day starts at",
     bantuCutoff:"00:00 = midnight as before. For example 05:00: everything until 5 in the morning still belongs to the day before. Applies to new data; stored data keeps its date.",
     btnSimpanCutoff:"Save working day", cutoffTersimpan:"Working day start saved.",
@@ -7416,6 +7420,7 @@ async function refresh() {
     const s = await api("/api/console/state");
     cekVersiBaru(s.versi);
     $("tz").textContent = "(" + s.timezone + ")";
+    $("set-cutoff-zona").textContent = "(" + s.timezone + ")";
     if (s.work_date) hariKerja = s.work_date;
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
@@ -9558,15 +9563,31 @@ async function muatCutoffSetelan() {
   }
 }
 
-$("set-cutoff-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
-  try {
-    await api("/api/console/dev/shift", { method: "POST", body: JSON.stringify({ cutoff: $("set-cutoff").value }) });
-    toastSukses(t("cutoffTersimpan"));
-    await refresh();
-  } catch (e) {
-    toastGagal(gagalKarena("gagalSetelan", e));
-  }
-}));
+// Any hour is allowed (user 2026-10-05); after 12:00 most of the working day falls on the next
+// date while it keeps the start's date, so the screen warns with an example and asks first.
+function cutoffPerluTanya(teks) {
+  return Boolean(teks) && teks > "12:00";
+}
+
+// Ask first (F12), before the lock, so the focus can come back to the button.
+$("set-cutoff-simpan").addEventListener("click", async (ev) => {
+  const tombol = ev.currentTarget;
+  const jam = $("set-cutoff").value;
+  if (cutoffPerluTanya(jam) && !(await tanyaKonfirmasi({
+    judul: t("konfirmasiCutoffJudul").replace("{jam}", jam),
+    pesan: t("konfirmasiCutoffPesan").replace(/\{jam\}/g, jam),
+    ya: t("btnSimpanCutoff"), asal: tombol,
+  }))) return;
+  await denganSibuk(tombol, async () => {
+    try {
+      await api("/api/console/dev/shift", { method: "POST", body: JSON.stringify({ cutoff: jam }) });
+      toastSukses(t("cutoffTersimpan"));
+      await refresh();
+    } catch (e) {
+      toastGagal(gagalKarena("gagalSetelan", e));
+    }
+  });
+});
 
 async function muatPenugasan() {
   try {

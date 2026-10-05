@@ -8,7 +8,13 @@ from konsol_js import HTML, NODE, fungsi, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 KUNCI = ("grupHariKerja", "labelCutoff", "bantuCutoff", "btnSimpanCutoff", "cutoffTersimpan", "rekapCutoff",
-         "err_cutoff_tidak_sah")
+         "err_cutoff_tidak_sah", "konfirmasiCutoffJudul", "konfirmasiCutoffPesan")
+
+
+def _simpan() -> str:
+    """The Simpan hari kerja click handler, up to its closing line."""
+    awal = HTML.index('$("set-cutoff-simpan").addEventListener("click"')
+    return HTML[awal : HTML.index("\n});", awal)]
 
 
 def _kamus(bahasa: str) -> str:
@@ -34,9 +40,8 @@ def test_the_rekap_names_the_cutoff_only_when_it_is_not_midnight(bahasa):
 def test_the_poll_reads_the_cutoff_and_settings_save_it():
     assert "aturCutoffShift(s.cutoff_shift)" in fungsi("refresh")
     assert "await muatCutoffSetelan();" in fungsi("muatSetelan")
-    awal = HTML.index('$("set-cutoff-simpan").addEventListener("click"')
-    kerja = HTML[awal : HTML.index("\n}));", awal)]
-    assert "denganSibuk(ev.currentTarget" in kerja and '"/api/console/dev/shift"' in kerja
+    kerja = _simpan()
+    assert "denganSibuk(tombol" in kerja and '"/api/console/dev/shift"' in kerja
     assert 'gagalKarena("gagalSetelan", e)' in kerja and 'toastSukses(t("cutoffTersimpan"))' in kerja
     assert '<input id="set-cutoff" type="time"' in HTML
     assert re.search(r'<span id="riwayat-cutoff" class="muted"( hidden)?></span>', HTML)
@@ -48,3 +53,21 @@ def test_save_stays_off_until_the_stored_cutoff_is_loaded():
     assert muat.index('$("set-cutoff-simpan").disabled = true') < muat.index('api("/api/console/dev/shift")')
     assert '$("set-cutoff-simpan").disabled = false' in muat.split("catch")[0]
     assert '<button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled>' in HTML
+
+
+@butuh_node
+@pytest.mark.parametrize(("teks", "tanya"), [("13:00", True), ("23:59", True), ("12:00", False), ("05:00", False),
+                                             ("00:00", False), ("", False)])
+def test_a_cutoff_after_noon_asks_first(teks, tanya):
+    """User 2026-10-05: any hour is allowed, but after 12:00 the screen warns and asks first."""
+    assert jalankan(["cutoffPerluTanya"], f"cutoffPerluTanya({teks!r})") is tanya
+
+
+def test_the_save_asks_with_the_example_and_the_field_shows_the_zone():
+    kerja = _simpan()
+    tanya = kerja.index("cutoffPerluTanya(")
+    assert tanya < kerja.index("tanyaKonfirmasi(") < kerja.index('"/api/console/dev/shift"')
+    assert 't("konfirmasiCutoffPesan")' in kerja and 't("konfirmasiCutoffJudul")' in kerja
+    assert '<input id="set-cutoff" type="time" step="60">' in HTML, "no max: any hour is allowed"
+    assert '<span id="set-cutoff-zona" class="muted"></span>' in HTML
+    assert '$("set-cutoff-zona").textContent' in fungsi("refresh")

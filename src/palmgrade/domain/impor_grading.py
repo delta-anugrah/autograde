@@ -36,7 +36,6 @@ from .operator_error import (
 from .plate import normalisasi_plat
 from .riwayat import JENIS_CAPTURE, KEPALA_CSV, TP_YA
 from .vision_event import verdict_of
-from .working_day import CUTOFF_MAKS
 
 #: Batas ukuran berkas. Sebulan data pabrik yang sibuk muat; lebih dari itu diminta
 #: dipecah per rentang tanggal, supaya satu unggahan tidak menahan memori konsol.
@@ -218,11 +217,11 @@ def _waktu(nilai: str, work_date: str) -> str:
         jam = datetime.strptime(nilai, _FORMAT_WAKTU)
     except ValueError:
         raise _Salah("waktu_tidak_sah", nilai=_potong(nilai)) from None
-    # The working day is the date of `time - cutoff` (§6.1, batch 5.11), and the cutoff is at
-    # most 12:00: in a file the console made, the time falls on the working day itself or on
-    # the next morning before noon. Anything else means the file was edited.
+    # The working day is the date of `time - cutoff` (§6.1, batch 5.11), and a cutoff is under
+    # 24 h: in a file the console made, the time falls on the working day itself or on the next
+    # calendar day. Anything else means the file was edited.
     hari = date.fromisoformat(work_date)
-    if not (jam.date() == hari or (jam.date() == hari + timedelta(days=1) and jam.time() < CUTOFF_MAKS)):
+    if jam.date() not in (hari, hari + timedelta(days=1)):
         raise _Salah("waktu_beda_tanggal", nilai=nilai, tanggal=work_date)
     return nilai
 

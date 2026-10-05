@@ -24,8 +24,6 @@ JENDELA_KUNJUNGAN_DETIK = 12 * 60 * 60
 JENDELA_TANPA_KELUAR_DETIK = 24 * 60 * 60
 #: The working day starts at midnight unless support sets a cutoff (batch 5.11).
 CUTOFF_BAWAAN = time(0, 0)
-#: Latest cutoff accepted: a working day that starts after noon is not a night shift.
-CUTOFF_MAKS = time(12, 0)
 _POLA_CUTOFF = re.compile(r"^(\d{1,2})[:.](\d{2})$")
 
 
@@ -67,13 +65,17 @@ def hari_kerja_kini(sekarang: datetime, tz: tzinfo, cutoff: time = CUTOFF_BAWAAN
 
 
 def baca_cutoff(teks: str | None) -> time:
-    """`HH:MM` (also `H:MM` and `HH.MM`, as operators type them); empty = midnight."""
+    """`HH:MM` (also `H:MM` and `HH.MM`, as operators type them); empty = midnight.
+
+    Any time of day (user 2026-10-05). After 12:00 most of the working day falls on the next
+    calendar date while it keeps the start's date; the screen asks before saving one.
+    """
     bersih = (teks or "").strip()
     if not bersih:
         return CUTOFF_BAWAAN
     cocok = _POLA_CUTOFF.match(bersih)
     jam, menit = (int(cocok.group(1)), int(cocok.group(2))) if cocok else (-1, -1)
-    if not (0 <= jam <= 23 and 0 <= menit <= 59) or time(jam, menit) > CUTOFF_MAKS:
+    if not (0 <= jam <= 23 and 0 <= menit <= 59):
         raise InvalidInput(CUTOFF_TIDAK_SAH, f"cutoff tidak sah: {bersih!r}")
     return time(jam, menit)
 
