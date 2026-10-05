@@ -44,6 +44,7 @@ from ..services.pantau_antrean_line import PantauAntreanLine
 from ..services.pembaruan_service import PembaruanService
 from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
+from ..services.slip_grading import SlipGrading
 from ..services.status_sinkron import StatusSinkron
 from ..workers.master_data_worker import MasterDataWorker
 from ..workers.visit_manifest_worker import VisitManifestWorker
@@ -239,6 +240,14 @@ def get_operator_admin() -> OperatorAdmin:
 
 
 @lru_cache
+def get_slip_service() -> SlipGrading:
+    """Printable grading slip (batch 5.9). The store of the console, the company from
+    `ERP_COMPANY` (empty on a site without AutoERP: the slip simply leaves it out)."""
+    service = get_console_service()
+    return SlipGrading(service.store, perusahaan=service.settings.erp_company)
+
+
+@lru_cache
 def get_riwayat_service() -> RiwayatService:
     """Tab Riwayat. Membaca `console.db` yang sama lewat koneksi baca-saja sendiri,
     bukan store konsol: query sebulan tidak boleh antre di lock yang dipakai
@@ -300,6 +309,7 @@ def hangatkan_singleton() -> None:
     get_pantau_antrean_line()
     get_lapor_discord()
     get_bahaya_service()
+    get_slip_service()
     get_operator_admin()
     get_riwayat_service()
     get_impor_grading_service()
@@ -313,6 +323,7 @@ Dev = Annotated[DevService, Depends(get_dev_service)]
 Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
 Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]
 Riwayat = Annotated[RiwayatService, Depends(get_riwayat_service)]
+Slip = Annotated[SlipGrading, Depends(get_slip_service)]
 Impor = Annotated[ImporGradingService, Depends(get_impor_grading_service)]
 Pembaruan = Annotated[PembaruanService, Depends(get_pembaruan_service)]
 

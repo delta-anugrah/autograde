@@ -39,7 +39,7 @@ ditanya.
   `restart` dan reboot **tidak** membaca ulang `.env`; ubah deps/Dockerfile → `make up`.
   Setelan "tidak berlaku" padahal `.env` benar → env var proses menang atas `.env`
   (`load_dotenv(override=False)`), lihat nilai efektifnya di `/health/detail`.
-- **Akun konsol:** email + sandi, sesi 12 jam. Lokal: tab **Akun** (support) → Tambah akun,
+- **Akun konsol:** email + sandi, sesi geser 12 jam sejak sentuhan terakhir (pita kuning 15 menit sebelum habis). Lokal: tab **Akun** (support) → Tambah akun,
   Ganti sandi, Matikan/Aktifkan, Jadikan support/operator (sejak 2026-09-26), atau `make operator`
   (`AKSI=daftar|matikan|role ROLE=support`). PC pabrik tidak punya Makefile: di sana pakai tab Akun,
   atau `docker exec -it <konsol> python scripts/console-operator.py`. Nama container konsol dicek

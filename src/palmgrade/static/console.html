@@ -515,12 +515,31 @@
 
   /* Yang dicetak cuma kartunya. Tanpa ini, satu halaman berisi kamera, tabel, dan
      strip tally — puluhan lembar terbuang sebelum kartu pertama muncul. */
+  /* Batch 5.9: a grading slip prints alone (`body[data-cetak="slip"]`, set by `cetakSlip`
+     and cleared on `afterprint`); the QR card rules stand down while it does. */
   @media print {
-    body > *:not(#sec-truk) { display:none !important; }
-    #sec-truk > *:not(#qr-cetak) { display:none !important; }
-    #sec-truk { display:block !important; }
+    body[data-cetak="slip"] > :not(#slip-cetak) { display:none !important; }
+    body[data-cetak="slip"] #slip-cetak { display:block; }
+    body:not([data-cetak="slip"]) > *:not(#sec-truk) { display:none !important; }
+    body:not([data-cetak="slip"]) #sec-truk > *:not(#qr-cetak) { display:none !important; }
+    body:not([data-cetak="slip"]) #sec-truk { display:block !important; }
     .qr-satu { break-inside:avoid; border-color:#000; }
   }
+  /* The slip: black on white whatever the theme, sized for A5 or half an A4. */
+  #slip-cetak { display:none; }
+  #slip-cetak { color:#000; background:#fff; font-size:11pt; }
+  #slip-cetak h1 { margin:0 0 2pt; font-size:15pt; letter-spacing:.06em; text-transform:uppercase; }
+  #slip-cetak .slip-perusahaan { margin:0 0 8pt; font-weight:700; }
+  #slip-cetak table { width:100%; border-collapse:collapse; margin:6pt 0; }
+  #slip-cetak th, #slip-cetak td { padding:3pt 5pt; border:1px solid #000; text-align:left; }
+  #slip-cetak td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  #slip-cetak .slip-ttd { display:flex; justify-content:space-between; gap:24pt; margin-top:28pt; }
+  #slip-cetak .slip-ttd span { flex:1; padding-top:4pt; border-top:1px solid #000; text-align:center; }
+  #slip-cetak .slip-kaki { margin-top:10pt; font-size:9pt; }
+  /* The brand dot and the screen's grey table heads belong to the screen, not to paper. */
+  #slip-cetak h1::before { content:none; display:none; }
+  #slip-cetak th { background:#fff; color:#000; }
+  @media print { body[data-cetak="slip"] { background:#fff; } }
   #gerbang-masuk { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
   #gerbang-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
   #operator-aktif { align-self:center; font-weight:700; }
@@ -1659,6 +1678,7 @@
 -->
 <div id="lisensi-banner" role="status"></div>
 <div id="toasts" aria-live="polite"></div>
+<div id="slip-cetak" aria-hidden="true"></div>
 
 
 <div id="gerbang">
@@ -2319,6 +2339,25 @@
     </details>
     <div class="tools lepas">
       <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan">Simpan penugasan</button>
+    </div>
+  </div>
+
+  <!-- Batch 5.9: the printable grading slip, its own save like Penugasan line. -->
+  <div class="setelan-form">
+    <details class="setelan-grup" data-setelan-grup="slip" open>
+      <summary data-t="grupSlip">Slip grading</summary>
+      <div class="setelan-grup-isi">
+        <label class="saklar">
+          <input id="set-slip" type="checkbox">
+          <span>
+            <span data-t="labelSlip">Tampilkan tombol Cetak slip di tab Rekap</span>
+            <small class="muted" data-t="bantuSlip">Untuk semua akun.</small>
+          </span>
+        </label>
+      </div>
+    </details>
+    <div class="tools lepas">
+      <button id="set-slip-simpan" class="utama" data-t="btnSimpanSlip">Simpan slip</button>
     </div>
   </div>
 
@@ -3094,6 +3133,17 @@ const KAMUS = {
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     erpFinalBeda:"Cek AutoERP", erpFinalBedaJudul:"Tiket {tiket} sudah final di AutoERP saat data terbaru tiba. Angka yang dibukukan tidak berubah; minta backoffice memeriksa tiket ini.", erpBatal:"Tiket batal", erpBatalJudul:"Tiket {tiket} dibatalkan di AutoERP, kunjungan ini tidak dibukukan. Minta backoffice memeriksanya.", erpTanpaNomor:"(tanpa nomor)",
     kosongGrading:"Belum ada grading hari ini",
+    btnCetakSlip:"Cetak", gagalCetakSlip:"Gagal menyiapkan slip", slipJudul:"Slip Grading",
+    slipTanggal:"Tanggal kerja", slipTruk:"Truk", slipSupplier:"Supplier", slipSumber:"Sumber",
+    slipJam:"Jam grading", slipKelas:"Kelas", slipJumlah:"Jumlah janjang", slipRasio:"Rasio Ripe",
+    slipNeto:"Neto", slipTiket:"Tiket timbang", slipBruto:"Bruto", slipTara:"Tara",
+    slipMasuk:"Timbang isi", slipKeluar:"Timbang kosong", slipDicetak:"Dicetak {waktu}",
+    slipTtdOperator:"Operator", slipTtdSupir:"Supir", grupSlip:"Slip grading",
+    labelSlip:"Tampilkan tombol Cetak slip di tab Rekap",
+    bantuSlip:"Untuk semua akun. Slip satu truk per hari kerja: hitungan kelas, rasio, neto, jam.",
+    btnSimpanSlip:"Simpan slip", slipTersimpan:"Setelan slip tersimpan.",
+    err_slip_mati:"Slip grading sedang dimatikan. Minta support menyalakannya di tab Setelan",
+    err_slip_tidak_ada:"Truk ini tidak punya janjang pada tanggal itu",
     saringLine:"Line", saringTruk:"Truk", saringSemuaLine:"Semua line", saringSemuaTruk:"Semua truk",
     kosongGradingSaring:"Tidak ada grading hari ini untuk line dan truk yang dipilih",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
@@ -3594,6 +3644,17 @@ const KAMUS = {
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     erpFinalBeda:"Check AutoERP", erpFinalBedaJudul:"Ticket {tiket} was already final in AutoERP when the latest data arrived. The booked figures did not change; ask the back office to review this ticket.", erpBatal:"Ticket cancelled", erpBatalJudul:"Ticket {tiket} was cancelled in AutoERP, so this visit is not booked. Ask the back office to look at it.", erpTanpaNomor:"(no number)",
     kosongGrading:"No grading yet today",
+    btnCetakSlip:"Print", gagalCetakSlip:"Could not prepare the slip", slipJudul:"Grading Slip",
+    slipTanggal:"Working day", slipTruk:"Truck", slipSupplier:"Supplier", slipSumber:"Source",
+    slipJam:"Grading time", slipKelas:"Class", slipJumlah:"Bunches", slipRasio:"Ripe rate",
+    slipNeto:"Net", slipTiket:"Weighing tickets", slipBruto:"Gross", slipTara:"Tare",
+    slipMasuk:"Weigh-in", slipKeluar:"Weigh-out", slipDicetak:"Printed {waktu}",
+    slipTtdOperator:"Operator", slipTtdSupir:"Driver", grupSlip:"Grading slip",
+    labelSlip:"Show the Print slip button on the Rekap tab",
+    bantuSlip:"For every account. One truck per working day: class counts, rate, net, times.",
+    btnSimpanSlip:"Save slip", slipTersimpan:"Slip setting saved.",
+    err_slip_mati:"The grading slip is switched off. Ask support to switch it on in the Settings tab",
+    err_slip_tidak_ada:"This truck has no bunches on that day",
     saringLine:"Line", saringTruk:"Truck", saringSemuaLine:"All lines", saringSemuaTruk:"All trucks",
     kosongGradingSaring:"No grading today for the chosen line and truck",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
@@ -7099,6 +7160,7 @@ async function refresh() {
     gambarInfoSistem(s.versi, s.lisensi);
     namaLineKartu = Object.fromEntries(s.lines.map((l) => [l.line_code, l.name || l.line_code]));
     gambarPembaruan(s.pembaruan);
+    aturSlipCetak(s.slip_cetak);
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     selarasUrutan(s.lines);
@@ -7317,6 +7379,10 @@ function barisRiwayatTruk(r) {
   const lihat = r.truck_id && r.plate_number
     ? `<button type="button" class="riwayat-lihat" data-lihat="janjang"
          data-tanggal="${esc(r.work_date)}" data-plat="${esc(r.plate_number)}">${esc(t("riwayatLihatJanjang"))}</button>` : "";
+  // Batch 5.9: Print while support has the slip switched on (`slipCetak`, from the poll).
+  const cetak = slipCetak && r.truck_id && r.plate_number
+    ? ` <button type="button" class="riwayat-lihat" data-cetak="1" data-tanggal="${esc(r.work_date)}"
+         data-truk="${esc(r.truck_id)}">${esc(t("btnCetakSlip"))}</button>` : "";
   return `<tr>
     <td>${esc(tanggalRiwayat(r.work_date))}</td>
     <td class="key">${plat}</td>
@@ -7329,7 +7395,7 @@ function barisRiwayatTruk(r) {
     <td class="num tp">${kg(r.tp)}</td>
     <td class="num">${rasioRiwayat(r.acc, r.total)}</td>
     <td class="num">${kg(r.neto_kg)}</td>
-    <td>${lihat}</td>
+    <td>${lihat}${cetak}</td>
   </tr>`;
 }
 
@@ -7769,6 +7835,73 @@ $("riwayat-nomor").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-halaman]");
   if (tombol) keHalamanRiwayat(Number(tombol.dataset.halaman), tombol);
 });
+
+// ── slip grading (batch 5.9) ─────────────────────────────────────────────
+let slipCetak = false;
+
+function aturSlipCetak(nilai) {
+  const baru = Boolean(nilai);
+  if (slipCetak === baru) return;
+  slipCetak = baru;
+  gambarUlangRiwayat();
+}
+
+function angkaSlip(v, akhiran = "") {
+  return v === null || v === undefined ? KOSONG : `${Number(v).toLocaleString(lokal())}${akhiran}`;
+}
+
+// One truck's slip as the server sent it (batch 5.9): every number is the server's (L4),
+// this only lays it out.
+function htmlSlip(s, dicetak = Date.now()) {
+  const k = s.kelas || {};
+  const kelas = [["clsRipe", k.ripe], ["clsUnripe", k.unripe], ["clsJk", k.jk], ["clsTp", k.tp]]
+    .map(([kunci, n]) => `<tr><td>${esc(t(kunci))}</td><td class="num">${angkaSlip(n)}</td></tr>`).join("");
+  const tiket = (s.tiket || []).map((x) => `<tr><td>${x.masuk ? waktu(x.masuk) : KOSONG}</td>
+    <td>${x.keluar ? waktu(x.keluar) : KOSONG}</td><td class="num">${angkaSlip(x.bruto_kg, " kg")}</td>
+    <td class="num">${angkaSlip(x.tara_kg, " kg")}</td><td class="num">${angkaSlip(x.neto_kg, " kg")}</td></tr>`).join("");
+  return `<h1>${esc(t("slipJudul"))}</h1>
+    ${s.perusahaan ? `<p class="slip-perusahaan">${esc(s.perusahaan)}</p>` : ""}
+    <table>
+      <tr><th>${esc(t("slipTanggal"))}</th><td>${esc(s.work_date)}</td></tr>
+      <tr><th>${esc(t("slipTruk"))}</th><td>${dash(s.plate_number)}</td></tr>
+      <tr><th>${esc(t("slipSupplier"))}</th><td>${dash(s.supplier_name)}</td></tr>
+      <tr><th>${esc(t("slipSumber"))}</th><td>${dash(s.source_label)}</td></tr>
+      <tr><th>${esc(t("slipJam"))}</th><td>${s.mulai ? waktu(s.mulai) : KOSONG} - ${s.selesai ? waktu(s.selesai) : KOSONG}</td></tr>
+    </table>
+    <table>
+      <tr><th>${esc(t("slipKelas"))}</th><th>${esc(t("slipJumlah"))}</th></tr>
+      ${kelas}
+      <tr><th>${esc(t("thTotal"))}</th><td class="num">${angkaSlip(k.total)}</td></tr>
+      <tr><th>${esc(t("slipRasio"))}</th><td class="num">${angkaSlip(s.rasio_ripe, "%")}</td></tr>
+      <tr><th>${esc(t("slipNeto"))}</th><td class="num">${angkaSlip(s.neto_kg, " kg")}</td></tr>
+    </table>
+    ${tiket ? `<table><tr><th colspan="5">${esc(t("slipTiket"))}</th></tr>
+      <tr><th>${esc(t("slipMasuk"))}</th><th>${esc(t("slipKeluar"))}</th><th>${esc(t("slipBruto"))}</th>
+      <th>${esc(t("slipTara"))}</th><th>${esc(t("slipNeto"))}</th></tr>${tiket}</table>` : ""}
+    <div class="slip-ttd"><span>${esc(t("slipTtdOperator"))}</span><span>${esc(t("slipTtdSupir"))}</span></div>
+    <p class="slip-kaki">${esc(t("slipDicetak").replace("{waktu}", waktu(new Date(dicetak))))}</p>`;
+}
+
+function cetakSlip(tombol) {
+  return denganSibuk(tombol, async () => {
+    try {
+      const q = new URLSearchParams({ work_date: tombol.dataset.tanggal, truck_id: tombol.dataset.truk });
+      const s = await api(`/api/console/slip?${q}`);
+      tulisKalauBeda($("slip-cetak"), htmlSlip(s));
+      document.body.dataset.cetak = "slip";
+      window.print();
+    } catch (e) {
+      toastGagal(gagalKarena("gagalCetakSlip", e));
+    }
+  });
+}
+
+document.addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-cetak]");
+  if (tombol) cetakSlip(tombol);
+});
+// The QR card print works again once the slip has gone to the printer (or was cancelled).
+window.addEventListener("afterprint", () => { delete document.body.dataset.cetak; });
 
 // Turun satu tingkat: hari → truk hari itu → janjang truk itu hari itu.
 $("riwayat-baris").addEventListener("click", (ev) => {
@@ -9081,9 +9214,28 @@ async function muatSetelan() {
     $("set-pesan").textContent = "";
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
   await muatPenugasan();
+  await muatSlipSetelan();
 }
 
 // Saklar penugasan line otomatis: jalurnya sendiri, dimuat sesudah setelan grading.
+async function muatSlipSetelan() {
+  try {
+    $("set-slip").checked = Boolean((await api("/api/console/dev/slip")).aktif);
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
+  }
+}
+
+$("set-slip-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
+  try {
+    await api("/api/console/dev/slip", { method: "POST", body: JSON.stringify({ aktif: $("set-slip").checked }) });
+    toastSukses(t("slipTersimpan"));
+    await refresh();
+  } catch (e) {
+    toastGagal(alasan(e, "gagalSetelan"));
+  }
+}));
+
 async function muatPenugasan() {
   try {
     const r = await api("/api/console/dev/auto-assign");
