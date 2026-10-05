@@ -1,6 +1,6 @@
 # Shift cutoff for the working day: design (batch 5.11)
 
-Status: **option A built in PR #PRNUM** (branch `feat/console-shift-cutoff`). The user answered
+Status: **option A built in PR #246** (branch `feat/console-shift-cutoff`). The user answered
 §6 on 2026-10-05; the answers are written under each question. Master plan: the runbook "Rencana Perbaikan AutoGrade" of
 2026-09-28 in the `sawit` workspace, Batch 5 item 5.11.
 

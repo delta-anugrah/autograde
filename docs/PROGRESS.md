@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #PRNUM)
+## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #246)
 Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, 00:00 to
                 12:00, default 00:00 = old behaviour). `work_date` = date of `timestamp - cutoff`,
                 computed only in `services/hari_kerja.py` (ingest, weighing, gate scans, "Hari
