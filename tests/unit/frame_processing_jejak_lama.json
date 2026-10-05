@@ -1,0 +1,485 @@
+{
+ "dibuat_dari": "FrameProcessingWorker at commit fe3873d (before batch 6.1), 60 frames per seed",
+ "skenario": [
+  {
+   "benih": 1,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 2,
+   "rej": 7,
+   "tp_terpasang": 2,
+   "tp_telat": 0,
+   "sidik": "d05f842e7690fdc984eee01e5a7595720952db60e801465b20ef7139013e29df"
+  },
+  {
+   "benih": 2,
+   "pulse_plc": 11,
+   "janjang_disimpan": 11,
+   "acc": 2,
+   "rej": 9,
+   "tp_terpasang": 0,
+   "tp_telat": 3,
+   "sidik": "be604b49800ac6d28d14ed85d80fba7250907030d740ebf45ed3d536f39d41c6"
+  },
+  {
+   "benih": 3,
+   "pulse_plc": 8,
+   "janjang_disimpan": 8,
+   "acc": 4,
+   "rej": 4,
+   "tp_terpasang": 3,
+   "tp_telat": 0,
+   "sidik": "fa499f73eeda176549298159c3a10037d03cae342a5b55ec45898609a7f394f6"
+  },
+  {
+   "benih": 4,
+   "pulse_plc": 4,
+   "janjang_disimpan": 4,
+   "acc": 2,
+   "rej": 2,
+   "tp_terpasang": 1,
+   "tp_telat": 1,
+   "sidik": "7cc26d52a52399a2794ee39cba61da0ca187a10656633d46d115a3c2de9cdd08"
+  },
+  {
+   "benih": 5,
+   "pulse_plc": 11,
+   "janjang_disimpan": 11,
+   "acc": 6,
+   "rej": 5,
+   "tp_terpasang": 2,
+   "tp_telat": 0,
+   "sidik": "56a801b4f91d8d844459702a86c4cde884aa018c3eab2ad020abaf0262cc4c9f"
+  },
+  {
+   "benih": 6,
+   "pulse_plc": 12,
+   "janjang_disimpan": 12,
+   "acc": 1,
+   "rej": 11,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "ba1bc387ceb03f46eacd0f738b98f47adbc4979c0ef7c4030c65b949a5f6d9f2"
+  },
+  {
+   "benih": 7,
+   "pulse_plc": 7,
+   "janjang_disimpan": 7,
+   "acc": 4,
+   "rej": 3,
+   "tp_terpasang": 2,
+   "tp_telat": 0,
+   "sidik": "fb3febca689174194a2d387a950137356147e32b92ac03aa616227839e60ab85"
+  },
+  {
+   "benih": 8,
+   "pulse_plc": 13,
+   "janjang_disimpan": 13,
+   "acc": 2,
+   "rej": 11,
+   "tp_terpasang": 2,
+   "tp_telat": 1,
+   "sidik": "156c31e1302ed683c72d85ae5058a8ae0c0bdcdd0e1381eddc4f081424bcf907"
+  },
+  {
+   "benih": 9,
+   "pulse_plc": 11,
+   "janjang_disimpan": 11,
+   "acc": 5,
+   "rej": 6,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "7bcf36052247ab9d6320f7cae9d1ec1fde9c39c75a929312e45bfaf4c9473848"
+  },
+  {
+   "benih": 10,
+   "pulse_plc": 10,
+   "janjang_disimpan": 10,
+   "acc": 2,
+   "rej": 8,
+   "tp_terpasang": 1,
+   "tp_telat": 2,
+   "sidik": "d063a2db5273069dd7d10cfa0b35453aa9d83296d47a00b787e1fbdecd216426"
+  },
+  {
+   "benih": 11,
+   "pulse_plc": 10,
+   "janjang_disimpan": 10,
+   "acc": 4,
+   "rej": 6,
+   "tp_terpasang": 2,
+   "tp_telat": 0,
+   "sidik": "df74877bc052d27bd7c903f5ee6162fa9f72e4262e23dee6f65eef7592d7b5a1"
+  },
+  {
+   "benih": 12,
+   "pulse_plc": 7,
+   "janjang_disimpan": 7,
+   "acc": 1,
+   "rej": 6,
+   "tp_terpasang": 1,
+   "tp_telat": 2,
+   "sidik": "9f585543ec343a9ddd2a61df6e89e3e3df731f43f151aa73d1ed46510be70586"
+  },
+  {
+   "benih": 13,
+   "pulse_plc": 10,
+   "janjang_disimpan": 10,
+   "acc": 5,
+   "rej": 5,
+   "tp_terpasang": 2,
+   "tp_telat": 1,
+   "sidik": "412905afe721d72b672ab30a700572c1b42ae9f1aa8d89a062df502580a26043"
+  },
+  {
+   "benih": 14,
+   "pulse_plc": 13,
+   "janjang_disimpan": 13,
+   "acc": 2,
+   "rej": 11,
+   "tp_terpasang": 1,
+   "tp_telat": 1,
+   "sidik": "886a5f2e618bd6145711ccd7bc555a10b1d50504abb025662079c131b33adf9e"
+  },
+  {
+   "benih": 15,
+   "pulse_plc": 5,
+   "janjang_disimpan": 5,
+   "acc": 3,
+   "rej": 2,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "8d64437e016d96aae0829b5bb847ae54293a86497360455e48694f1f508b9861"
+  },
+  {
+   "benih": 16,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 2,
+   "rej": 7,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "c3d610e6b0c7abd2ce0d52b05f125ee6752c2c1698b885ef0d0b2832269ae361"
+  },
+  {
+   "benih": 17,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 4,
+   "rej": 5,
+   "tp_terpasang": 2,
+   "tp_telat": 1,
+   "sidik": "eee65a19848f126be2ea8e701741178e1362334630a125aeef54478a90de5f48"
+  },
+  {
+   "benih": 18,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 1,
+   "rej": 8,
+   "tp_terpasang": 0,
+   "tp_telat": 0,
+   "sidik": "438b7231c30dab223af8ca9399563cac783733d973c7465c6cacf450bbb14831"
+  },
+  {
+   "benih": 19,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 6,
+   "rej": 3,
+   "tp_terpasang": 3,
+   "tp_telat": 0,
+   "sidik": "09ccfdf88f0407320425306c1aad48978d06dbd75f717bc22a4eeb59afc22936"
+  },
+  {
+   "benih": 20,
+   "pulse_plc": 10,
+   "janjang_disimpan": 10,
+   "acc": 3,
+   "rej": 7,
+   "tp_terpasang": 2,
+   "tp_telat": 2,
+   "sidik": "8222a52129bfa40e6a2d40028dd22e9f05b6540cac6a2fe1476b14c1b69eb95f"
+  },
+  {
+   "benih": 21,
+   "pulse_plc": 10,
+   "janjang_disimpan": 10,
+   "acc": 4,
+   "rej": 6,
+   "tp_terpasang": 3,
+   "tp_telat": 0,
+   "sidik": "5d0f54976d8a172ffbd433f1fdf0e08145519cd2f729c553da5c7114e85d134c"
+  },
+  {
+   "benih": 22,
+   "pulse_plc": 5,
+   "janjang_disimpan": 5,
+   "acc": 1,
+   "rej": 4,
+   "tp_terpasang": 0,
+   "tp_telat": 0,
+   "sidik": "7da4fb650a93c8b8f33d250008b8df7c144e26926191a97c9d57f3ab4f817754"
+  },
+  {
+   "benih": 23,
+   "pulse_plc": 6,
+   "janjang_disimpan": 6,
+   "acc": 3,
+   "rej": 3,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "2ef0db9a74e6d374cc9bb9c96a682ed4d5d0f828e6dc8c271ec8ac6567b43aec"
+  },
+  {
+   "benih": 24,
+   "pulse_plc": 8,
+   "janjang_disimpan": 8,
+   "acc": 3,
+   "rej": 5,
+   "tp_terpasang": 2,
+   "tp_telat": 1,
+   "sidik": "b8f62e73d4dadd51e206c31fbfdfbebd0f538a85cf622df0effa261e53e798de"
+  },
+  {
+   "benih": 25,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 5,
+   "rej": 4,
+   "tp_terpasang": 3,
+   "tp_telat": 0,
+   "sidik": "42fb1d6537c569745a648dd414ce3e542fe1d1b4850358191000d3403aa9b991"
+  },
+  {
+   "benih": 26,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 2,
+   "rej": 7,
+   "tp_terpasang": 1,
+   "tp_telat": 2,
+   "sidik": "7958b40f6ec3b568a038e5125e0abada75cbf8b13e86730ec955f1f7dbb2e895"
+  },
+  {
+   "benih": 27,
+   "pulse_plc": 12,
+   "janjang_disimpan": 12,
+   "acc": 5,
+   "rej": 7,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "4f72c1797e42be09d3e1092b97c921d993e177acd6e379a8dbd65c5730097962"
+  },
+  {
+   "benih": 28,
+   "pulse_plc": 10,
+   "janjang_disimpan": 10,
+   "acc": 4,
+   "rej": 6,
+   "tp_terpasang": 1,
+   "tp_telat": 1,
+   "sidik": "db31d213a720e5e00be267170c853ba5ce845d4e8cd00ad440c6257acf233642"
+  },
+  {
+   "benih": 29,
+   "pulse_plc": 11,
+   "janjang_disimpan": 11,
+   "acc": 7,
+   "rej": 4,
+   "tp_terpasang": 3,
+   "tp_telat": 0,
+   "sidik": "ee952ffab8cc84390e996e16df52e5419135da049e8bf134e9cf2f522ebb72f6"
+  },
+  {
+   "benih": 30,
+   "pulse_plc": 6,
+   "janjang_disimpan": 6,
+   "acc": 3,
+   "rej": 3,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "6ca47eec3b9bd56acea7125979794a0813b3d847d0b11858bc65483dc9d2b36a"
+  },
+  {
+   "benih": 31,
+   "pulse_plc": 8,
+   "janjang_disimpan": 8,
+   "acc": 4,
+   "rej": 4,
+   "tp_terpasang": 2,
+   "tp_telat": 0,
+   "sidik": "4541ee8794552551a14e8e220c9697f028e92a96a42b60683989fa25288ce04d"
+  },
+  {
+   "benih": 32,
+   "pulse_plc": 12,
+   "janjang_disimpan": 12,
+   "acc": 0,
+   "rej": 12,
+   "tp_terpasang": 0,
+   "tp_telat": 1,
+   "sidik": "3dadda4e29bf18fbd1e3deef59bbe233caf44fc1e759f788821aef3a1b3cf0aa"
+  },
+  {
+   "benih": 33,
+   "pulse_plc": 6,
+   "janjang_disimpan": 6,
+   "acc": 3,
+   "rej": 3,
+   "tp_terpasang": 3,
+   "tp_telat": 0,
+   "sidik": "ee6d6eee532fec9709e002ef46a29122d4a8a0d3dac9b34e7f9bc4aa2b62c109"
+  },
+  {
+   "benih": 34,
+   "pulse_plc": 3,
+   "janjang_disimpan": 3,
+   "acc": 2,
+   "rej": 1,
+   "tp_terpasang": 0,
+   "tp_telat": 1,
+   "sidik": "b92e3409b982ec518a970cfd492050dec2abec10e03818a51159d9c0ca0cab50"
+  },
+  {
+   "benih": 35,
+   "pulse_plc": 6,
+   "janjang_disimpan": 6,
+   "acc": 3,
+   "rej": 3,
+   "tp_terpasang": 2,
+   "tp_telat": 0,
+   "sidik": "10d41e991aca729c1498f0bc48de81f9c86edfc655a9fe2479cf96f2f7d50715"
+  },
+  {
+   "benih": 36,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 3,
+   "rej": 6,
+   "tp_terpasang": 1,
+   "tp_telat": 1,
+   "sidik": "faff8adcb9af6bc6dc7f2e7f239f5616493501a00ee7773321f16c51fefd2d99"
+  },
+  {
+   "benih": 37,
+   "pulse_plc": 7,
+   "janjang_disimpan": 7,
+   "acc": 3,
+   "rej": 4,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "2f0c9295705332b343cef3cf81cadb2c83cf5666e9b7ce80a476b194883e1e7b"
+  },
+  {
+   "benih": 38,
+   "pulse_plc": 4,
+   "janjang_disimpan": 4,
+   "acc": 1,
+   "rej": 3,
+   "tp_terpasang": 0,
+   "tp_telat": 0,
+   "sidik": "94de2150b2bea52addf635f6dbb0d903c253d3594e67aa3b34e7a15b8ea892b1"
+  },
+  {
+   "benih": 39,
+   "pulse_plc": 5,
+   "janjang_disimpan": 5,
+   "acc": 2,
+   "rej": 3,
+   "tp_terpasang": 0,
+   "tp_telat": 0,
+   "sidik": "e3b8ffaff25f5a9e076a6f4ea4612da514894dc4ee5552294288f0f5751d751c"
+  },
+  {
+   "benih": 40,
+   "pulse_plc": 10,
+   "janjang_disimpan": 10,
+   "acc": 3,
+   "rej": 7,
+   "tp_terpasang": 3,
+   "tp_telat": 1,
+   "sidik": "7f18b4c8aca72d2b6963e361428bcfc2180e6ff37918e8d1fdbcfc5505d8a25c"
+  },
+  {
+   "benih": 41,
+   "pulse_plc": 8,
+   "janjang_disimpan": 8,
+   "acc": 4,
+   "rej": 4,
+   "tp_terpasang": 3,
+   "tp_telat": 1,
+   "sidik": "dd7aac9b1c8af05d2ac2c078a3468671c2ca56d2b0ed700ad69cc71ff4402090"
+  },
+  {
+   "benih": 42,
+   "pulse_plc": 11,
+   "janjang_disimpan": 11,
+   "acc": 1,
+   "rej": 10,
+   "tp_terpasang": 1,
+   "tp_telat": 0,
+   "sidik": "934d3f2e4f203f67436892acca2c002f3ec190fb856b11f660403567c63bc67f"
+  },
+  {
+   "benih": 43,
+   "pulse_plc": 6,
+   "janjang_disimpan": 6,
+   "acc": 5,
+   "rej": 1,
+   "tp_terpasang": 4,
+   "tp_telat": 0,
+   "sidik": "2a9b0c9d89b5934e47617166a73284233a51e18d85ee479e8cc59a25b366a8a3"
+  },
+  {
+   "benih": 44,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 3,
+   "rej": 6,
+   "tp_terpasang": 2,
+   "tp_telat": 2,
+   "sidik": "2962da0e5326f4fe243c33d3db43e06e1a6d34adaf329d65b43864415312a2c1"
+  },
+  {
+   "benih": 45,
+   "pulse_plc": 7,
+   "janjang_disimpan": 7,
+   "acc": 3,
+   "rej": 4,
+   "tp_terpasang": 3,
+   "tp_telat": 1,
+   "sidik": "a2095984b14191841945e8c10a4c351f91f1c6d2b71883f9155f65681aefa299"
+  },
+  {
+   "benih": 46,
+   "pulse_plc": 8,
+   "janjang_disimpan": 8,
+   "acc": 1,
+   "rej": 7,
+   "tp_terpasang": 0,
+   "tp_telat": 1,
+   "sidik": "120a595d43602ddbbe215ec61ec4b40edd912f8d1f6973d94a422df0bca2481d"
+  },
+  {
+   "benih": 47,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 4,
+   "rej": 5,
+   "tp_terpasang": 1,
+   "tp_telat": 1,
+   "sidik": "0cde6dbd1615de89d7f515c690ab8d3c98eb316fa78ff7df56f76e3c98300186"
+  },
+  {
+   "benih": 48,
+   "pulse_plc": 9,
+   "janjang_disimpan": 9,
+   "acc": 1,
+   "rej": 8,
+   "tp_terpasang": 0,
+   "tp_telat": 3,
+   "sidik": "bc25e761bc2e74b43f1e4d05d2f18b50f8c31ca8dabcaa5abb6c6970cddff633"
+  }
+ ]
+}

@@ -35,9 +35,9 @@ strict boundary; the coding rules that go with it are in `docs/coding-standard.m
 | Worker | Kind | Responsibility |
 |---|---|---|
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
-| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri** |
+| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri**. Since batch 6.1 the boxes of a frame are read **once** (`pipelines/kotak_deteksi.baca_kotak`: one `boxes.cpu().numpy()`), and the three scans (bunches in the ROI, stalks, grading) read that list, never `results.boxes` |
 | `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; dikuras oleh urutan tutup line (SIGTERM dan perintah restart/hapus dari konsol) bersamaan dengan coil PLC dimatikan |
-| `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
+| `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: resize → draw boxes (scaled) → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12), and renders nothing while no MJPEG viewer is counted in (`state.penonton_stream`, batch 6.3). |
 | `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke **konsol lokal** (`BACKEND_URL`), poll 1 detik: jalur realtime operator, hidup walau internet mati. Batch upload foto ke R2 jalan terpisah. |
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di PC dev). Satu-satunya thread yang menyentuh socket ke PLC (MC Protocol ke CPU Mitsubishi; Modbus ke coupler ODOT kalau `PLC_PROTOCOL=modbus`): kuras antrean keputusan → pulse bit OK/NG, kedipkan heartbeat, baca blok input, tulis bit ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya**. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
 | `EventBroadcastWorker` | asyncio task | drain `event_queue` → push to `/ws/results` WebSocket clients |
@@ -209,7 +209,7 @@ sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos amban
 dikirim ke konsol: yang dibuang tampilannya, bukan datanya. `MODE_DEV=true` (tab Setelan)
 menggambarnya lagi, untuk support yang sedang menyetel ambang.
 
-**DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`
+**DisplayWorker draw order (since batch 6.3):** `cv2.resize()` of `last_yolo_frame` to stream size → `draw_boxes(skala=...)` on the small frame (box and style scaled by `domain/skala_tampilan.py`) → `draw_roi()`
 (yang juga menggambar **garis capture** biru bertanda `CAPTURE`, sesudah resize, di ruang stream).
 Render boxes over `last_yolo_frame` (paired with results), **never** over `latest_raw_frame`, on CPU,
 inference can take 0.5–2s and the conveyor moves, so boxes would land in the wrong place. Fallback to
@@ -876,7 +876,7 @@ src/palmgrade/
   controllers/     # request handlers
   services/        # business flow (capture, inspection, streaming, truck, health, result)
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
-  pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
+  pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry), kotak_deteksi = one read of a frame's boxes
   workers/         # background threads + RuntimeState (capture / display / processing / capture_save / event_broadcast / outbox_retry / batch_upload)
                    # capture_save = penulis bukti (encode WebP + sidecar + outbox) di thread sendiri; deteksi cuma menyerahkan, tidak pernah menunggu disk
                    # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong

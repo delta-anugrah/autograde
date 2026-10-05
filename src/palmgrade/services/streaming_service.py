@@ -35,6 +35,19 @@ class StreamingService:
         self._wait_timeout = wait_timeout
 
     def generate_frames(self) -> Generator[bytes, None, None]:
+        """The MJPEG stream for one viewer.
+
+        The viewer is counted from the first chunk it asks for until the generator ends
+        (browser gone, error, shutdown): `DisplayWorker` renders only while somebody is
+        counted in (batch 6.3). A first frame can take one render interval to arrive.
+        """
+        self.state.penonton_masuk()
+        try:
+            yield from self._frames()
+        finally:
+            self.state.penonton_keluar()
+
+    def _frames(self) -> Generator[bytes, None, None]:
         last_frame: bytes | None = None
         idle_ticks = 0
         while True:

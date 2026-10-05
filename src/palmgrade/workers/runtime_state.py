@@ -9,6 +9,7 @@ from queue import Queue
 from typing import Any
 
 from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
+from ..domain.kesehatan_kamera import HitungPutus, JendelaFrameHilang, PenilaiLaju
 
 #: Lebar jendela hitung `fps_kamera`. Sama dengan log `[FPS] capture` di
 #: `FrameCaptureWorker`, supaya dua angka itu bisa dibandingkan langsung.
@@ -72,6 +73,10 @@ class RuntimeState:
     # MJPEG broadcast — hanya DisplayWorker yang boleh nulis ke sini.
     latest_frame: bytes | None = None
     frame_condition: threading.Condition = field(default_factory=threading.Condition)
+    # Who is reading the MJPEG stream right now (batch 6.3). `StreamingService` counts each
+    # viewer in and out; `DisplayWorker` renders only while this is above zero.
+    penonton_stream: int = 0
+    kunci_penonton: threading.Lock = field(default_factory=threading.Lock)
 
     # Shared display state — capture worker set raw_frame, processing worker set last_results.
     # DisplayWorker baca keduanya untuk render MJPEG.
@@ -157,11 +162,19 @@ class RuntimeState:
     # angkanya membeku saat gambar berhenti, jadi pembaca yang menentukan 0.
     fps_kamera: float = 0.0
     # Suhu badan kamera (°C) dan jam bacanya (`jam()`), diisi `FrameCaptureWorker`
-    # tiap `SUHU_JEDA_DETIK` selama gambar mengalir. None = belum pernah terbaca:
+    # tiap `PANTAU_KAMERA_JEDA_DETIK` selama gambar mengalir. None = belum pernah terbaca:
     # sumber tanpa sensor, atau kamera menolak menjawab. Basi-tidaknya diputuskan
     # `HealthService.ringkasan_kamera`, bukan di sini.
     suhu_kamera_c: float | None = None
     suhu_kamera_at: float = 0.0
+    # `CameraSource.suhu_didukung` as last seen by the capture thread: False = the camera
+    # has no sensor, and the card says so instead of a dash.
+    suhu_kamera_didukung: bool | None = None
+    # Camera health without a sensor (`domain/kesehatan_kamera.py`): written only by the
+    # capture thread every `PANTAU_KAMERA_JEDA_DETIK`, read by `HealthService`.
+    laju_kamera: PenilaiLaju = field(default_factory=PenilaiLaju)
+    frame_hilang: JendelaFrameHilang = field(default_factory=JendelaFrameHilang)
+    putus_kamera: HitungPutus = field(default_factory=HitungPutus)
     _fps_jendela_mulai: float = 0.0
     _fps_jumlah: int = 0
     # `PemantauDisk` line ini (batch 3.7), dipasang main.py. None di konsol.
@@ -172,6 +185,17 @@ class RuntimeState:
     # thread safe). An Event so the automatic backoff wait can be cut short by a press.
     sambung_ulang_kamera: threading.Event = field(default_factory=threading.Event)
     sambung_ulang_oleh: str | None = None
+
+    def penonton_masuk(self) -> None:
+        """One more reader of the MJPEG stream."""
+        with self.kunci_penonton:
+            self.penonton_stream += 1
+
+    def penonton_keluar(self) -> None:
+        """One reader left. Never below zero: a count that went negative would stop the
+        display for the viewers that are still there."""
+        with self.kunci_penonton:
+            self.penonton_stream = max(0, self.penonton_stream - 1)
 
     def catat_ai_dimulai(self) -> None:
         """Sekali per proses: watchdog yang menyalakan ulang thread deteksi tidak

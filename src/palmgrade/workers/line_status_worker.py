@@ -70,54 +70,67 @@ class LineStatusWorker:
         return dict(self._state)
 
     async def run_once(self) -> None:
-        for line in self._lines:
-            try:
-                jawab = await self._client.status(line)
-            except OperatorError as exc:
-                # Kunci ditolak (INTERNAL_SECRET beda antara konsol dan line)
-                # BUKAN line mati: line itu bisa saja tetap menggrading dan
-                # mengirim event lewat WEBHOOK_SECRET. `kode` dibawa ke
-                # `/api/console/state` (lewat `plc` di console_service) supaya
-                # layar bisa membedakannya dari OFFLINE sungguhan.
-                status = exc.params.get("status")
-                sebab = sebab_tak_terbaca(exc.code, status)
-                self._state[line.line_code] = {
-                    "reachable": False,
-                    "kode": exc.code,
-                    "status": status,
-                    "sebab_kode": sebab,
-                }
-                self._tak_terbaca.gagal(line.line_code, sebab, str(exc))
-                continue
-            except Exception as exc:                      # line mati bukan alasan berhenti
-                self._state[line.line_code] = {"reachable": False, "sebab_kode": SEBAB_LAIN}
-                self._tak_terbaca.gagal(line.line_code, SEBAB_LAIN, f"{type(exc).__name__}: {exc}")
-                continue
-            piston = jawab.get("piston") or {}
-            self._state[line.line_code] = {
-                "reachable": True,
-                "ffb_source": jawab.get("ffb_source"),
-                "piston_requested": piston.get("requested"),
-                "piston_open": piston.get("confirmed_open"),
-                # `or []`: line versi lama tidak mengirim field ini, dan None
-                # di layar akan membuat pita alarm gagal merender.
-                "alarms": jawab.get("alarms") or [],
-                # Cloud Photo di Last Sync. None dari line versi lama: konsol
-                # menulisnya "tidak terbaca", bukan menganggapnya putus.
-                "unggah": jawab.get("unggah"),
-                # Penjaga AI mati (batch 2.1). None dari line versi lama: kartu
-                # tidak menggambar apa pun, bukan menebak.
-                "ai": jawab.get("ai"),
-                # Pemantau disk (batch 3.7). None dari line versi lama: layar
-                # tidak menggambar alert disk, bukan menebak.
-                "disk": jawab.get("disk"),
+        """One round: every line is asked at the same time (batch 6.5), and each answer is
+        recorded when it arrives. A line that hangs until its timeout holds up nobody else."""
+        await asyncio.gather(*(self._baca_line(line) for line in self._lines))
+
+    async def _baca_line(self, line) -> None:
+        """Ask one line and record what came back. Never raises: this runs beside the other
+        lines, and a failure here must cost only this line its status."""
+        kode = line.line_code
+        try:
+            jawab = await self._client.status(line)
+            self._catat_jawaban(kode, jawab)
+        except OperatorError as exc:
+            # Kunci ditolak (INTERNAL_SECRET beda antara konsol dan line)
+            # BUKAN line mati: line itu bisa saja tetap menggrading dan
+            # mengirim event lewat WEBHOOK_SECRET. `kode` dibawa ke
+            # `/api/console/state` (lewat `plc` di console_service) supaya
+            # layar bisa membedakannya dari OFFLINE sungguhan.
+            status = exc.params.get("status")
+            sebab = sebab_tak_terbaca(exc.code, status)
+            self._state[kode] = {
+                "reachable": False,
+                "kode": exc.code,
+                "status": status,
+                "sebab_kode": sebab,
             }
-            self._catat_unggah(line.line_code, jawab.get("unggah"))
-            self._catat_ai(line.line_code, jawab.get("ai"))
-            self._catat_frame(line.line_code, jawab.get("ai"))
-            self._catat_disk(line.line_code, jawab.get("disk"))
-            self._tak_terbaca.pulih(line.line_code)
-            await self._teruskan(line.line_code, jawab)
+            self._tak_terbaca.gagal(kode, sebab, str(exc))
+            return
+        except Exception as exc:                      # line mati bukan alasan berhenti
+            # Also an answer this console cannot read (not the expected object): the same
+            # one WARNING per episode, and the loop goes on.
+            self._state[kode] = {"reachable": False, "sebab_kode": SEBAB_LAIN}
+            self._tak_terbaca.gagal(kode, SEBAB_LAIN, f"{type(exc).__name__}: {exc}")
+            return
+        await self._teruskan(kode, jawab)
+
+    def _catat_jawaban(self, kode: str, jawab: dict[str, Any]) -> None:
+        """What the screen reads for one line that answered, plus the one-row-per-change logs."""
+        piston = jawab.get("piston") or {}
+        self._state[kode] = {
+            "reachable": True,
+            "ffb_source": jawab.get("ffb_source"),
+            "piston_requested": piston.get("requested"),
+            "piston_open": piston.get("confirmed_open"),
+            # `or []`: line versi lama tidak mengirim field ini, dan None
+            # di layar akan membuat pita alarm gagal merender.
+            "alarms": jawab.get("alarms") or [],
+            # Cloud Photo di Last Sync. None dari line versi lama: konsol
+            # menulisnya "tidak terbaca", bukan menganggapnya putus.
+            "unggah": jawab.get("unggah"),
+            # Penjaga AI mati (batch 2.1). None dari line versi lama: kartu
+            # tidak menggambar apa pun, bukan menebak.
+            "ai": jawab.get("ai"),
+            # Pemantau disk (batch 3.7). None dari line versi lama: layar
+            # tidak menggambar alert disk, bukan menebak.
+            "disk": jawab.get("disk"),
+        }
+        self._catat_unggah(kode, jawab.get("unggah"))
+        self._catat_ai(kode, jawab.get("ai"))
+        self._catat_frame(kode, jawab.get("ai"))
+        self._catat_disk(kode, jawab.get("disk"))
+        self._tak_terbaca.pulih(kode)
 
     async def _teruskan(self, kode: str, jawab: dict[str, Any]) -> None:
         """Hand one answered status to the hook. A failing hook is logged and never stops the
@@ -229,6 +242,11 @@ class LineStatusWorker:
             self._unggah_putus[kode] = None
 
     async def run_loop(self) -> None:
+        """One loop per line, side by side (batch 6.5). Each line keeps its own pace: a line
+        that takes its whole timeout to fail is read less often, the others every interval."""
+        await asyncio.gather(*(self._putaran_line(line) for line in self._lines))
+
+    async def _putaran_line(self, line) -> None:
         while True:
-            await self.run_once()
+            await self._baca_line(line)
             await asyncio.sleep(self._interval_s)
