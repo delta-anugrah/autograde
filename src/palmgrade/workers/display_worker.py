@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_STREAM
+from ..domain.setelan_grading import UKURAN_LABEL_BAWAAN
 from ..domain.skala_tampilan import TANPA_SKALA, skala_ke
 from .runtime_state import RuntimeState
 
@@ -32,7 +33,8 @@ class DisplayWorker:
 
     * nobody reading the stream (`state.penonton_stream == 0`) = nothing is rendered at all;
     * the frame is shrunk to stream size FIRST and everything is drawn on the small frame,
-      so the full sensor frame (2448x2048, 14.3 MB) is neither copied nor drawn on.
+      so the camera frame (1224x1024 at Lampung, 2448x2048 without binning) is neither copied nor
+      drawn on.
 
     `cv` is the `cv2` module; it is an argument so the unit suite can run the worker without
     OpenCV (CLAUDE.md § Tests). Left out, the real one is imported here, on first use.
@@ -99,6 +101,7 @@ class DisplayWorker:
                     else self.settings.mode_dev
                 ),
                 skala=skala,
+                ukuran_label=self.state.ukuran_label_override or UKURAN_LABEL_BAWAAN,
             )
 
         # Garis capture digambar dalam ruang STREAM, sama seperti ROI, dan sama

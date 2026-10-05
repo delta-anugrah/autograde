@@ -33,6 +33,7 @@ class DockerPalsu:
         self.label = "v1.22.0"
         self.line_exit = 0
         self.console_exit = 0
+        self.sidik_exit = 0
         self.run_d_exit = 0
         self.health = dict(SEHAT)
         self.health_after = 0  # number of /health polls that fail before it answers
@@ -59,6 +60,8 @@ class DockerPalsu:
             kode = args[-1]
             if kode == smoke_image.IMPORT_LINE:
                 return Result(self.line_exit, "", "ModuleNotFoundError: torch")
+            if kode == smoke_image.CEK_SIDIK:
+                return Result(self.sidik_exit, "", "AssertionError: ('fingerprint list', 231, ['/entrypoint.sh'])")
             return Result(self.console_exit, "", "AssertionError: console imported torch")
         if cmd == "exec":
             self._poll += 1
@@ -87,7 +90,7 @@ def _jalan(docker, **kw):
 
 def test_image_sehat_lulus_semua_cek_berurutan():
     docker = DockerPalsu()
-    assert _jalan(docker) == ["ok   label", "ok   line", "ok   console", "ok   boot"]
+    assert _jalan(docker) == ["ok   label", "ok   line", "ok   console", "ok   boot", "ok   sidik"]
     assert docker.dihapus(), "the console container must be removed"
 
 
@@ -135,7 +138,7 @@ def test_import_jalan_tanpa_jaringan():
     docker = DockerPalsu()
     _jalan(docker)
     impor = [a for a in docker.panggilan if a[0] == "run" and "-d" not in a]
-    assert len(impor) == 2
+    assert len(impor) == 3  # line import, console import, fingerprint list
     for args in impor:
         assert args[1] == "--rm", args
         assert args[4:6] == ["--network", "none"], args
@@ -214,7 +217,7 @@ def test_container_import_dibuang_walau_import_gagal():
 def test_semua_container_dibuang_di_jalur_sehat():
     docker = DockerPalsu()
     _jalan(docker)
-    assert len(docker.dinyalakan) == 3
+    assert len(docker.dinyalakan) == 4
     assert docker.dihapus()
 
 
@@ -262,3 +265,13 @@ def test_main_tanpa_versi_ditolak_argparse():
     with pytest.raises(SystemExit) as err:
         smoke_image.main([IMAGE], run=DockerPalsu())
     assert err.value.code == 2
+
+
+def test_image_yang_daftar_sidiknya_tidak_cocok_tidak_dirilis():
+    """A release whose own files do not match its fingerprint list would be refused by every
+    factory launcher, so it must never get its release tag."""
+    docker = DockerPalsu(sidik_exit=1)
+
+    with pytest.raises(SmokeFailed, match="fingerprint list"):
+        smoke_image.smoke(docker, IMAGE, "v1.22.0", "v1.22.0", log=lambda _baris: None)
+    assert docker.dihapus()

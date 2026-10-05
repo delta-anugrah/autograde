@@ -37,7 +37,7 @@ def test_nilai_wajar_diterima_apa_adanya():
         "mode_dev": False,
         "tampil_garis": True,
         "tampil_roi": True,
-        "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None,
+        "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None, "ukuran_label": 100,
     }
 
 
@@ -53,7 +53,7 @@ def test_angka_berbentuk_teks_diterima():
         "mode_dev": False,
         "tampil_garis": True,
         "tampil_roi": True,
-        "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None,
+        "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None, "ukuran_label": 100,
     }
 
 
@@ -184,3 +184,25 @@ def test_kotak_di_dalam_gambar_lolos_dengan_ukuran_stream():
     bersih = bersihkan_setelan({**_DASAR, **isi}, stream=(1280, 720))
     assert kotak_dari(bersih, 1280, 720) == (100, 50, 0, 620)
     assert kotak_dari(bersihkan_setelan({**_DASAR, **dict.fromkeys(_KOSONG, 0)}), 1280, 720) == (0, 0, 0, 0)
+
+
+# ── ukuran tulisan label di video (2026-10-05) ──────────────────────────────
+
+
+def test_ukuran_label_tidak_dikirim_berarti_bawaan_seratus_persen():
+    """A console or a saved row from before this field: the label stays as it was drawn."""
+    assert bersihkan_setelan({"conf_threshold": 0.5, "minimum_size": 3000})["ukuran_label"] == 100
+
+
+@pytest.mark.parametrize(("nilai", "hasil"), [(25, 25), ("150", 150), (" 200 ", 200), (400, 400), ("120,0", 120)])
+def test_ukuran_label_dalam_batas_jadi_persen_bulat(nilai, hasil):
+    bersih = bersihkan_setelan({"conf_threshold": 0.5, "minimum_size": 3000, "ukuran_label": nilai})
+    assert bersih["ukuran_label"] == hasil
+    assert isinstance(bersih["ukuran_label"], int)
+
+
+@pytest.mark.parametrize("nilai", [0, 24, 401, 1000, -5, "besar", "", None, True])
+def test_ukuran_label_di_luar_batas_ditolak_dengan_nama_fieldnya(nilai):
+    """The screen marks the input by the field name in the refusal."""
+    with pytest.raises(SetelanTidakSah, match="ukuran_label"):
+        bersihkan_setelan({"conf_threshold": 0.5, "minimum_size": 3000, "ukuran_label": nilai})

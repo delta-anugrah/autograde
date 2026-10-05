@@ -84,6 +84,16 @@ PEMBARUAN_BELUM_TERPASANG = "pembaruan_belum_terpasang"
 # Reconnect camera button (2026-10-04, every account): the line's image source is a video
 # file or a photo, so there is no camera to reconnect. Carries param `line` (the card name).
 KAMERA_TANPA_SAMBUNG_ULANG = "kamera_tanpa_sambung_ulang"
+# Line to console only (camera settings, spec §3.2), never worded as an operator error: the console turns them
+# into a `sebab_kode` (`domain/setelan_kamera.py`), so they stay out of `CODES`.
+KAMERA_TANPA_SETELAN = "kamera_tanpa_setelan"
+KAMERA_TIDAK_MENJAWAB = "kamera_tidak_menjawab"
+# Printable grading slip (batch 5.9): refused while support has it switched off (403), and
+# for a truck with no bunch on that working day (404).
+SLIP_MATI = "slip_mati"
+SLIP_TIDAK_ADA = "slip_tidak_ada"
+# Shift cutoff (batch 5.11): HH:MM between 00:00 and 23:59.
+CUTOFF_TIDAK_SAH = "cutoff_tidak_sah"
 
 CODES = (
     PLAT_KOSONG,
@@ -135,6 +145,9 @@ CODES = (
     PEMBARUAN_BERJALAN,
     PEMBARUAN_BELUM_TERPASANG,
     KAMERA_TANPA_SAMBUNG_ULANG,
+    SLIP_MATI,
+    SLIP_TIDAK_ADA,
+    CUTOFF_TIDAK_SAH,
 )
 
 

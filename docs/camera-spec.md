@@ -313,9 +313,37 @@ Kartu Diagnostik (tab **Status**, support) menampilkan suhu badan tiap kamera da
   di tab Log, sesudahnya diam; line tetap jalan. Webcam, video, dan foto selalu `-`.
 - **Belum ada batas aman dan warna.** Batasnya diputuskan nanti dari datasheet dan beberapa hari
   bacaan Lampung.
+- **Kamera Lampung tidak punya sensor suhu** (MV-CS050-10GC firmware V4.0.43, dicek 2026-10-05:
+  `DeviceTemperature` dan `DeviceTemperatureSelector` akses NI). Line menanyakannya sekali per
+  sambung lalu berhenti, dan kartu menulis "tidak didukung kamera". Penggantinya baris laju,
+  frame hilang, dan putus-nyambung di kartu yang sama (aturan 35, `docs/rules.md`).
 - Cek manual di MVS: Feature Tree mode **Expert** atau **Guru**, **Device Control**,
   **Device Temperature**. Line harus dimatikan dulu, karena kamera dibuka eksklusif (§8,
   `MV_E_ACCESS_DENIED`).
+
+### 6.5 Setelan kamera dari konsol (tahap 1, baca saja)
+
+Tab **Line**, pilihan **Setelan Kamera** (support) menampilkan nilai yang sedang dipakai kamera
+Hikrobot tiap line, ditanyakan langsung ke kameranya. Mengubah setelan masih lewat MVS (§5)
+sampai tahap 2 (tombol ubah, **Simpan**, **Kembalikan ke baku**).
+
+- Tujuh node, urutannya dari `src/palmgrade/domain/setelan_kamera.py`: `ExposureTime` (µs),
+  `Gain` (dB), `BlackLevel` (**integer** di MV-CS050-10GC), `BalanceWhiteAuto`,
+  `AcquisitionFrameRate` (fps), lalu `ExposureAuto` dan `GainAuto` yang cuma ditampilkan
+  (menyalakannya membuat gambar berubah janjang demi janjang, grading bergeser).
+- Dibaca thread capture di antara dua grab, di bawah `state.lock` (aturan 3), lewat antrean
+  perintah (`src/palmgrade/workers/perintah_kamera.py`); route line menunggu paling lama 2 detik.
+  Kamera yang putus atau sedang menyambung ulang menjawab "kamera tidak menjawab".
+- Node yang ditolak kamera tampil **tidak didukung kamera ini**; kode SDK-nya cuma di log line.
+- Hasil tahap 0 di kamera Lampung (line 1, `DA9069810`, firmware V4.0.43, 2026-10-05):
+  ExposureTime 4000 (15 sampai 9959540), Gain 0 (0 sampai 23,98), BlackLevel 240 (0 sampai 4095),
+  AcquisitionFrameRate 20. Node float terbaca dan tertulis selama grabbing;
+  `MV_CC_FeatureSave` ditolak selama grabbing (`0x80000003`), jalan sesudah `StopGrabbing`.
+- Berkas `.mfs` dipilih ulang **tiap connect** (`src/palmgrade/integrations/camera/berkas_fitur.py`):
+  `<CAMERA_SETELAN_DIR>/<line_code>.mfs` kalau ada (yang disimpan support terakhir), selain itu
+  `CAMERA_FEATURE_FILE` sebagai **baku** (Lampung `models/01102026.mfs`, di tempat lain berkas
+  bawaan image). `CAMERA_SETELAN_DIR` kosong secara bawaan, jadi tahap 1 belum mengubah apa pun;
+  compose pabrik mengisinya bersama mount folder di tahap 2.
 
 ---
 

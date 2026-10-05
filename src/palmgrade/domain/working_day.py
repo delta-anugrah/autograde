@@ -10,7 +10,10 @@ Free of heavy dependencies so it can be tested without a camera or torch.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime, tzinfo
+import re
+from datetime import UTC, datetime, time, timedelta, tzinfo
+
+from .operator_error import CUTOFF_TIDAK_SAH, InvalidInput
 
 #: A visit, weigh-in to release, never lasts longer; the work date flips at midnight, this does not.
 JENDELA_KUNJUNGAN_DETIK = 12 * 60 * 60
@@ -19,6 +22,9 @@ JENDELA_KUNJUNGAN_DETIK = 12 * 60 * 60
 #: visit window on purpose: a tared ticket's net is final, so waiting longer risks nothing,
 #: while an UNTARED ticket kept past 12 h could take tomorrow's tare and pay a wrong net.
 JENDELA_TANPA_KELUAR_DETIK = 24 * 60 * 60
+#: The working day starts at midnight unless support sets a cutoff (batch 5.11).
+CUTOFF_BAWAAN = time(0, 0)
+_POLA_CUTOFF = re.compile(r"^(\d{1,2})[:.](\d{2})$")
 
 
 def awal_kunjungan(sekarang: datetime) -> float:
@@ -31,8 +37,14 @@ def awal_kunjungan(sekarang: datetime) -> float:
     return sekarang.timestamp() - JENDELA_KUNJUNGAN_DETIK
 
 
-def work_date_for(timestamp_iso: str, tz: tzinfo) -> str:
+def _geser(cutoff: time) -> timedelta:
+    return timedelta(hours=cutoff.hour, minutes=cutoff.minute)
+
+
+def work_date_for(timestamp_iso: str, tz: tzinfo, cutoff: time = CUTOFF_BAWAAN) -> str:
     """`YYYY-MM-DD` in the mill's zone. ValueError if the timestamp is unreadable.
+
+    With a cutoff, the date of `timestamp - cutoff`: at 05:00, 02:30 still belongs to yesterday.
 
     A timestamp with no offset is read as UTC, that is what the camera lines
     send (`datetime.now(timezone.utc).isoformat()` sometimes lost its suffix in
@@ -44,4 +56,29 @@ def work_date_for(timestamp_iso: str, tz: tzinfo) -> str:
     dt = datetime.fromisoformat(raw)  # ValueError when the shape is not ISO
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
-    return dt.astimezone(tz).strftime("%Y-%m-%d")
+    return (dt.astimezone(tz) - _geser(cutoff)).strftime("%Y-%m-%d")
+
+
+def hari_kerja_kini(sekarang: datetime, tz: tzinfo, cutoff: time = CUTOFF_BAWAAN) -> str:
+    """The working day running at `sekarang` (the "Hari ini" of the screen)."""
+    return (sekarang.astimezone(tz) - _geser(cutoff)).strftime("%Y-%m-%d")
+
+
+def baca_cutoff(teks: str | None) -> time:
+    """`HH:MM` (also `H:MM` and `HH.MM`, as operators type them); empty = midnight.
+
+    Any time of day (user 2026-10-05). After 12:00 most of the working day falls on the next
+    calendar date while it keeps the start's date; the screen asks before saving one.
+    """
+    bersih = (teks or "").strip()
+    if not bersih:
+        return CUTOFF_BAWAAN
+    cocok = _POLA_CUTOFF.match(bersih)
+    jam, menit = (int(cocok.group(1)), int(cocok.group(2))) if cocok else (-1, -1)
+    if not (0 <= jam <= 23 and 0 <= menit <= 59):
+        raise InvalidInput(CUTOFF_TIDAK_SAH, f"cutoff tidak sah: {bersih!r}")
+    return time(jam, menit)
+
+
+def teks_cutoff(cutoff: time) -> str:
+    return cutoff.strftime("%H:%M")

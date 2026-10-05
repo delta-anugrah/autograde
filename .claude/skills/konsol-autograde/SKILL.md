@@ -17,16 +17,46 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 
 | Tab | Siapa | Pemuat | Isi |
 |---|---|---|---|
-| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati / kamera berhenti mengirim dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, keadaan `ai_mati` atau `frame_berhenti`, test `test_console_html_ai_mati.py` + `test_console_html_frame_disk.py`); satu pita disk PC untuk seluruh layar dari blok `plc.disk` (`#pita-disk`, `gambarPitaDisk` tiap polling, aturan 35): satu baris (ikon SVG, judul, jam, line, sisa GB; langkah pengosongan cuma di MANUAL dan log line), peringatan berdenyut pelan dan bisa ditutup 24 jam per browser (`localStorage` `pitaDiskDitutupPada`), kritis tidak bisa ditutup; tanda "sedang dinyalakan ulang" di kotak kamera sesudah aksi yang merestart line (`tandaiRestart`, `pantauRestart` 1 dtk, spinner + bar berjalan tanpa hitungan detik, kelas kartu `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama itu, test `test_console_html_restart.py`); strip "Hari ini" berlabel **Data timbangan** (`labelNetoTimbangan`) |
+| Grading | semua | polling `refresh` 2 dtk | grading hari ini dari `/api/console/history` (halaman, saringan line dan truk, foto kecil `thumb_url`), kartu line merah + pita AI mati / kamera berhenti mengirim dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, keadaan `ai_mati` atau `frame_berhenti`, test `test_console_html_ai_mati.py` + `test_console_html_frame_disk.py`); satu pita disk PC untuk seluruh layar dari blok `plc.disk` (`#pita-disk`, `gambarPitaDisk` tiap polling, aturan 35): satu baris (ikon SVG, judul, jam, line, sisa GB; langkah pengosongan cuma di MANUAL dan log line), peringatan berdenyut pelan dan bisa ditutup 24 jam per browser (`localStorage` `pitaDiskDitutupPada`), kritis tidak bisa ditutup; tanda "sedang dinyalakan ulang" di kotak kamera sesudah aksi yang merestart line (`tandaiRestart`, `pantauRestart` 1 dtk, spinner + bar berjalan tanpa hitungan detik, kelas kartu `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama itu, test `test_console_html_restart.py`); strip "Hari ini" berlabel **Data timbangan** (`labelNetoTimbangan`) |
 | Truk | semua | `muatTrucks` 60 dtk | master truk, truk manual, kartu QR |
-| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, empat langkah berlabel (1 Datang = `arrivals` lewat `POST /api/console/arrivals`, 2 Timbang isi, 3 Timbang kosong, 4 Keluar = `weighings.left_at` lewat `POST /api/console/departures`; aturan 37, tidak pernah ke AutoERP), plat dari daftar **Pilih Truk**, tombol baris **Timbang kosong** lalu **Keluar** (`data-aksi="pergi"`, kolom dipaku di kanan), kolom pertama **Status** (`lencanaTahap(w.tahap)`, warna sama dengan judul langkah; yang menunggu = baris teratas `barisMenunggu`), urut timbang isi terbaru menurut `julianday`, kolom **Antre** / **Total** (`tanpa scan 1` kuning `.tag.peringatan`, strip bukan 0), lencana **Menunggu n** (`#antre`, `gambarLencanaAntre`, plat di `title`) dari `waiting`, dan dropdown langkah 2 dengan bagian **Menunggu timbang** / **Truk lain** (`opsiPlatTimbang`, `isiPlatTimbang`: tidak dibangun ulang saat terbuka); 12 kolom (kepala **Jam timbang isi** / **Jam timbang kosong**); di atasnya strip empat ruas `.langkah-ruas` (pita tahap + kalimat di mana langkah itu dikerjakan, sama lebar dan tinggi, `repeat(4, minmax(0,1fr))` mulai 960 px, 2 x 2 dari 600 px), dua form `.timbang-form` sama lebar (Datang, Timbang isi; berdampingan mulai 1100 px) dengan baris kaki `.timbang-kaki` untuk pesan scan dan petunjuk desimal (juga `title` Bruto), dan bar tara `#tara-grup` selebar panel berwarna langkah 3 (plat, Tara, Simpan, Batal satu baris; ruas `#ruas-kosong` menyala `.aktif` selama terbuka; pesan tara `#scan-keluar-pesan` di bar itu); semua kontrol setinggi `--tinggi-timbang`, tombol utama selebar `--lebar-aksi-timbang`; empat kolom scan `hidden` sampai scanner dipasang (tes browser memunculkannya lewat JS), tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
+| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, empat langkah berlabel (1 Datang = `arrivals` lewat `POST /api/console/arrivals`, 2 Timbang isi, 3 Timbang kosong, 4 Keluar = `weighings.left_at` lewat `POST /api/console/departures`; aturan 37, tidak pernah ke AutoERP), plat dari daftar **Pilih Truk**, tombol baris **Timbang kosong** lalu **Keluar** (`data-aksi="pergi"`, kolom dipaku di kanan), kolom pertama **Status** (`lencanaTahap(w.tahap)`, warna sama dengan judul langkah; yang menunggu = baris teratas `barisMenunggu`), urut timbang isi terbaru menurut `julianday`, kolom **Antre** / **Total** (`tanpa scan 1` kuning `.tag.peringatan`, strip bukan 0), lencana **Menunggu n** (`#antre`, `gambarLencanaAntre`, plat di `title`) dari `waiting`, dan dropdown langkah 2 dengan bagian **Menunggu timbang** / **Truk lain** (`opsiPlatTimbang`, `isiPlatTimbang`: tidak dibangun ulang saat terbuka); 12 kolom (kepala **Jam timbang isi** / **Jam timbang kosong**); di atasnya strip empat ruas `.langkah-ruas` (kartu berwarna tahap lewat `--warna-tahap`/`--latar-tahap`/`--ikon-tahap` + `color-mix`, ikon `.langkah-ikon` mulai 1280 px, pita tahap + kalimat di mana langkah itu dikerjakan, sama lebar dan tinggi, `repeat(4, minmax(0,1fr))` mulai 960 px, 2 x 2 dari 600 px), dua form `.timbang-form` sama lebar (Datang, Timbang isi; berdampingan mulai 1100 px) dengan baris kaki `.timbang-kaki` untuk pesan scan dan petunjuk desimal (juga `title` Bruto), dan bar tara `#tara-grup` selebar panel berwarna langkah 3 (plat, Tara, Simpan, Batal satu baris; ruas `#ruas-kosong` menyala `.aktif` selama terbuka; pesan tara `#scan-keluar-pesan` di bar itu); semua kontrol setinggi `--tinggi-timbang`, tombol utama selebar `--lebar-aksi-timbang`; empat kolom scan `hidden` sampai scanner dipasang (tes browser memunculkannya lewat JS), tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
-| Log | support | `muatLog` (+ `muatLaporDiscord`) | ERROR/WARNING 180 hari, konsol DAN ketiga line (tag line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`); pesan identik dalam 60 dtk digabung sesudah id yang berganti (uuid, hex 8+, desimal, bilangan 6+ digit) dinormalkan (`domain/sidik_log.py`, batch 3.3); galat 500 uvicorn konsol (termasuk saat start gagal) kini ikut masuk lewat `configure_logging` (batch 3.1) |
-| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik (fps terukur, umur gambar, PLC ✓ hanya kalau `plc.connected`, disk, lisensi, versi / model, `capture_save_dropped` + `tp_telat` harus nol; pembantu `diag*`, test `test_console_html_diagnostik_jujur.py`), Antrean line, Antrean ERP, Manifest R2 (judul `.status-judul` sendiri sejak 2026-10-04; bar ringkasnya hilang lewat `:has()` selama R2 belum disetel). Kartu Diagnostik berkelompok dan bisa dibuka-tutup: `<details class="diag-kelompok" data-grup=...>` + `<summary class="diag-grup">`, TERTUTUP dari awal, kelompok yang dibuka diingat di `diagTerbuka` (localStorage) dan dibuka lagi sesudah tiap gambar ulang 5 dtk di `muatDiagnostik`, judul kelompok merah lewat `:has(dd .tanda-gagal)` supaya galat tidak tersembunyi; dulu `<h3 class="diag-grup">` (Kamera dan gambar, Mesin, Data, Workers + hitungan `n/m`) masing-masing diikuti `<dl>`-nya; nilai panjang turun baris, tidak dipotong `…` |
+| Log | support | `muatLog` (+ `muatLaporDiscord`) | saring `#log-level`: garis tepi saja, tanpa isi (Semua `--fg`, WARNING `--warn`, ERROR `--rej`), yang dipilih = `box-shadow:0 0 0 2px currentColor` + opasitas penuh, lainnya `.6`; BUKAN warna aksen, tanpa centang (user 2026-10-05); ERROR/WARNING 180 hari, konsol DAN ketiga line (tag line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`); pesan identik dalam 60 dtk digabung sesudah id yang berganti (uuid, hex 8+, desimal, bilangan 6+ digit) dinormalkan (`domain/sidik_log.py`, batch 3.3); galat 500 uvicorn konsol (termasuk saat start gagal) kini ikut masuk lewat `configure_logging` (batch 3.1) |
+| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk); sub-tab `#status-sub` sejak 2026-10-05 (`SUB_STATUS`, `terapkanSubStatus`, diingat `subStatus`; panel `.status-bagian[data-status-sub]`, kelimanya tetap dimuat bersama saat tab dibuka); tes browser buka lewat `buka_status(page, sub)` di `tests/browser/langkah.py` | Versi & pembaruan, Diagnostik (fps terukur, umur gambar, PLC ✓ hanya kalau `plc.connected`, disk, lisensi, versi / model, `capture_save_dropped` + `tp_telat` harus nol; pembantu `diag*`, test `test_console_html_diagnostik_jujur.py`), Antrean line, Antrean ERP, Manifest R2 (sub-tab sendiri; `.status-judul` dibuang 2026-10-05; bar ringkasnya hilang lewat `:has()` selama R2 belum disetel). Kartu Diagnostik berkelompok dan bisa dibuka-tutup: `<details class="diag-kelompok" data-grup=...>` + `<summary class="diag-grup">`, TERTUTUP dari awal, kelompok yang dibuka diingat di `diagTerbuka` (localStorage) dan dibuka lagi sesudah tiap gambar ulang 5 dtk di `muatDiagnostik`, judul kelompok merah lewat `:has(dd .tanda-gagal)` supaya galat tidak tersembunyi; dulu `<h3 class="diag-grup">` (Kamera dan gambar, Mesin, Data, Workers + hitungan `n/m`) masing-masing diikuti `<dl>`-nya; nilai panjang turun baris, tidak dipotong `…` |
 | Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna, semua tombol aksi satu lebar (`--lebar-tombol-akun`, satu aturan `#sec-akun :is(...) button`) |
-| Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk); empat tombol pilihan `#line-sub` = grid 4 kolom selebar panel, 2 x 2 di bawah 600 px |
-| Setelan | support | `muatSetelan` (+ `muatPenugasan`) | setelan grading, garis capture, dua saklar tampilan `#set-tampil-garis` / `#set-tampil-roi` (2026-10-04: sembunyikan GAMBAR garis capture dan kotak ROI di video untuk semua line; deteksi dan pemotretan tidak berubah; bawaan nyala, `r.tampil_* !== false` supaya server lama tetap tercentang); grup Kamera & Conveyor = tiga `<fieldset class="setelan-sub">` (Conveyor, Garis capture, Kotak area deteksi) dalam `.setelan-tiga` (3fr 4fr 5fr mulai 1100 px, satu kolom di bawahnya; empat sisi kotak satu baris); kotak area deteksi (ROI) diatur lewat `#set-roi-x1/y1/x2/y2` (`KOTAK_ROI`): keempatnya kosong dikirim `null` = line memakai `ROI_*` dari `.env`, `0` semua = seluruh gambar, `domain/setelan_grading._kotak` menolak kotak tanpa luas; tes `tests/browser/test_browser_setelan.py`, **Penugasan line** (saklar + line pilihan, tombol simpan sendiri, `GET/POST /api/console/dev/auto-assign`, hasil simpan lewat toast), Danger Zone. Selalu paling kanan |
+| Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk); empat sub-tab `#line-sub` = grid 4 kolom selebar panel, 2 x 2 di bawah 600 px |
+| Setelan | support | `muatSetelan` (+ `muatPenugasan`); satu kartu per sub-tab (`.setelan-form` = satu-satunya bingkai; `.setelan-grup` tanpa bingkai, `fieldset.setelan-sub` = judul di atas garis, bukan kotak; user 2026-10-05: "kebanyakan border"); sub-tab `#setelan-sub` sejak 2026-10-05 (`SUB_SETELAN`, `terapkanSubSetelan`, diingat `subSetelan`): grading/kamera/dev di satu form `#setform-utama` dengan satu Simpan, penugasan/slip/harikerja/bahaya form sendiri (sub-tab `harikerja` = cutoff hari kerja, batch 5.11); tes browser buka lewat `buka_setelan(page, sub)` di `tests/browser/langkah.py`; penugasan otomatis bawaannya NYALA (konsol sesi browser menyimpan mati sekali di `conftest._penugasan_manual`) | setelan grading, garis capture, dua saklar tampilan `#set-tampil-garis` / `#set-tampil-roi` (2026-10-04: sembunyikan GAMBAR garis capture dan kotak ROI di video untuk semua line; deteksi dan pemotretan tidak berubah; bawaan nyala, `r.tampil_* !== false` supaya server lama tetap tercentang); grup Kamera & Conveyor = tiga `<fieldset class="setelan-sub">` (Conveyor, Garis capture, Kotak area deteksi) dalam `.setelan-tiga` (3fr 4fr 5fr mulai 1100 px, satu kolom di bawahnya; empat sisi kotak satu baris); kotak area deteksi (ROI) diatur lewat `#set-roi-x1/y1/x2/y2` (`KOTAK_ROI`): keempatnya kosong dikirim `null` = line memakai `ROI_*` dari `.env`, `0` semua = seluruh gambar, `domain/setelan_grading._kotak` menolak kotak tanpa luas; bawaan PC (`.env` line) dari `GET /api/console/dev/roi-bawaan` (`muatRoiBawaan`, tidak ditunggu `muatSetelan`) jadi placeholder dan kalimat `#set-roi-bawaan`, tombol `#set-roi-reset` (`button.bahaya`) mengosongkan keempat kolom lalu toast peringatan "klik Simpan"; kotak **Conveyor & tampilan** di Kamera & Conveyor (2026-10-05; sempat sub-tab sendiri, pindah atas permintaan user): `#set-ukuran-label` = ukuran tulisan label di video dalam persen, 25 sampai 400, `r.ukuran_label ?? 100` untuk server lama, dikirim sebagai `ukuran_label`; tes `tests/browser/test_browser_setelan.py`, **Penugasan line** (saklar + line pilihan, tombol simpan sendiri, `GET/POST /api/console/dev/auto-assign`, hasil simpan lewat toast), **Hari kerja** (`#set-cutoff` + `#set-cutoff-simpan`, `muatCutoffSetelan`, batch 5.11), Danger Zone. Selalu paling kanan |
 
+- Data segar tanpa refresh (batch 5.3, 5.4, 5.8, 6.4; 2026-10-04):
+  - `refresh` mengambil giliran lewat `kunciRefresh` (`kunciAntre`): satu tarikan pada satu
+    waktu, panggilan sesudah aksi antre di belakang yang sedang jalan. Timer memanggil
+    `detakRefresh` (detak dibuang selama masih ada tarikan); `muatTrucks` dan `muatTimbangan`
+    dibungkus `sekaliJalan`. Tanda tangan `async function refresh()` jangan diubah: banyak tes
+    memotongnya lewat teks itu, dan tes browser memanggil `refresh()` langsung.
+  - `ambil` memberi setiap permintaan batas waktu (`AbortSignal.timeout(batasJawab(opts))`:
+    GET 10 dtk, yang lain 60 dtk); habis waktu = `konsol_putus`. Tes node yang menjalankan
+    `ambil` harus ikut membawa `batasJawab` dan dua konstantanya.
+  - Kartu line diperbarui lewat satu fungsi, `perbaruiKartu(c, l)`, semuanya `tulisKalauBeda`:
+    `.truk`, `.slot-lepas`, `.slot-piston` (`display:contents`), `.slot-pita-piston`, `.slot-ai`.
+    Render pertama memanggilnya juga supaya poll berikutnya punya pembanding. Tabel Grading
+    (`#recent`) dan nomor halamannya ditulis lewat `tulisKalauBeda`; `/api/console/state` tidak
+    lagi membawa `recent`, sumbernya cuma `/api/console/history`.
+  - Dropdown yang sudah di layar diisi ulang lewat `isiUlangPilih(root, opsi)` (baris dari
+    `barisPilih`, pilihan dipertahankan, daftar yang sedang terbuka dilewati sampai tertutup).
+    Daftar truk kartu: `opsiTrukKartu` + `segarkanPilihTruk` (dipanggil `isiTrucks` dan tiap poll).
+  - Line bertambah atau berkurang di server = kartu digambar ulang (`kartuSesuai`, `daftarSama`).
+  - `cekVersiBaru(s.versi)`: versi beda dari saat halaman dimuat = `location.reload()`, ditunda
+    selama `amanMuatUlang()` palsu (dialog terbuka, tombol `.sibuk`, isian sedang diketik).
+    `/console` dikirim dengan `Cache-Control: no-cache`.
+  - Indikator basi: `catatSegar(berhasil)` dari `refresh` (bukan untuk `belum_masuk`),
+    `#segar` di bawah jam (`segarPada` / `basiSejak`), `GAGAL_SAMPAI_BASI` 3 poll gagal =
+    `body[data-basi="1"]` yang mengabu-abukan `#tally`, `.counts`, `.card .body`, antrean bongkar
+    dan semua tabel (bukan `.feed`: gambar kamera datang dari line).
+  - Tombol `#segarkan` di header (`segarkanSemua`): semua poll + pemuat tab yang terbuka.
+    Ganti bahasa juga memuat ulang tab yang terbuka (`muatUlangTabTerbuka`), kecuali Setelan dan
+    Line (`TAB_TANPA_MUAT_ULANG`: form, isian support tidak boleh hilang).
+  - Tes: `test_console_html_data_segar.py`, `tests/integration/test_data_segar_integrasi.py`,
+    `tests/e2e/test_data_segar_lane.py`, `tests/browser/test_browser_data_segar.py`.
 - Penugasan otomatis (aturan 36): strip **Antrean bongkar** `#antrean-bongkar` di atas kartu line di tab
   Grading (`htmlAntreanBongkar` / `gambarAntreanBongkar`, tombol `data-aksi="pasang"|"lewati"`,
   routes `/api/console/unloading-queue/{id}/assign|skip`), dari kunci `antrean_bongkar` dan
@@ -75,6 +105,83 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Kolom terakhirnya dilepas dari paku `#sec-timbangan td:last-child`. KAMUS `riwayatBatalJudul`,
   `thJamDatang`, `thJamBatal`, `thOleh`. Tes: `test_console_html_riwayat_batal.py`,
   `tests/browser/test_browser_riwayat_batal.py`.
+- Slip grading (batch 5.9): saklar support `#set-slip` + `#set-slip-simpan` di Setelan
+  (`/api/console/dev/slip`, `services/slip_grading.py`, kunci `sync_state` `setelan_slip_cetak`, ikut selamat dari Danger Zone, bawaan
+  mati). `/state` membawa `slip_cetak` -> `aturSlipCetak` -> `slipCetak`; berubah = tabel Rekap
+  digambar ulang. Baris truk Rekap (`barisRiwayatTruk`) dapat tombol `data-cetak` selama nyala.
+  `cetakSlip`: `GET /api/console/slip` (server menolak 403 `slip_mati` kalau mati, aturan 21)
+  -> `htmlSlip` ke `#slip-cetak` (anak langsung `body`) -> `body[data-cetak="slip"]` ->
+  `window.print()`; `afterprint` mencabut atributnya. Aturan `@media print` kartu QR hanya
+  berlaku tanpa atribut itu, jadi dua mode cetak tidak bentrok. Angka slip dari server (L4).
+  Tes: `test_console_html_slip.py`, `test_slip_grading.py`,
+  `tests/integration/test_slip_grading_integrasi.py`, `tests/e2e/test_slip_grading_lane.py`,
+  `tests/browser/test_browser_slip.py`.
+- Cutoff hari kerja (batch 5.11): `#set-cutoff` (`<input type="time">`, 00:00 sampai 23:59; lewat 12:00 `cutoffPerluTanya` -> `tanyaKonfirmasi` dengan contoh efeknya; zona dari `/state` `timezone` di `#set-cutoff-zona`) +
+  `#set-cutoff-simpan` di Setelan (`GET/POST /api/console/dev/shift`, `services/hari_kerja.py`,
+  kunci `sync_state` `setelan_cutoff_shift`, ikut selamat dari Danger Zone, bawaan 00:00). `/state`
+  membawa `cutoff_shift` -> `aturCutoffShift` -> `cutoffShift` + label `#riwayat-cutoff` di kepala
+  tabel Rekap (`teksCutoffRekap`, kosong dan tersembunyi kalau 00:00; ganti bahasa membacanya
+  ulang). Judul Rekap `#riwayat-judul-rentang` dari `judulRentangRiwayat` (satu hari ditulis
+  sekali, "Hari kerja ..."). `refresh` cuma menyimpan `zonaPabrik`; `#set-cutoff-zona` diisi
+  `muatCutoffSetelan`, karena tab Setelan dicabut dari halaman untuk operator (`data-dev`). `#set-cutoff-simpan` mati sampai `muatCutoffSetelan` berhasil (kolom kosong akan
+  menyimpan 00:00). Tanggal kerja tetap dari server (`work_date` di `/state`, aturan 10); layar tidak
+  menghitung apa pun. Tes: `test_console_html_cutoff.py`, `test_working_day_cutoff.py`,
+  `test_hari_kerja.py`, `tests/integration/test_cutoff_shift_integrasi.py`,
+  `tests/e2e/test_cutoff_shift_lane.py`, `tests/browser/test_browser_cutoff.py`.
+- Tab Grading (batch 5.10, 5.12): saringan `#grading-line` dan `#grading-truk` (komponen
+  dropdown, diisi `segarkanSaringGrading` dari `refresh` dan `isiTrucks`), nilainya di
+  `gradingSaring` (memori, tidak disimpan), permintaan dirakit `paramGrading`; ganti saringan =
+  halaman 1 (`gantiSaringGrading`). Sel foto tabel Grading dan Riwayat satu fungsi, `selFoto`:
+  `<img>` = `thumb_url` (400 px dari folder `thumb/`, dihitung server di
+  `services/tampilan_baris.py` `_with_foto`), `data-foto` = foto penuh untuk dialog; foto kecil
+  yang gagal dimuat jatuh sekali ke foto penuh (listener `error` fase capture, `data-penuh`).
+  Tes: `test_console_html_grading_saring.py`, `tests/integration/test_grading_saring_integrasi.py`,
+  `tests/e2e/test_grading_saring_lane.py`, `tests/browser/test_browser_grading_saring.py`.
+- Sesi geser (batch 5.7, aturan 19): `tandaiAktif` (pointerdown/keydown, capture) menandai
+  aktivitas; `pantauSesi` tiap 1 dtk mengirim `perpanjangLatar()` (= `perpanjangSesi(null)`
+  dibungkus `sekaliJalan`) kalau `perluPerpanjang` (aktif DAN 5 menit sejak renew terakhir, atau
+  sisa 15 menit atau kurang). Akhir sesi disimpan di jam browser (`sesiBerakhirPada`, dari
+  `sisa_detik` login, `/me` dan renew lewat `aturSisaSesi`); sisa nol = `cekSesiLatar()` dulu,
+  bukan langsung gerbang (tab lain di browser yang sama bisa sudah memperpanjang). Pita
+  `#pita-sesi` + tombol `#pita-sesi-perpanjang` (toast cuma dari tombol). Polling tidak boleh
+  memanggil renew atau `tandaiAktif`. Login dihitung sebagai renew. Route:
+  `routes/console_sesi.py` (`POST /api/console/session/renew`, `pasang_cookie_sesi` dipakai juga
+  oleh login). Tes: `test_console_html_sesi_geser.py`, `test_operator_login.py`,
+  `tests/integration/test_sesi_geser_integrasi.py`, `tests/e2e/test_sesi_geser_lane.py`,
+  `tests/browser/test_browser_sesi_geser.py`.
+- Satu komponen tooltip (user 2026-10-05): `data-t-tip="<kunci KAMUS>"` di elemen apa pun;
+  `terapkanBahasa` mengisi `data-tip`, CSS `[data-tip]::after` menggambarnya di bawah elemen saat
+  hover/fokus keyboard (jeda .35 dtk). `data-tip-sisi="akhir"` untuk elemen dekat tepi kanan
+  (`::after` cuma digambar saat hover/fokus, jeda lewat `animation`: tooltip tersembunyi yang tetap punya kotak melebarkan halaman 390 px). Jangan pakai `::before` (spinner
+  `button.sibuk`) dan jangan `title` untuk tombol yang sudah punya tooltip. Dipakai empat tombol
+  `#topbar .aksi` (`tipSegarkan`, `tipBahasa`, `tipTema`, `tipKeluar`); `#topbar` diberi `z-index:30`.
+- Isi panel selebar panelnya (2026-10-05): tidak ada `margin:0 var(--pad)` di dalam `.panel`
+  (dulu indentasi ganda; Rekam Video, Akun, Log, Manifest, konfirmasi PLC sudah diluruskan).
+- Satu komponen sub-tab (user 2026-10-05): `<div class="line-sub-bar"><div class="sub-tab" id=...
+  role="group">` dengan `button[data-sub]` + `aria-pressed`, dipakai Setelan, Line, Status, dan
+  tampilan Rekap (`.sub-tab.riwayat-tampilan`). Garis bawah, bukan tombol: yang terbuka
+  `box-shadow:inset 0 -4px 0 var(--acc)`. `.line-sub-bar` tanpa padding samping, jadi barnya
+  selebar `#tabs` (dijaga `test_sub_tab_bars_are_as_wide_as_the_main_tab_bar`); tiap bar cuma
+  menyetel jumlah kolomnya. Sub-tab baru: pola `SUB_*` + `terapkanSub*` + `simpan/baca` seperti
+  `SUB_SETELAN`. Jangan pakai `.log-level` untuk sub-tab: itu tombol saring.
+- Satu komponen dropdown untuk seluruh konsol (batch 5.6, 2026-10-05): tidak ada `<select>`
+  bawaan lagi (`test_console_html_pilih_cari.py` menjaganya). Bentuknya `.pilih` dengan
+  `data-nilai`, `.pilih-tombol` dan `.pilih-panel`; kerangkanya ditulis di markup, isinya lewat
+  `isiUlangPilih(root, opsi)` (jangan `outerHTML = komponenPilih(...)`: itu menutup daftar dan
+  membuang fokus). Baca nilainya dari `root.dataset.nilai`, setel tanpa event lewat
+  `aturPilih(root, v)`, dengan event lewat `pilihNilai`; dengarkan event `pilih`, bukan `change`.
+  Opsi boleh membawa `grup` (kepala bagian), `catatan`, `mati` (tampil tapi tidak bisa dipilih,
+  `aria-disabled`) dan `judul` (alasan, jadi `title`). Jangan bungkus `.pilih` dengan `<label>`
+  (klik pada baris diteruskan ke tombolnya dan membuka daftar lagi): pakai `<div class="label">`.
+  - Ketik untuk mencari: daftar dengan `AMBANG_CARI` (8) opsi ke atas mendapat `.pilih-cari`
+    selama terbuka (`pasangCari` di `bukaPilih`, dicabut `lepasCari` di `tutupPilih`, jadi panel
+    yang tertutup isinya cuma baris). `cocokCari` mengabaikan huruf besar-kecil, spasi, titik
+    dan tanda hubung; `hasilSaring` menjaga kepala bagian cuma tampil selama ada baris di
+    bawahnya; papan ketik berjalan di `opsiTampak`. Baris tersaring memakai atribut `hidden`.
+  - Truk di lokasi dulu: `GET /api/console/trucks` membawa `di_lokasi` (server yang menentukan,
+    `store.trucks_with_open_ticket`), `opsiTrukKartu` menaruhnya di bagian `grupDiLokasi`.
+  - Tes: `test_console_html_pilih_cari.py`, `tests/integration/test_pilih_truk_integrasi.py`,
+    `tests/e2e/test_pilih_truk_lane.py`, `tests/browser/test_browser_pilih_cari.py`.
 - Registri: `TAB_SAH`, `SUB_LINE`, `MUAT_TAB`, `MUAT_SUB_LINE`. Tab lama yang tersimpan di
   localStorage dipetakan `tabDariSimpanan` / `TAB_LAMA` (riwayat → rekap, diagnostik/antrean/versi
   → status, empat layar per line → line + pilihannya).

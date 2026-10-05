@@ -18,6 +18,337 @@ Next:           ...
 
 ---
 
+## 2026-10-06 · console · Setelan Kamera: Refresh button, spacing, reason text inset (PR #247)
+Changed:        The Setelan Kamera button reads **Segarkan** / **Refresh** (was Baca ulang / Read again), and
+                the "camera not answering" sentence names the same verb. 16 px under the button, and the
+                reason on an unreadable line's card gets the card's own inset instead of touching its border
+                (user screenshot 2026-10-06). `docs/MANUAL.md` follows the label.
+Validated:      ruff → All checks passed!; unit → 5134 passed, 28 skipped; browser
+                `test_browser_setelan_kamera.py` Chromium + Firefox → 2 passed; screenshot of the panel checked by eye.
+Not validated:  Factory PC (needs a release).
+Next:           Release with #244.
+
+## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #246)
+Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, any hour
+                in the factory zone shown next to the field, default 00:00 = old behaviour; after
+                12:00 the Save asks first with a short example, user 2026-10-05). `work_date` = date of `timestamp - cutoff`,
+                computed only in `services/hari_kerja.py` (ingest, weighing, gate scans, "Hari
+                ini"); stored rows never move (rule 10). `GET/POST /api/console/dev/shift`,
+                `/api/console/state` carries `cutoff_shift`, the Rekap tab says "Hari kerja dipotong
+                jam HH:MM" when not midnight. State route moved to `routes/console_keadaan.py`
+                (console.py 999 -> 972 lines). Review fixes: Impor CSV reads its own export under a
+                cutoff, gate windows keep a day of slack, a cutoff raised at night keeps the truck on
+                the Timbangan table, every change logged with old, new and who. From the user's test: the
+                Rekap title names one working day once ("Hari kerja Sen, 5 Okt 2026") with "(dipotong
+                jam 05:00 Asia/Jakarta)"; the operator's 2 s poll broke on the zone label (Settings is
+                not in the page for an operator) and was fixed before merge.
+Validated:      unit 5072 passed / 28 skipped, e2e 412 passed / 20 skipped, integration 191 passed,
+                ruff clean, cek_skrip_konsol OK (all on 582e3644). make test-browser 312 passed,
+                2 failed in Firefox (test_browser_gerbang, test_browser_setelan, unrelated); both
+                files rerun twice in Chromium and Firefox: 62 passed each time.
+Not validated:  On the factory PC (needs a release). Not tried with a real night shift.
+Decisions:      User 2026-10-05: option A, support only, new rows only, no end-of-shift summary.
+                Accepted: AutoERP dates tickets from the local date of `time_in`, so for trucks
+                weighed between 00:00 and the cutoff the console day and the AutoERP date differ;
+                totals do not change.
+Next:           Release with the next tag; support sets the real cutoff at Lampung.
+
+## 2026-10-05 · vision + console · Camera settings phase 1, read only (PR #245)
+Changed:        Tab Line gets a fifth choice **Setelan Kamera** (support): one card per line with the values
+                the Hikrobot camera uses now (exposure, gain, black level, white balance, frame rate, exposure
+                auto, gain auto), each with the camera's own range; a refused node reads "tidak didukung kamera
+                ini". Line route `GET /internal/camera/settings` queues the read on `state.perintah_kamera`
+                (`workers/perintah_kamera.py`), which the capture thread runs between two grabs under
+                `state.lock` (rule 3); the route waits up to 2 s, a command it gave up on is skipped. 409
+                `kamera_tanpa_setelan` for video/photo/webcam, 503 `kamera_tidak_menjawab` for a disconnected
+                camera or one that refuses every node. Console `GET /api/console/dev/camera-settings` gathers
+                the three lines. New env var `CAMERA_SETELAN_DIR` (empty = off): at each connect
+                `<dir>/<line_code>.mfs` wins over `CAMERA_FEATURE_FILE`, the baseline (spec §3.1).
+Validated:      ruff → All checks passed!; unit + e2e + integration → 5646 passed, 48 skipped (after the
+                review fix); browser Chromium + Firefox → 300 passed in 566 s, no flaky (before the fix,
+                which touches only the line route the browser suite fakes).
+Not validated:  Against a real camera (needs Lampung; the fake camera answers with the phase 0 values).
+                CI on the PR. Five Line buttons between 600 and 800 px not checked by eye.
+Decisions:      Line choice bar split into five equal columns (`repeat(5)`), not left at four as the plan
+                said: four columns would wrap 4 + 1. Final review (one Important fixed): every node refused
+                = camera not answering (503), not "supports nothing".
+Next:           Phase 2 (apply, Simpan, Kembalikan ke baku, compose mount + `CAMERA_SETELAN_DIR`). Carry the
+                deferred review minors: old-line wording on this card, catch-all to 503, float/int fallback
+                per node, "Sumber setelan" from the file loaded at connect, log a late command's exception.
+## 2026-10-05 · console · Outlined Log filters, tooltip component, step cards, Record Video width (PR #243)
+Changed:        Log filters are outlined only (All `--fg`, WARNING `--warn`, ERROR `--rej`), the
+                chosen one at full opacity with a doubled outline, no tick. New tooltip component:
+                `data-t-tip="<KAMUS key>"`, text set by `terapkanBahasa` into `data-tip`, drawn by
+                `[data-tip]:is(:hover, :focus-visible)::after` only while shown; on the four top-bar
+                buttons (`tipSegarkan`, `tipBahasa`, `tipTema`, `tipKeluar`), replacing the native
+                title on Refresh. Weighbridge step cards: tinted in their stage colour, icon tile
+                from 1280 px, round arrow chip between cards. Panel content lost its second
+                `var(--pad)` indent (Record Video note/table/footer, Accounts, Log Discord line,
+                Manifest note, PLC confirm); the Record Video settings card sits 16 px below the
+                table with a styled heading (its summary style had gone with the accordion CSS).
+Validated:      `pytest tests --ignore=tests/browser --deselect tests/unit/test_doc_links.py` → 5647
+                passed, 0 failed; ruff clean; full browser suite (both browsers) found the hidden
+                tooltip widening a 390 px page (`test_the_four_steps_never_scroll_sideways`), fixed
+                by drawing it only on hover; then `test_browser_gerbang.py`, `test_browser_status.py`,
+                `test_browser_semua_halaman.py` in Chromium + Firefox → all passed. Screenshots of Log,
+                tooltips, Weighbridge (1600 and 1100 px), Record Video, Accounts, Manifest checked in
+                id/en and light/dark. `docs/MANUAL.pdf` rebuilt.
+Not validated:  The full browser suite after the tooltip fix (left to CI). Factory PC.
+Next:           Release v1.25.0 (#244).
+
+## 2026-10-05 · console · Status in sub-tabs, flat Settings card, tab-style sub-tabs, Log colours (PR #243)
+Changed:        Status is five sub-tabs (Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean
+                ERP, Manifest R2), the Settings pattern (`SUB_STATUS`, `terapkanSubStatus`, remembered
+                as `subStatus`); all five still load when the tab opens. Every sub-tab bar (Settings,
+                Line, Status, Recap views) is one `.sub-tab` component: as wide as the main tab bar
+                (`.line-sub-bar` lost its second `var(--pad)`), drawn as tabs with an accent underline.
+                Settings: the open part is one card; groups and named blocks draw no box (a block is a
+                heading on a rule). Log filters keep their colour when chosen: All white, WARNING
+                yellow, ERROR red; the chosen one gets a dark ring and a tick.
+Validated:      `pytest tests --ignore=tests/browser --deselect tests/unit/test_doc_links.py` → 5648
+                passed, 25 skipped; `ruff check src/ tests/` → clean; browser suite Chromium + Firefox
+                → all passed except one Firefox slip in `test_browser_grading_saring` (an "auto-released"
+                toast from an earlier test covered the photo), which passed on its own run in both
+                browsers; new tests: Status sub-tabs + remembered on reload, every sub-tab bar as wide
+                as `#tabs`, Log filter colours, Status sections on a 1024 px screen. Screenshots of
+                Settings, Line, Status (all five), Log, Recap in Indonesian and English, plus dark theme,
+                looked at. `docs/MANUAL.pdf` rebuilt (45 pages).
+Not validated:  On the factory PC (needs a release).
+Next:           Same as below: release v1.25.0 (#244).
+
+## 2026-10-05 · console · Settings in sub-tabs, automatic assignment on by default (PR #243)
+Changed:        Settings is six sub-tabs (the Line tab's component): Grading, Kamera & Conveyor, Mode
+                Developer, Penugasan line, Slip grading, Danger Zone; one part at a time, the last one
+                remembered. The three parts saved by one Simpan share `#setform-utama`. The label text
+                size moved into Kamera & Conveyor, block "Conveyor & tampilan" (user: no own sub-tab).
+                "Line yang dipakai" is one block with its checkboxes in a row (its heading used to sit
+                in the middle column, the checkboxes in the right one). Automatic line assignment is ON
+                on every line for a console that never saved it (rule 36; it was off, decision D13);
+                a stored row that cannot be read reads as off.
+Validated:      unit, e2e, integration, ruff; browser suite in Chromium 155 passed; screenshots of
+                Grading, Kamera & Conveyor and Penugasan line looked at.
+Not validated:  On the factory PC (needs a release).
+Decisions:      Tabs rather than the accordion (user, "coba pake tab dulu"). Assignment tests that
+                start from "off" now save off explicitly; the browser session console saves off once.
+Next:           Release v1.25.0 (#244). At Lampung, check the switch after the install: if it was never
+                saved there, trucks go on the lines at weigh-in from that moment.
+
+## 2026-10-05 · console · Detection box: the PC's default is shown, one button goes back to it (PR #243)
+Changed:        Settings, Camera & Conveyor, detection area box: the box each line uses while the
+                console sets none (`ROI_*` in the lines' `.env`) is now shown, as the placeholder of the
+                four inputs and in one sentence ("Bawaan PC ini: Kiri 100, ..."). New button **Kembalikan
+                ke bawaan** (`button.bahaya`) empties the four inputs; Save then sends `null`, so every
+                line goes back to its own box. The console asks the lines (`GET /api/console/dev/roi-bawaan`,
+                `services/roi_bawaan.py`, all three side by side, first answer wins); a line's
+                `GET /internal/setelan` now carries `roi_env`. New router module (`routes/console.py` is
+                at its size limit).
+Validated:      unit, integration (real `LineClient` against three line apps: one down, one refusing the
+                key, one answering), browser `test_browser_setelan.py` in Chromium and Firefox (8 passed),
+                full suites and ruff (see PR).
+Not validated:  On the factory PC (needs a release). A line on an image before this change answers
+                without `roi_env`, so the sentence says the default is not known until the lines update.
+Decisions:      "Default" = the box the lines already use when nothing is set, read from the lines, not a
+                new constant: Lampung keeps 100/100/1180/620 from its `.env`, and nothing changes on a
+                PC until someone saves. Reset only empties the inputs; Save applies it, like every field.
+Next:           Release with the label size (#242).
+
+## 2026-10-05 · console + vision · Label text size on the line video, set from Settings (PR #242)
+Changed:        New Settings group **Tampilan video** with `#set-ukuran-label`: the size of the class label
+                (Ripe, Unripe, JK, TP) above each box on the line video, in percent, 25 to 400, default
+                100. Saved with the grading settings (`ukuran_label` in `domain/setelan_grading`), sent to
+                every line (`LineClient.kirim_setelan`), pulled again at line start, applied on the next
+                frame (`RuntimeState.ukuran_label_override` -> `DisplayWorker` -> `draw_boxes(ukuran_label=)`,
+                `domain/skala_tampilan.gaya_label`: text, its stroke and gap only, not the box). Display
+                only: saved photos and detection ignore it. The line's `/internal/setelan` now answers 400
+                (not 500) for a refused value.
+Validated:      unit, e2e and integration suites, ruff, browser `test_browser_setelan.py` in Chromium and
+                Firefox (6 passed); real pixels: 200 % draws the label about twice as tall, box unmoved.
+Not validated:  On the factory PC (needs a release).
+Decisions:      Percent of the current drawing, not pixels: 100 keeps every PC as it is today, and one
+                value works for every camera size. Video only, so evidence photos stay comparable.
+Next:           User picks the size at Lampung after the next release.
+
+## 2026-10-05 · docs · The camera frame at Lampung is 1224x1024, not 2448x2048 (PR #241)
+Changed:        Rule 1b, the save queue sizing, the capture line trap (`CLAUDE.md`, `docs/overview.md`,
+                `docs/rules.md`), `docs/MANUAL.md`, `docs/backend-overview.md` and code comments now
+                say what reaches a line: 1224x1024 (binning 2x2 in `config/camera/hikrobot.mfs`), with
+                2448x2048 only for the sensor or when binning is off. Benchmarks default to 1224x1024
+                (`bench_display.py` also keeps 2448x2048 and 1280x720; `bench_simpan_foto.py --ukuran`).
+Validated:      newest capture on the Lampung PC read with cv2: `(1024, 1224, 3)`. unit 4822 passed, ruff clean.
+                No behaviour change: every scale already reads the frame's own size.
+Not validated:  `docs/MANUAL.pdf` not rebuilt (it already lags `MANUAL.md`).
+Next:           None.
+
+## 2026-10-05 · console · Printable grading slip per truck behind a support switch (batch 5.9) (PR #239)
+Changed:        Server: `domain/slip_grading.py` (`susun_slip`, `rasio_ripe_persen`),
+                `services/slip_grading.py` (`SlipGrading`: switch in `sync_state` `setelan_slip_cetak` (kept by the Danger Zone wipes), off by
+                default; slip refused 403 `slip_mati` while off, 404 `slip_tidak_ada`), new
+                `routes/console_slip.py` (`GET /api/console/slip`, `GET/POST /api/console/dev/slip`),
+                `/api/console/state` carries `slip_cetak`, two new error codes. Screen: Print button
+                on Rekap truck rows while on, `htmlSlip` into `#slip-cetak`, `@media print` mode
+                `body[data-cetak="slip"]` beside the existing QR card print, switch in Settings.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                7 mutations, each turned its test red. Screenshot of the slip in print mode.
+                Docs sweep for the whole batch: `docs/MANUAL.pdf` rebuilt from MANUAL 2.15 (45
+                pages, `tests/e2e/test_manual_pdf.py` passed); README and the `panduan-autograde` and
+                `konsol-autograde` skills no longer say "sesi 12 jam" or "20 grading terakhir".
+Not validated:  A real printer and paper size. Nothing on the factory PC.
+Decisions:      The server refuses the slip while the switch is off (rule 21: hiding the button is
+                tidiness). The rate is the verdict share like the Rekap tab and the piston. The
+                slip prints from the Rekap tab (any day in its range), not from the Grading tab.
+Next:           5.11 shift cutoff: design only, draft PR.
+
+## 2026-10-05 · console · Grading filter by line and truck, small photos in tables (batch 5.10, 5.12) (PR #234)
+Changed:        Server: every grading and history row carries `thumb_url` (the 400 px copy in
+                `thumb/` that the line already writes and uploads), from `_with_foto` in the new
+                `services/tampilan_baris.py`. The row-view helpers moved there from
+                `console_service.py`, which had reached 1,010 lines. Screen: `#grading-line` and
+                `#grading-truk` above the Grading table (dropdown component with search), sent as
+                `line_code` / `truck_id`, page one on every change, kept by the 2 s poll. The Grading
+                and History tables draw `selFoto`: small copy in the table, full size only in the
+                dialog, one fallback to the full photo when the small one fails to load.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                7 mutations, each turned its test red.
+Not validated:  Thumbnails on the factory PC or from R2 (the browser test answers `/history` itself).
+Decisions:      A photo older than the bbox/clean/thumb layout has no small copy: the table shows the
+                full one (rare, old days only) rather than no picture. The filter is not remembered
+                across reloads, like the page number.
+Next:           PR 5, printable grading slip (5.9).
+
+## 2026-10-05 · console · Sliding session with a warning 15 minutes before the end (batch 5.7) (PR #233)
+Changed:        Server: `AuthService.renew` + `ConsoleStore.extend_session` slide a live session to
+                12 h from now (never an ended one, never for a switched-off operator); new route
+                `POST /api/console/session/renew` (`routes/console_sesi.py`) answers `{sisa_detik}`
+                and sends the cookie again; login and `/me` carry `sisa_detik`. Screen: a touch or
+                a key marks activity (`tandaiAktif`), a 1 s watch (`pantauSesi`) renews at most every
+                5 minutes, and at once inside the last 15 minutes, when the yellow ribbon
+                (`#pita-sesi`, Perpanjang button) shows. At zero the screen asks `/me` before the gate
+                comes down. Rule 19 rewritten (`docs/rules.md`, `CLAUDE.md` index line).
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                10 mutations, each turned its test red.
+Not validated:  A real 12-hour idle on the factory PC; the end was moved on the page and on a test
+                clock. A touch screen (pointerdown covers touch in both browsers, not tried on
+                the kiosk).
+Decisions:      Polls never renew (otherwise a kiosk left alone never signs out). No absolute cap:
+                a screen in use stays signed in for as long as it is used; the plan asked for a
+                sliding session and named no cap. Seconds left, not a clock time, so a browser
+                clock that is off does not move the end.
+Next:           PR 4, Grading filter and thumbnails (5.10, 5.12).
+
+## 2026-10-05 · console · One dropdown everywhere: type to filter, trucks on site first (batch 5.6) (PR #232)
+Changed:        `static/console.html`: a list with 8 rows or more gets a search field while it is
+                open (`pasangCari`, `saringPilih`, `cocokCari`, `hasilSaring`); arrows walk only the
+                rows left, Enter in the field takes the first, a letter typed on a row goes to the
+                field. Rows can be shown but not pickable (`mati`, `judul`). The three pickers that
+                were replaced whole (`outerHTML`: plat-datang, plat-timbang, riwayat-line) are
+                refilled in place (`isiUlangPilih`). The eight native `<select>` (Role, Arah conveyor,
+                Berkas x3, Model x3) are the same component; read through `dataset.nilai`, set
+                through `aturPilih`, event `pilih`. The card truck list puts trucks on site first
+                in their own section. Server: `GET /api/console/trucks` carries `di_lokasi`.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                14 mutations, each turned its test red.
+Not validated:  Sumber Kamera and Model Deteksi with real media and model files (the browser
+                harness has none; the option building is covered by unit tests only). A touch
+                screen. Nothing on the factory PC.
+Decisions:      "On site" = weighed in and not yet weighed out (open ticket inside the 12 h visit
+                window), decided by the server, the same rule as the unloading queue. Not applied
+                to the scan 1 picker: a truck already on site is not arriving. An open list is
+                left alone until it closes (kept from PR #229) rather than updated under the finger.
+                Search only from 8 rows: Rows per page and Layout stay as they were.
+Next:           PR 3, sliding session (5.7).
+
+## 2026-10-04 · console · Fresh data without a manual refresh, taps never lost (batch 5.3, 5.4, 5.8, 6.4) (PR #229)
+Changed:        `static/console.html`: the 2 s poll takes a turn (`kunciAntre`), a timer tick that
+                lands while a pull is in flight is dropped (`detakRefresh`, `sekaliJalan` for the
+                truck and weighbridge polls), every request has a time limit
+                (`AbortSignal.timeout`, 10 s reads, 60 s writes). A line card is updated through
+                `perbaruiKartu`, each part only when its markup changed (`tulisKalauBeda`): truck
+                line, Lepas, piston button and ribbon; the Grading table and its page numbers too.
+                The Tugaskan list of a card that is already on screen takes new trucks
+                (`isiUlangPilih`), never while it is open. Cards are drawn again when the set of
+                lines changes. The page reloads itself when the console version changes, not under
+                an open dialog, a busy button or a typed field. Header: "Diperbarui HH:MM:SS";
+                after 3 failed polls it turns red and numbers, cards and tables go grey. One Refresh
+                button. A language flip reloads the open tab (Akun, Log, Status kept the old words).
+                Server: `/api/console/state` no longer carries `recent` (20 rows queried every 2 s
+                and never drawn), `/console` is sent with `Cache-Control: no-cache`.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                14 mutations, each turned its test red.
+Not validated:  A real `autograde pull` on a kiosk (the reload was tested by changing `versi` in the
+                poll answer). Nothing on the factory PC.
+Decisions:      The stale state greys numbers and tables, not the camera picture: the picture comes
+                from the line and is still live when the console is down. Setelan and Line are not
+                reloaded on a language flip: they are forms, and a reload would throw away what
+                support is typing. "Rekap is not redrawn on a language flip" in the audit was
+                already fixed (`gambarUlangRiwayat`); the tabs that still had it were Akun, Log, Status.
+Next:           PR 2, the dropdown component (5.6).
+
+## 2026-10-05 · release · Images carry their own fingerprint list (PR #240)
+Changed:        `scripts/tulis_sidik_image.py` writes `/app/.sidik-image.json` (sha256 of every file in
+                `/app/src`, `/app/config`, `/app/scripts`, `/entrypoint.sh`) as the last Dockerfile step.
+                The release smoke (`scripts/smoke_image.py`) gains a `sidik` check: an image whose files
+                do not match its list gets no release tag. Pairs with the factory launcher check
+                (`periksa_image`, sawit workspace), which reads the list before installing.
+Validated:      unit tests for the script, the Dockerfile order and the smoke check; real image: a
+                copy of `v1.24.0-cpu` built with the script passes the launcher checker ("kode aplikasi
+                233 berkas, 0 beda") and `scripts/smoke_image.py` (`ok sidik`).
+Not validated:  The factory image (GPU) was not built locally; the first release after merge builds it.
+Next:           Install the launcher with the integrity check at Lampung, then release.
+
+## 2026-10-05 · vision · Camera health without a temperature sensor (PR #238)
+Changed:        Lampung cameras (MV-CS050-10GC, firmware V4.0.43) report `DeviceTemperature` as
+                not implemented (access mode NI, checked on the camera with
+                `sawit/scripts/cek-suhu-kamera.sh`). The Diagnostics card now grades what the
+                camera does instead: rate held below 90 % of the camera's own target for 2 min
+                (clears after 1 min normal), frames lost on the wire in the last 10 min
+                (`MV_MATCH_TYPE_NET_DETECT`, yellow any, red from 5 %), disconnects in the last 24 h
+                (yellow 1-2, red 3+). Rules in `domain/kesehatan_kamera.py`; the capture thread asks
+                every `PANTAU_KAMERA_JEDA_DETIK` (10 s, renamed from `SUHU_JEDA_DETIK`) under the
+                camera lock; `/health/detail` gains `suhu_kamera_didukung`, `fps_kamera_target`,
+                `fps_kamera_turun`, `frame_hilang`, `putus_kamera`, `kamera_tingkat`. The card colours
+                the rows, writes "perlu dicek" on the closed group header, and says "tidak didukung
+                kamera" instead of a dash; a camera answering NI is asked once per connect. Low rate
+                and lost frames log one WARNING at start and one at the end (rule 33). Rule 35,
+                `backend-overview.md`, `MANUAL.md`, `camera-spec.md` §6.4 updated.
+Validated:      unit 4814 passed, e2e 397, integration 176, ruff clean; browser status tests 6/6
+                (chromium + firefox).
+Not validated:  stream counters never read from a real camera (SDK call per the vendored wrapper,
+                tested with ctypes fakes); thresholds are first guesses; `MANUAL.pdf` not rebuilt.
+Next:           release, then read the card on the Lampung PC for a day and tune the thresholds.
+
+## 2026-10-05 · console · The console page is always fetched fresh after an update (PR #236)
+
+```
+Changed:        GET /console now answers with `Cache-Control: no-cache` (routes/console.py). Before, the
+                page had no cache header, so Firefox kept it on a guessed lifetime from Last-Modified.
+                New test tests/unit/test_console_halaman_tanpa_cache.py; docs/backend-overview.md rows updated.
+Validated:      new test red on staging ee1f442 ("assert 'no-cache' in ''"), green with the fix.
+                pytest tests/unit/ → 4787 tests, 0 failures, 28 skipped.
+                pytest tests/e2e/ tests/integration/ → 592 tests, 0 failures, 20 skipped.
+                ruff check src/ tests/ → All checks passed!
+Not validated:  Not seen in the Lampung kiosk yet; needs the next release installed there.
+                Browser suite left to CI.
+Decisions:      `no-cache`, not `no-store`: the browser may keep the 525 KB file but must ask the console first.
+Next:           Release with the next tag, then check the Lampung kiosk shows the new page without Ctrl+Shift+R.
+```
+
+Found in Lampung on 2026-10-05: after v1.22.0 and then v1.23.0 were installed, the kiosk kept the
+previous version's page. The version number was right (it comes from the API) but the Update
+section and the new features were missing until Ctrl+Shift+R. The operator who presses
+Pasang sekarang would not know to do that.
+
+## 2026-10-05 · console · Shift cutoff for the working day: design only (batch 5.11) (draft PR #237)
+Changed:        `docs/runbooks/2026-10-05-shift-cutoff-design.md`: the problem, every reader of
+                `work_date`, three options (shift the stored date, a second column, screen only),
+                the AutoERP dating risk, six open questions, the work list for option A. No code.
+Validated:      `pytest tests/unit/test_doc_links.py tests/unit/test_dokumen_tanpa_em_dash.py`
+                (see the PR).
+Not validated:  Nothing to run: design only.
+Decisions:      None yet. Parked for the user: AutoERP dates a ticket from the local date of
+                `time_in`, so a console cutoff after midnight makes the console's working day and
+                AutoERP's ticket date differ for trucks weighed between midnight and the cutoff.
+Next:           User answers §6 of the design, then build (or not).
+
 ## 2026-10-05 · vision · Batch 6.3: display shrinks first and rests with no viewer (PR #231)
 Changed:        `DisplayWorker` shrinks the frame to stream size first and draws the boxes on the
                 small frame (`draw_boxes(skala=...)`, geometry in `domain/skala_tampilan.py`); the

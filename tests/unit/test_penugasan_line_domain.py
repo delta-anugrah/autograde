@@ -30,10 +30,17 @@ from palmgrade.domain.working_day import JENDELA_KUNJUNGAN_DETIK
 LINES = ["line-1", "line-2", "line-3"]
 
 
-def test_bawaannya_mati_dengan_semua_line_terpilih():
-    """Rilis yang membawa fitur ini tidak boleh mengubah cara kerja pabrik di hari datangnya."""
-    assert setelan_bawaan(LINES) == SetelanPenugasan(aktif=False, lines=tuple(LINES))
+def test_bawaannya_nyala_dengan_semua_line_terpilih():
+    """User 2026-10-05: a console that never saved this setting assigns automatically, on
+    every configured line (it used to start off, decision D13)."""
+    assert setelan_bawaan(LINES) == SetelanPenugasan(aktif=True, lines=tuple(LINES))
     assert baca_setelan(None, LINES) == setelan_bawaan(LINES)
+    assert baca_setelan("", LINES) == setelan_bawaan(LINES)
+
+
+def test_tanpa_line_terkonfigurasi_bawaannya_tetap_mati():
+    """On with no line to put a truck on would refuse every save as `penugasan_tanpa_line`."""
+    assert setelan_bawaan([]) == SetelanPenugasan(aktif=False, lines=())
 
 
 def test_kunci_selamat_dari_danger_zone():
@@ -45,14 +52,16 @@ def test_setelan_tersimpan_terbaca_dan_line_asing_dibuang():
     assert baca_setelan(teks, LINES) == SetelanPenugasan(aktif=True, lines=("line-1", "line-3"))
 
 
-def test_setelan_rusak_kembali_ke_bawaan():
-    assert baca_setelan("bukan json", LINES) == setelan_bawaan(LINES)
+def test_setelan_rusak_terbaca_mati():
+    """A row that exists but cannot be read was saved by someone: the safe reading is off,
+    not the never-saved default."""
+    assert baca_setelan("bukan json", LINES) == SetelanPenugasan(aktif=False, lines=tuple(LINES))
 
 
 @pytest.mark.parametrize("teks", ["1", "[]", "null", '"teks"', "true", '[{"aktif": true}]'])
-def test_json_sah_yang_bukan_objek_kembali_ke_bawaan(teks):
+def test_json_sah_yang_bukan_objek_terbaca_mati(teks):
     """Dibaca di dalam poll state() tiap 2 detik: tidak boleh pernah melempar."""
-    assert baca_setelan(teks, LINES) == setelan_bawaan(LINES)
+    assert baca_setelan(teks, LINES) == SetelanPenugasan(aktif=False, lines=tuple(LINES))
 
 
 @pytest.mark.parametrize(
@@ -74,8 +83,8 @@ def test_daftar_line_yang_bentuknya_salah_dibaca_kosong_dan_mati(teks):
      ("0", False), ("null", False), ("false", False)],
 )
 def test_cuma_true_asli_yang_menyalakan(aktif, nyala):
-    """Teks "false" atau "0" yang tersimpan tidak boleh terbaca nyala: bawaannya mati (D13),
-    jadi nilai yang tidak dikenal ikut mati, bukan diam diam menugaskan truk."""
+    """Teks "false" atau "0" yang tersimpan tidak boleh terbaca nyala: nilai tersimpan yang
+    tidak dikenal ikut mati, bukan diam diam menugaskan truk."""
     teks = f'{{"aktif": {aktif}, "lines": ["line-1"]}}'
     assert baca_setelan(teks, LINES).aktif is nyala
 

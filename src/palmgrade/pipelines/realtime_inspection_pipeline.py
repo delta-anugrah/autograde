@@ -17,7 +17,7 @@ from ..core.constants import (
 )
 from ..domain.garis_capture import MENDATAR, TEGAK
 from ..domain.grade_class import TP, grade_class_or_none, verdict_for_class
-from ..domain.skala_tampilan import TANPA_SKALA, gaya_berskala, kotak_berskala
+from ..domain.skala_tampilan import TANPA_SKALA, gaya_berskala, gaya_label, kotak_berskala
 from .model_registry import ModelRegistry
 
 # Jarak garis pemicu dari tepi kanan frame saat ROI memenuhi layar. Cukup untuk
@@ -44,7 +44,7 @@ class RealtimeInspectionPipeline:
 
     def draw_boxes(
         self, frame: np.ndarray, results: Any, *, tampilkan_confidence: bool = False,
-        skala: tuple[float, float] = TANPA_SKALA,
+        skala: tuple[float, float] = TANPA_SKALA, ukuran_label: int = 100,
     ) -> np.ndarray:
         """`tampilkan_confidence` = mode dev (setelan `mode_dev` dari konsol).
 
@@ -60,10 +60,12 @@ class RealtimeInspectionPipeline:
         """
         if results.boxes is None:
             return frame
-        bt, fs, ft, jarak = gaya_berskala(
+        # `ukuran_label` (percent, set by support from the console) grows or shrinks the
+        # text only. The saved evidence photo leaves it at 100.
+        bt, fs, ft, jarak = gaya_label(gaya_berskala(
             self.settings.border_thickness, self.settings.font_scale,
             self.settings.font_thickness, skala,
-        )
+        ), ukuran_label)
         for box in results.boxes:
             x1, y1, x2, y2 = kotak_berskala(*map(int, box.xyxy[0].tolist()), skala)
             label = results.names[int(box.cls[0].item())]

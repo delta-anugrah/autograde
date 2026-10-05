@@ -59,7 +59,10 @@ end of this file.
    dilewati (WARNING). Sidecar janjang tanpa gambar juga diracun, bukan `done`.
 1b. **Thread deteksi tidak pernah menunggu disk** (sejak 2026-09-18). Encode WebP frame sensor penuh
    memakan **~285 ms per gambar**, dan satu janjang menulis tiga gambar + sidecar + baris outbox:
-   **~590 ms** diukur di PC Lampung 2026-09-17. Selama itu dulu deteksi BERHENTI, dan tiga akibatnya
+   **~590 ms** diukur di PC Lampung 2026-09-17. Angka itu cocok dengan frame penuh 2448x2048; frame
+   yang sampai ke line di Lampung sekarang **1224x1024** (binning 2x2 di `config/camera/hikrobot.mfs`,
+   dicek pada foto terbaru 2026-10-05), dan satu janjang di sana 175 ms, 95 ms sejak batch 6.2
+   (`scripts/bench_simpan_foto.py --gambar <foto clean>`). Selama itu dulu deteksi BERHENTI, dan tiga akibatnya
    semuanya senyap: `frame_queue` (drop-oldest, nol log) membuang ~12 frame per janjang di kamera 20
    fps, ByteTrack kehilangan jejak lalu memberi track id baru pada janjang yang sama (tonase dobel),
    dan layar operator membeku ~1 detik. Sekarang `FrameProcessingWorker` cuma `submit()` satu
@@ -76,8 +79,9 @@ end of this file.
    Antrean **8 dalam, drop yang terbaru + `logger.error`**: menahan deteksi sampai antrean lega akan
    mengembalikan persis lag yang dihilangkan. Angkanya dari dua ukuran: beban nyata **300
    janjang/jam/line** (satu tiap 12 detik, sementara penulis butuh ~0,6 detik, jadi antrean ini
-   untuk **lonjakan**, bukan laju rata-rata) dan biaya memorinya: tiap job menahan dua frame 14,3 MB,
-   jadi 8 dalam = 230 MB per line, 689 MB untuk tiga line dari RAM 31 GB. Antrean yang sering penuh
+   untuk **lonjakan**, bukan laju rata-rata) dan biaya memorinya: tiap job menahan dua frame (3,6 MB
+   masing-masing pada 1224x1024, 14,3 MB tanpa binning), jadi 8 dalam = 60 MB per line (230 MB
+   tanpa binning) dari RAM 31 GB. Antrean yang sering penuh
    berarti disk/CPU tidak mengimbangi laju grading, itu yang harus dibaca dari log, bukan ditambal
    dengan antrean lebih dalam lagi. Satu janjang >1 detik diadukan `logger.warning`
    (`tulis … ms, antre … ms, antrean=N`): itu alat ukur lapangannya.
@@ -171,6 +175,16 @@ end of this file.
     Status → Antrean line); sengaja terlihat gagal daripada mendarat di hari yang salah.
     `python:3.11-slim` butuh `tzdata`
     (sudah di Dockerfile): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam balik ke UTC.
+    **Cutoff hari kerja** (batch 5.11, 2026-10-05): support bisa menggeser awal hari kerja dari
+    00:00 sampai 23:59 (tab Setelan; lewat 12:00 layar minta konfirmasi dengan contoh efeknya,
+    user 2026-10-05; `sync_state` `setelan_cutoff_shift`,
+    `services/hari_kerja.py`). `work_date` = tanggal dari `timestamp - cutoff` di `FACTORY_TZ`.
+    Satu-satunya jalan menghitung tanggal kerja adalah `HariKerja.untuk` / `kini` (ingest, timbang,
+    scan gerbang, "Hari ini"). Bawaan 00:00 = perilaku lama. **Baris yang sudah tersimpan tidak
+    pernah dihitung ulang**: perubahan cutoff berlaku untuk baris berikutnya. AutoERP tetap
+    menanggali tiket dari tanggal lokal `time_in`, jadi dengan cutoff lewat 00:00 truk yang timbang
+    antara 00:00 dan jam cutoff tanggalnya beda di konsol dan di AutoERP (total tidak berubah);
+    tab Rekap menulis "(dipotong jam HH:MM <zona>)" di belakang judul hari kerjanya.
 11. **Konsol tidak boleh memindai direktori** (§6.2): semua yang dibaca layar operator datang
     dari **index SQLite** `state/console.db`, di **`repositories/console_repository.py`**
     dengan skema dan migrasinya di **`repositories/console_skema.py`** dan akunnya di mixin
@@ -410,7 +424,15 @@ end of this file.
     padahal sandinya benar) dan `scrypt` untuk akun lokal. `_verify_scrypt` **hanya** menerima
     parameter yang ditulis build ini (barisnya data dan bisa diubah); rounds pbkdf2 **diikuti**
     di atas lantai minimum, karena AutoERP yang punya biaya itu dan boleh menaikkannya.
-    Sesi 12 jam di `sesi`. Hitungan sandi salah di disk (lockout 5× lalu berlipat dua sampai
+    Sesi di `sesi`, **geser** sejak batch 5.7 (2026-10-05): berakhir 12 jam sesudah aktivitas
+    operator terakhir, bukan 12 jam sesudah login (pabrik jalan ±20 jam; sesi tetap 12 jam dulu
+    menjatuhkan gerbang login di atas kamera di tengah shift). Aktivitas = sentuhan atau tombol
+    keyboard di layar; layar mengirim `POST /api/console/session/renew` paling sering sekali per
+    5 menit, dan langsung kalau sisa sesi 15 menit atau kurang (pita kuning di layar). **Polling
+    layar tidak pernah memperpanjang**: kalau iya, layar yang ditinggal tidak akan pernah keluar
+    sendiri. Sesi yang sudah habis tidak bisa dihidupkan lagi lewat renew. `/me` dan login
+    membawa `sisa_detik` (detik, bukan jam: jam browser bisa beda dengan jam konsol), dan renew
+    mengirim ulang cookie dengan umur penuh. Hitungan sandi salah di disk (lockout 5× lalu berlipat dua sampai
     15 menit), karena di memori muat-ulang halaman akan mengosongkannya. Reset sandi **dan**
     mematikan operator sama-sama menghapus sesinya, menyaring status saja akan menghidupkan
     token lama begitu akun diaktifkan lagi. Satu jawaban untuk sandi salah / akun tidak ada /
@@ -458,10 +480,11 @@ end of this file.
     (`pastikanTabTersedia`). Dulu cuma dibuang: operator yang mewarisi tab Setelan dapat
     layar kosong, dan support sesudahnya harus memuat ulang halaman (tes staging 2026-09-28).
     **Sembilan tab sejak 2026-09-28** (dulu 15, "tab kebanyakan"): **Rekap** = Rekap + Riwayat
-    (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean line + Antrean ERP
-    bertumpuk,
-    **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat tombol
-    pilihan (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang
+    (dibuka di Hari ini, Per truk), **Status** = lima sub-tab sejak 2026-10-05 (Versi & pembaruan,
+    Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2; `SUB_STATUS`, diingat
+    `subStatus`, satu bagian tampil sekaligus; dulu bertumpuk),
+    **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat sub-tab
+    bergaris bawah (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang
     masih tersimpan dipetakan `tabDariSimpanan`/`TAB_LAMA`, bukan jatuh ke Grading. Timer ikut
     yang terlihat (`bukaTabDev`): diagnostik 5 s di Status, PLC 1 s dan rekam 3 s cuma di
     pilihan Line-nya, Rekap 15 s (`segarkanRekap`) hanya kalau rentangnya memuat hari ini dan
@@ -1176,6 +1199,24 @@ end of this file.
     gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
     ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
     sehat.
+    **Kesehatan kamera tanpa sensor suhu** (2026-10-05). Kamera Lampung (MV-CS050-10GC,
+    firmware V4.0.43) tidak punya `DeviceTemperature` (akses NI, dicek di kamera), jadi kamera
+    yang kepanasan atau rusak dibaca dari kelakuannya, aturannya murni di
+    `domain/kesehatan_kamera.py`: **laju tertahan** (fps terukur di bawah 90% target kamera
+    `camera_fps_terukur` selama 2 menit; pulih sesudah 1 menit normal, supaya tidak berkedip),
+    **frame hilang** (`MV_MATCH_TYPE_NET_DETECT`, selisih hitungan SDK dalam jendela 10 menit,
+    bukan total sejak nyala; ada = kuning, mulai 5% = merah; hitungan yang mengecil = handle baru
+    sesudah sambung ulang), dan **putus-nyambung** (satu per kejadian "Kamera tidak mengirim
+    gambar", jendela 24 jam bergulir, bukan sejak tengah malam; 1-2 kuning, 3 merah). Ditanya
+    thread capture tiap `PANTAU_KAMERA_JEDA_DETIK` (10 detik) di bawah kunci kamera (aturan 3),
+    bersama suhu. Line yang menilai (`ringkas_kesehatan_kamera`, L4), layar cuma mewarnai, dan
+    judul grup Kamera dan gambar menulis "perlu dicek" supaya terlihat walau grupnya tertutup.
+    Laju tertahan dan frame hilang ditulis ke tab Log sekali saat mulai dan sekali saat pulih
+    (aturan 33). "Laju tertahan" dilapor `false` begitu gambar berhenti: baris gambar terakhir
+    sudah merah. Kamera yang menjawab NI untuk `DeviceTemperature` ditanya **sekali per
+    sambung** lalu tidak lagi (`suhu_didukung = False`), dan kartu menulis "tidak didukung
+    kamera" alih-alih strip yang terbaca seperti kerusakan; NA (ada tapi belum tersedia) tetap
+    ditanya.
 36. **Penugasan line otomatis: satu truk di line sampai selesai** (keputusan user 2026-10-01).
     Tiap timbang isi dan tiap Lepas memanggil `isi_line_otomatis()`
     (`services/penugasan_otomatis.py`, mixin `ConsoleService`; aturan murni di
@@ -1187,9 +1228,11 @@ end of this file.
     menunggu; memasangnya sekarang membuat sisa janjang truk lama tercatat ke truk baru.
     Timbang kosong atau Lepas manual pada line TERAKHIR yang memegang truk memasang truk
     berikutnya. Setelannya di `sync_state` (`setelan_penugasan_line`, selamat dari Danger
-    Zone), **mati sampai support menyalakannya** (bawaan mati, supaya pembaruan tidak mengubah
-    cara kerja pabrik di hari ia terpasang: selama mati strip antrean bongkar tidak tampil),
-    dan hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
+    Zone). **Bawaannya NYALA di semua line sejak 2026-10-05** (permintaan user; sebelumnya mati
+    sampai support menyalakannya, keputusan D13): konsol yang belum pernah menyimpan saklar ini
+    langsung menugaskan truk saat timbang isi. Baris tersimpan yang tidak terbaca dibaca MATI
+    (`domain/penugasan_line._tak_terbaca`), bukan bawaan. Selama mati strip antrean bongkar
+    tidak tampil. Hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
     saklar nyala langsung menjalankan `isi_line_otomatis()` (truk yang sudah menunggu naik
     sekarang); rute itu `async def` karena bertanya ke line (aturan 30). `baca_setelan` tidak pernah melempar (dibaca tiap polling
     `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.
@@ -1242,7 +1285,8 @@ end of this file.
     yang timbang isi dalam jendela yang sama sebelum sekarang, dan tabel Timbangan hari ini
     membawa kunjungan hari kerja sebelumnya yang belum keluar gerbang (tanpa tara: dalam jendela
     itu; bertara: 24 jam dari timbang kosong, lihat Tanpa scan 4)
-    (`kunjungan_terbawa`, 2026-10-02): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
+    (`kunjungan_terbawa`, 2026-10-02; sejak batch 5.11 juga dari hari kerja SESUDAHNYA, kalau
+    cutoff dinaikkan malam hari): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
     milik hari kerjanya sendiri; total hari, Rekap, CSV dan AutoERP tidak berpindah hari.
     Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
     platnya milik truk terdaftar (plat dinas, plat lama): truk itu tetap bisa dicatat datang
@@ -1377,7 +1421,7 @@ memang khas satu mesin.
   mendatar, garis vertikal, angka px dari **kiri**; `mendatar` = conveyor menurun, garis
   horizontal, angka px dari **atas**. Arah gerak DI DALAM satu sumbu tidak perlu disetel,
   pemicunya perpotongan, jadi conveyor yang membalik arah tetap jalan. ⚠️ Sumbu mendatar
-  diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame 2448x2048 tidak
+  diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame kamera (1224x1024, rasio sama dengan sensor 2448x2048) tidak
   persegi, jadi memakai lebar meleset ~19% tanpa satu pun error.
 - **Teks layar dan dokumen tanpa em dash (`—`) dan tanpa `" - "` sebagai jeda kalimat** (permintaan user
   2026-09-26: terasa ditulis mesin). Pecah kalimat dengan titik, koma, titik dua, atau kurung.
@@ -1473,7 +1517,10 @@ memang khas satu mesin.
   baru) menarik digest itu dan menjalankan `scripts/smoke_image.py`: label
   `org.opencontainers.image.version` benar (launcher membaca versi dari situ), `main` dan
   `console_main` bisa diimpor (konsol tanpa torch/cv2), konsol nyala tanpa jaringan dan
-  `/health` menjawab versi yang benar; lalu `tests/e2e/test_image_tracker_deps.py` (tracker
+  `/health` menjawab versi yang benar, dan tiap berkas di `/app/.sidik-image.json` cocok (sejak
+  2026-10-05: daftar sidik kode kita yang ditulis `scripts/tulis_sidik_image.py` di akhir
+  Dockerfile, dibaca cek keutuhan launcher pabrik `periksa_image` sebelum memasang; listrik
+  padam sesudah `docker pull` pernah meninggalkan berkas 0 byte tanpa error); lalu `tests/e2e/test_image_tracker_deps.py` (tracker
   jalan offline) dan, untuk demo, `tests/e2e/test_demo_kit_docker.py`. Baru sesudah lulus job
   `promote` menyalin digest yang sama ke `vX.Y.Z` + `latest` (demo: `vX.Y.Z-cpu`) dengan
   `docker buildx imagetools create`, tanpa build ulang. Smoke gagal = tidak ada tag rilis,

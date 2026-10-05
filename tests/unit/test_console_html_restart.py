@@ -267,6 +267,7 @@ KARTU_STUB = """
 const location = { protocol: "http:", hostname: "10.0.0.5" };
 const trucks = [];
 const komponenPilih = () => "";
+const opsiTrukKartu = () => [];
 const pitaPiston = () => "";
 const pitaKunciDitolak = () => "";
 const pitaAi = () => "";

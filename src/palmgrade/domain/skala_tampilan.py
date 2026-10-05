@@ -1,6 +1,7 @@
 """Where a detection box lands, and how thick it is drawn, on a frame of another size.
 
-Batch 6.3: the operator stream is 1280x720 while the camera frame is 2448x2048.
+Batch 6.3: the operator stream is 1280x720 while the camera frame is 1224x1024 at Lampung
+(binning 2x2 in `config/camera/hikrobot.mfs`; 2448x2048 without it).
 `DisplayWorker` shrinks the frame FIRST and draws on the small one, so the boxes found on
 the sensor frame are scaled here, together with the style `.env` wrote for the sensor frame.
 
@@ -27,7 +28,7 @@ class GayaKotak(NamedTuple):
 
 
 def skala_ke(frame_width: int, frame_height: int, target_width: int, target_height: int) -> tuple[float, float]:
-    """(sx, sy) from a frame to the target size. The two differ: 2448x2048 is not 16:9."""
+    """(sx, sy) from a frame to the target size. The two differ: the camera frame is not 16:9."""
     if frame_width <= 0 or frame_height <= 0:
         return TANPA_SKALA
     return target_width / frame_width, target_height / frame_height
@@ -41,6 +42,22 @@ def kotak_berskala(
         return x1, y1, x2, y2
     sx, sy = skala
     return round(x1 * sx), round(y1 * sy), round(x2 * sx), round(y2 * sy)
+
+
+def gaya_label(gaya: GayaKotak, persen: int) -> GayaKotak:
+    """The label text at `persen` of its size, set by support from the console (2026-10-05).
+
+    Only the text grows or shrinks, with its stroke and its distance from the box; the box
+    border stays. 100 returns the style unchanged.
+    """
+    if persen == 100:
+        return gaya
+    faktor = persen / 100
+    return gaya._replace(
+        font_scale=gaya.font_scale * faktor,
+        font_thickness=max(1, round(gaya.font_thickness * faktor)),
+        jarak_label=max(1, round(gaya.jarak_label * faktor)),
+    )
 
 
 def gaya_berskala(

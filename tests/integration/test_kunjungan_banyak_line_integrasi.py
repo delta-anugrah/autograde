@@ -25,6 +25,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from palmgrade.core.config import Settings
+from palmgrade.domain.penugasan_line import KUNCI_PENUGASAN
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.domain.vision_event import build_event_payload
 from palmgrade.integrations.erp.client import ErpClient
@@ -88,6 +89,8 @@ class Pabrik:
             public_url="https://captures.example", viewer_html=viewer,
             clock=lambda: datetime.now(WIB).isoformat(),
         )
+        # This mill assigns trucks by hand: never-saved now means on (2026-10-05).
+        self.store.set_state(KUNCI_PENUGASAN, json.dumps({"aktif": False, "lines": ["line-1", "line-2", "line-3"]}))
         self.service = ConsoleService(
             settings, self.store, klien_line,
             erp_queue=ErpQueue(self.store, self.outbox), manifest_queue=self.halaman,

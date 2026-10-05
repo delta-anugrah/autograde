@@ -21,7 +21,13 @@ from ..core.dependencies import (
     get_runtime_state,
     get_settings,
 )
-from ..domain.setelan_grading import KOTAK, bersihkan_setelan, kotak_dari
+from ..domain.setelan_grading import (
+    KOTAK,
+    UKURAN_LABEL_BAWAAN,
+    SetelanTidakSah,
+    bersihkan_setelan,
+    kotak_dari,
+)
 from ..domain.setelan_rekam import SetelanRekamTidakSah, bersihkan_setelan_rekam
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
@@ -86,7 +92,12 @@ async def setelan_grading(
     memegang nilai sebenarnya dan mengirimnya lagi saat line kembali online,
     jadi tidak ada dua sumber kebenaran yang bisa berbeda diam-diam.
     """
-    bersih = bersihkan_setelan(request.model_dump())
+    try:
+        bersih = bersihkan_setelan(request.model_dump())
+    except SetelanTidakSah as exc:
+        # 400 with the reason, not a 500: the console checks the same rules before it sends,
+        # so this is a caller from elsewhere, and nothing on this line has changed.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     state.conf_threshold_override = bersih["conf_threshold"]
     state.minimum_size_override = bersih["minimum_size"]
     state.garis_capture_override = bersih["garis_capture"]
@@ -94,6 +105,7 @@ async def setelan_grading(
     state.mode_dev_override = bersih["mode_dev"]
     state.tampil_garis_override = bersih["tampil_garis"]
     state.tampil_roi_override = bersih["tampil_roi"]
+    state.ukuran_label_override = bersih["ukuran_label"]
     state.roi_override = kotak_dari(bersih, settings.stream_width, settings.stream_height)
     if state.roi_override is None and bersih["roi_x1"] is not None:
         logger.warning("Detection box from the console covers none of the picture, keeping ROI_* from .env")
@@ -128,6 +140,8 @@ async def setelan_grading_aktif(
         if state.mode_dev_override is not None else settings.mode_dev,
         tampil_garis=state.tampil_garis_override is not False,
         tampil_roi=state.tampil_roi_override is not False,
+        ukuran_label=state.ukuran_label_override or UKURAN_LABEL_BAWAAN,
+        roi_env=[settings.roi_x1, settings.roi_y1, settings.roi_x2, settings.roi_y2],
         **dict(zip(KOTAK, state.roi_override or (
             settings.roi_x1, settings.roi_y1, settings.roi_x2, settings.roi_y2), strict=True)),
         sumber="konsol" if ditimpa else "env",

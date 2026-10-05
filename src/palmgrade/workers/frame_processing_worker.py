@@ -128,7 +128,8 @@ class FrameProcessingWorker:
         `ROI_*` is written in **stream space** (`STREAM_WIDTH x STREAM_HEIGHT`),
         because that is the picture the operator calibrates against. Detection,
         however, runs on the raw camera frame — `frame_queue` is never resized,
-        so on a Hikrobot line that is 2448x2048, not 1280x720. The numbers are
+        so on a Hikrobot line that is 1224x1024 (binning 2x2 in `config/camera/hikrobot.mfs`;
+        2448x2048 without it), not 1280x720. The numbers are
         scaled here so both ends mean the same rectangle.
 
         Skipping the scale is what made `ROI=100,100,1180,620` draw a box over

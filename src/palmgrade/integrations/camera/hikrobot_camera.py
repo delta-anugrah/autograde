@@ -2,21 +2,29 @@ from __future__ import annotations
 
 import logging
 import os
-from ctypes import POINTER, c_ubyte, cast
+from ctypes import POINTER, c_ubyte, c_void_p, cast, pointer, sizeof
 
 import cv2
 import numpy as np
 
+from ...domain.kesehatan_kamera import StatistikAliran
+from ...domain.setelan_kamera import NilaiSetelan
 from .base import CameraSource
 from .device_selector import extract_serial, find_index_by_serial
 from .frame_utils import _validate_frame_len
 from .mvs_error import format_mvs_ret
+from .setelan_hikrobot import baca_setelan_hikrobot
 
 logger = logging.getLogger(__name__)
 
 # Rentang yang mungkin untuk badan kamera yang menyala. Di luar ini angkanya datang
 # dari struct yang tidak cocok dengan versi SDK, bukan dari sensor.
 _SUHU_MASUK_AKAL_C = (-40.0, 150.0)
+# GenICam access mode "not implemented" (`AM_NI` in the SDK): the node is in the camera's
+# feature list but the model has nothing behind it. MV-CS050-10GC answers this for
+# `DeviceTemperature` (Lampung 2026-10-05). "Not available" (`AM_NA`) is not the same: it may
+# become readable later, so it is still asked.
+_AKSES_TIDAK_ADA = 0
 
 try:
     from MvImport.MvCameraControl_class import (  # type: ignore
@@ -37,6 +45,7 @@ except ImportError:
 
 
 class HikrobotCamera(CameraSource):
+    punya_setelan = True
     #: `connect()` yang sudah dipanggil OBJEK kamera ini (nilai kelas cuma bawaan; tiap
     #: objek menghitung sendiri, dan satu line memakai satu objek seumur prosesnya).
     #: Rincian sambung (perangkat, handle, grabbing) INFO cuma untuk yang pertama: kamera
@@ -48,6 +57,8 @@ class HikrobotCamera(CameraSource):
     _laju_sudah_dilapor = False
     #: Suhu objek ini sudah pernah gagal dibaca (WARNING sekali, sesudahnya DEBUG).
     _suhu_gagal_dilapor = False
+    #: Stream counters of this object already failed once (WARNING once, then DEBUG).
+    _statistik_gagal_dilapor = False
 
     def _level_rinci(self) -> int:
         return logging.INFO if self._jumlah_sambung <= 1 else logging.DEBUG
@@ -67,6 +78,8 @@ class HikrobotCamera(CameraSource):
 
     def connect(self, index: int = 0, serial: str | None = None, feature_file: str | None = None) -> None:
         self._jumlah_sambung += 1
+        # Asked again on every connect: the camera behind this serial may have been swapped.
+        self.suhu_didukung = None
         rinci = self._level_rinci()
         ret = MvCamera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, self.device_list)
         if ret != 0 or self.device_list.nDeviceNum == 0:
@@ -196,16 +209,25 @@ class HikrobotCamera(CameraSource):
         Called by `FrameCaptureWorker` every few seconds under `state.lock`, never
         from a request handler: the SDK is not safe across threads.
         """
-        if not self.connected:
+        if not self.connected or self.suhu_didukung is False:
             return None
         try:
             from MvImport.MvCameraControl_class import MVCC_FLOATVALUE  # type: ignore
         except ImportError:  # pragma: no cover - depends on the vendored SDK
             return None
+        if self.suhu_didukung is None and self._suhu_tidak_ada():
+            self.suhu_didukung = False
+            logger.log(
+                self._level_rinci(),
+                "Camera has no temperature sensor (DeviceTemperature not implemented); "
+                "the Diagnostics card says so and the line stops asking",
+            )
+            return None
         nilai = MVCC_FLOATVALUE()
         ret = self.cam.MV_CC_GetFloatValue("DeviceTemperature", nilai)
         suhu = float(nilai.fCurValue)
         if ret == 0 and _SUHU_MASUK_AKAL_C[0] < suhu < _SUHU_MASUK_AKAL_C[1] and suhu != 0.0:
+            self.suhu_didukung = True
             return round(suhu, 1)
         level = logging.DEBUG if self._suhu_gagal_dilapor else logging.WARNING
         self._suhu_gagal_dilapor = True
@@ -215,6 +237,58 @@ class HikrobotCamera(CameraSource):
             format_mvs_ret(ret), suhu,
         )
         return None
+
+    def _suhu_tidak_ada(self) -> bool:
+        """True only when the camera says `DeviceTemperature` is not implemented.
+
+        Any other answer, including an SDK too old to have the call, means "try reading it".
+        """
+        try:
+            from MvImport.MvCameraControl_class import MV_XML_AccessMode  # type: ignore
+        except ImportError:
+            return False
+        akses = MV_XML_AccessMode()
+        ret = self.cam.MV_XML_GetNodeAccessMode("DeviceTemperature", akses)
+        return ret == 0 and akses.value == _AKSES_TIDAK_ADA
+
+    def get_statistik_aliran(self) -> StatistikAliran | None:
+        """Frames received and lost since grabbing started (GigE `MV_MATCH_TYPE_NET_DETECT`).
+
+        Called by `FrameCaptureWorker` every few seconds under `state.lock`, like the
+        temperature. None = cannot say; the card shows a dash for that row.
+        """
+        if not self.connected:
+            return None
+        try:
+            from MvImport.MvCameraControl_class import (  # type: ignore
+                MV_ALL_MATCH_INFO,
+                MV_MATCH_INFO_NET_DETECT,
+                MV_MATCH_TYPE_NET_DETECT,
+            )
+        except ImportError:  # pragma: no cover - depends on the vendored SDK
+            return None
+        net = MV_MATCH_INFO_NET_DETECT()
+        info = MV_ALL_MATCH_INFO()
+        info.nType = MV_MATCH_TYPE_NET_DETECT
+        info.pInfo = cast(pointer(net), c_void_p)
+        info.nInfoSize = sizeof(net)
+        ret = self.cam.MV_CC_GetAllMatchInfo(info)
+        if ret == 0:
+            return StatistikAliran(diterima=int(net.nNetRecvFrameCount), hilang=int(net.nLostFrameCount))
+        level = logging.DEBUG if self._statistik_gagal_dilapor else logging.WARNING
+        self._statistik_gagal_dilapor = True
+        logger.log(
+            level,
+            "Camera did not report stream counters (%s); the Diagnostics card shows a dash for lost frames",
+            format_mvs_ret(ret),
+        )
+        return None
+
+    def baca_setelan(self) -> list[NilaiSetelan]:
+        """Capture thread only, under `state.lock`, through `state.perintah_kamera` (rule 3)."""
+        if not self.connected:
+            raise RuntimeError("camera not connected")
+        return baca_setelan_hikrobot(self.cam)
 
     def grab_frame(self):
         if not self.connected:

@@ -39,7 +39,7 @@ ditanya.
   `restart` dan reboot **tidak** membaca ulang `.env`; ubah deps/Dockerfile → `make up`.
   Setelan "tidak berlaku" padahal `.env` benar → env var proses menang atas `.env`
   (`load_dotenv(override=False)`), lihat nilai efektifnya di `/health/detail`.
-- **Akun konsol:** email + sandi, sesi 12 jam. Lokal: tab **Akun** (support) → Tambah akun,
+- **Akun konsol:** email + sandi, sesi geser 12 jam sejak sentuhan terakhir (pita kuning 15 menit sebelum habis). Lokal: tab **Akun** (support) → Tambah akun,
   Ganti sandi, Matikan/Aktifkan, Jadikan support/operator (sejak 2026-09-26), atau `make operator`
   (`AKSI=daftar|matikan|role ROLE=support`). PC pabrik tidak punya Makefile: di sana pakai tab Akun,
   atau `docker exec -it <konsol> python scripts/console-operator.py`. Nama container konsol dicek
@@ -57,8 +57,8 @@ ditanya.
   ("AutoERP terputus: …" / "Cloud Photo line-N terputus: …"); data menunggu di antrean,
   tidak hilang. Line mati atau versi lama tidak membuat Cloud Photo kuning (aturan 27).
 - **Tab support** (Log, Status, Akun, Line, Setelan; digabung 2026-09-28: **Status** =
-  Versi + Diagnostik + Antrean line + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC +
-  Rekam Video sebagai empat tombol pilihan) hanya untuk peran `support`; 403 untuk operator,
+  lima sub-tab sejak 2026-10-05: Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP,
+  Manifest R2; **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat sub-tab) hanya untuk peran `support`; 403 untuk operator,
   401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/
   terkunci) + tombol untuk akun lokal (akun AutoERP tanpa tombol; akun sendiri cuma ganti
   sandi): sandi tidak bisa dilihat (cuma hash yang disimpan); lupa sandi: akun AutoERP

@@ -27,9 +27,7 @@ from zoneinfo import ZoneInfo
 from ..core.config import LineEndpoint, Settings
 from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
-from ..domain.gerbang import durasi_kunjungan, tahap_tiket
 from ..domain.grade_class import grade_class_or_none
-from ..domain.jawaban_kunjungan import golongkan
 from ..domain.operator_error import (
     BUKAN_ANGKA,
     DI_BAWAH_MINIMUM,
@@ -42,16 +40,19 @@ from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, OPSIONAL, bersihkan_setelan
 from ..domain.sinkron import gabung_cloud
 from ..domain.vision_event import prediction_for, verdict_of
-from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, work_date_for
+from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, awal_kunjungan, teks_cutoff
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
 from .gerbang_konsol import GerbangKonsol
+from .hari_kerja import HariKerja
 from .layar_line_support import LayarLineSupport
 from .lepas_paksa import LepasPaksa
 from .penugasan_otomatis import PenugasanOtomatis
 from .status_sinkron import StatusSinkron
+from .tampilan_baris import _assignment_view, _tiket_view, _with_foto, _with_source_label
+from .tampilan_baris import _capture_url as _capture_url  # re-exported: demo seeder tests
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,8 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         # Resolved in the constructor on purpose: a bad FACTORY_TZ must kill
         # startup, not quietly file tonnage under the wrong date.
         self.tz = ZoneInfo(settings.factory_tz)
+        # Batch 5.11: every working date of this console, with the support-set cutoff.
+        self.hari_kerja = HariKerja(self.store, self.tz)
         self._by_machine = {ln.machine_id: ln for ln in self.lines}
         self._by_code = {ln.line_code: ln for ln in self.lines}
         # event_id yang penolakannya sudah di-WARNING di proses ini. Ingest jalan di
@@ -129,7 +132,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
     # ------------------------------------------------------------ ingest
 
     def today(self) -> str:
-        return self.sekarang().astimezone(self.tz).strftime("%Y-%m-%d")
+        return self.hari_kerja.kini(self.sekarang())
 
     def ingest(self, payload: dict[str, Any]) -> str:
         """Take one grading event from a line. Returns its `work_date`.
@@ -186,7 +189,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             )
 
         # §6.1: computed HERE from the event timestamp, once, then stored.
-        work_date = work_date_for(timestamp, self.tz)
+        work_date = self.hari_kerja.untuk(timestamp)
 
         line = self._by_machine.get(machine_id)
         baru = self.store.add_inspection(
@@ -264,8 +267,10 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         return {
             "work_date": work_date,
             "timezone": self.settings.factory_tz,
+            # Batch 5.11: the Rekap tab names the cutoff when it is not midnight. Here, not in
+            # the route, so the read runs in the thread pool with the rest (rule 30).
+            "cutoff_shift": teks_cutoff(self.hari_kerja.cutoff()),
             "lines": lines,
-            "recent": self.history(work_date, limit=20),
             # Ringkasan timbangan hari kerja ini untuk strip "Hari ini". Dari
             # tabel yang sama dengan tab Timbangan, jadi begitu program timbangan
             # tersambung angkanya ikut tanpa perubahan layar.
@@ -333,7 +338,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             limit=min(limit, 200), offset=offset,
         )
         for row in rows:
-            row["image_url"] = _capture_url(row.get("line_code"), row.get("image_path"))
+            _with_foto(row)
             _with_source_label(row)
         return rows
 
@@ -363,7 +368,9 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         }
 
     def trucks(self) -> list[dict[str, Any]]:
-        return [_with_source_label(row) for row in self.store.trucks()]
+        # `di_lokasi` (batch 5.6): weighed in, not yet out. The screen lists those first.
+        di_lokasi = self.store.trucks_with_open_ticket(awal_kunjungan(self.sekarang()))
+        return [{**_with_source_label(r), "di_lokasi": r["id"] in di_lokasi} for r in self.store.trucks()]
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
         rows = self.tandai_tanpa_scan_4(self.store.weighings(work_date, limit=limit)) + self.kunjungan_terbawa(work_date)
@@ -461,7 +468,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         reference_time = entered_at or exited_at
         if reference_time is None:
             raise ValueError("entered_at atau exited_at wajib diisi")
-        work_date = work_date_for(reference_time, self.tz)
+        work_date = self.hari_kerja.untuk(reference_time)
 
         cache_key = f"timbangan:{ref}" if ref else f"timbangan:{plate_norm}:{entered_at}"
         weighing_id = str(uuid.uuid5(uuid.NAMESPACE_URL, cache_key))
@@ -944,56 +951,3 @@ def _neto(gross: float | None, tare: float | None, sent: float | None) -> float 
         raise ValueError(f"net_kg tidak cocok: dikirim {sent}, gross-tare {computed}")
     return computed
 
-
-def _source_label(row: dict[str, Any]) -> str | None:
-    """Label from the store's source facts, popped so they never reach the API."""
-    return ffb_source_label(
-        has_supplier=bool(row.pop("has_supplier", 0)),
-        in_erp=bool(row.pop("in_erp", 0)),
-    )
-
-
-def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
-    """Replace the source facts with the display label (§3.5b).
-
-    Pop first, then assign: `{**row, ...}` evaluates before `pop`, and that
-    once leaked raw columns into the API response.
-    """
-    row["source_label"] = _source_label(row)
-    return row
-
-
-def _tiket_view(row: dict[str, Any]) -> dict[str, Any]:
-    """One Timbangan row: the source label, and whether AutoERP's last answer for this
-    visit needs a human (batch 2.3), the queue and total minutes and the stage (standard L4).
-    Computed here so the screen never parses AutoERP's sentences or adds up clocks."""
-    row["erp_perlu_dicek"] = golongkan(row.get("erp_note"))
-    row.update(durasi_kunjungan(row), tahap=tahap_tiket(row))
-    return _with_source_label(row)
-
-
-def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:
-    # A row with an empty truck_id = truck already released. The row stays on
-    # purpose (the line's assignment history), but the screen must say "none".
-    if not row or not row.get("truck_id"):
-        return None
-    return {
-        "assignment_id": row["assignment_id"],
-        "truck_id": row["truck_id"],
-        "plate_number": row.get("plate_number"),
-        "supplier_name": row.get("supplier_name"),
-        "source_label": _source_label(row),
-    }
-
-
-def _capture_url(line_code: str | None, image_path: str | None) -> str | None:
-    """Mirrors `resolveCaptureUrl` in palmgrade-api — the shape must match.
-
-    Absolute URLs (R2, from the batch upload lane) pass through as-is.
-    """
-    if image_path and image_path.lower().startswith(("http://", "https://")):
-        return image_path
-    if not image_path or not line_code:
-        return None
-    rel = image_path.lstrip("/").removeprefix("captures/").lstrip("/")
-    return f"/captures/{line_code}/{rel}"

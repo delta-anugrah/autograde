@@ -2,7 +2,8 @@
 
 It serves what the console and the screen ask a line for during the browser flows:
 `/health`, a healthy `/internal/status` (no alarms, AI alive, the shape
-`LineStatusWorker` reads), a `/health/detail` for the Status tab's Diagnostics card, the camera feed (one PNG frame, enough for the card to count
+`LineStatusWorker` reads), a `/health/detail` for the Status tab's Diagnostics card,
+`/internal/camera/settings` for the Line tab's Setelan Kamera cards, the camera feed (one PNG frame, enough for the card to count
 as connected) and the commands the tests trigger (`/internal/assignment`,
 `/internal/setelan`, `/internal/camera/reconnect`; the last one can be told to answer late
 or as a video line, `atur_sambung_ulang`). Everything else is 404, which is what an older line image answers,
@@ -43,6 +44,23 @@ DETAIL_SEHAT = {
     "frame_umur_detik": 0.1,
     "suhu_kamera_c": 47.3,
     "workers": [{"name": "capture", "alive": True}],
+    "fps_kamera_target": 15.0,
+    "fps_kamera_turun": False,
+    "frame_hilang": {"hilang": 12, "total": 9000, "persen": 0.1, "tingkat": "waspada"},
+    "putus_kamera": {"jumlah": 0, "tingkat": "aman"},
+    "kamera_tingkat": "waspada",
+}
+# What the Setelan Kamera screen needs from a Hikrobot line (phase 0 values, Lampung 2026-10-05).
+SETELAN_KAMERA = {
+    "berkas_tersimpan": False,
+    "berkas_fitur": "models/01102026.mfs",
+    "setelan": [
+        {"kunci": "exposure", "node": "ExposureTime", "jenis": "float", "satuan": "µs", "bisa_diubah": True,
+         "didukung": True, "nilai": 4000.0, "min": 15.0, "max": 9959540.0, "langkah": None, "pilihan": []},
+        {"kunci": "white_balance", "node": "BalanceWhiteAuto", "jenis": "enum", "satuan": "", "bisa_diubah": True,
+         "didukung": True, "nilai": "Continuous", "min": None, "max": None, "langkah": None,
+         "pilihan": ["Off", "Once", "Continuous"]},
+    ],
 }
 _PERINTAH = ("/internal/assignment", "/internal/setelan")
 _SAMBUNG_ULANG = "/internal/camera/reconnect"
@@ -69,6 +87,12 @@ class _Penjawab(BaseHTTPRequestHandler):
             self._json(200, {**STATUS_SEHAT, "truck_id": self.server.truk})
         elif jalur == "/health/detail":
             self._json(200, DETAIL_SEHAT)
+        elif jalur == "/internal/camera/settings":
+            self._json(200, SETELAN_KAMERA)
+        elif jalur == "/internal/setelan":
+            # The line's own `.env` box, as Settings shows it (2026-10-05).
+            self._json(200, {"conf_threshold": 0.75, "minimum_size": 460000, "sumber": "env",
+                             "roi_env": [100, 100, 1180, 620]})
         else:
             self._json(404, {"detail": "Not Found"})
 

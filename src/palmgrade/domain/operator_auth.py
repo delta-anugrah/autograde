@@ -39,7 +39,14 @@ traded for an appearance of it.
 """
 
 SESSION_TTL_S = 12 * 60 * 60
-"""One full shift plus the handover, so a screen is not locked mid-load."""
+"""How long a session lives after the operator's last activity (sliding since batch 5.7: the
+mill runs about 20 hours, and a fixed 12 h dropped the sign-in gate over the cameras
+mid-shift). Polls never count as activity, so a screen left alone still signs itself out."""
+
+
+def sisa_detik(expires_at: float, now: float) -> int:
+    """Whole seconds a session has left, never negative."""
+    return max(0, int(expires_at - now))
 
 _SCHEME = "scrypt"
 # Interactive cost, ~100 ms on the mill PC; the gate is rate-limited on top.

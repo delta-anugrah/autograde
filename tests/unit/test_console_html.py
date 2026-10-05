@@ -1143,8 +1143,8 @@ def test_tab_setelan_paling_kanan():
 def test_arah_conveyor_bisa_dipilih_dan_dikirim():
     """Garis ikut arah conveyor (tegak / mendatar), diminta operator 2026-09-18."""
     assert 'id="set-sumbu"' in HTML
-    assert 'value="tegak"' in HTML and 'value="mendatar"' in HTML
-    assert 'sumbu_garis: $("set-sumbu").value' in HTML
+    assert 'data-nilai="tegak"' in HTML and 'data-nilai="mendatar"' in HTML
+    assert 'sumbu_garis: $("set-sumbu").dataset.nilai' in HTML
 
 
 def test_satuan_garis_ikut_arah_conveyor():

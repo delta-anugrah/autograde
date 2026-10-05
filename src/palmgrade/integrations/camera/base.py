@@ -3,6 +3,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+from ...domain.kesehatan_kamera import StatistikAliran
+from ...domain.setelan_kamera import NilaiSetelan
+
 
 class CameraSource(ABC):
     #: Alasan grab terakhir yang gagal, untuk dibaca manusia (batch 3.3). Sumber yang
@@ -16,6 +19,15 @@ class CameraSource(ABC):
     #: a frame over at once (a photo, a video file): `FrameCaptureWorker` must then pace the
     #: loop itself even with no rate at all, or it spins thousands of times a second.
     menunggu_frame: bool = True
+
+    #: Does the camera have a temperature sensor? None = not known (not asked yet, or a
+    #: source that never says), False = the camera reports none, so the Diagnostics card says
+    #: "not supported" and the line stops asking, True = a reading came back.
+    suhu_didukung: bool | None = None
+
+    #: The source has camera settings the console can show (a Hikrobot camera). False = the line answers
+    #: 409 `kamera_tanpa_setelan` and never queues a read.
+    punya_setelan: bool = False
 
     def __init__(self) -> None:
         self.connected: bool = False
@@ -42,6 +54,21 @@ class CameraSource(ABC):
         folder answer None, and the Diagnostics card shows a dash for them.
         """
         return None
+
+    def get_statistik_aliran(self) -> StatistikAliran | None:
+        """Frames received and lost since grabbing started, or None when the source cannot say.
+
+        Only a network camera counts frames lost on the wire; the capture worker turns the
+        running totals into a 10-minute window (`domain/kesehatan_kamera.py`).
+        """
+        return None
+
+    def baca_setelan(self) -> list[NilaiSetelan]:
+        """Camera settings as the camera reports them now (`domain/setelan_kamera.py`).
+
+        Only sources with `punya_setelan` implement it; the route checks that flag first.
+        """
+        raise NotImplementedError
 
     @property
     def exhausted(self) -> bool:

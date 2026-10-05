@@ -74,15 +74,25 @@ from .console_deps import get_operator_admin as get_operator_admin
 from .console_deps import get_pembaruan_service as get_pembaruan_service
 from .console_deps import get_riwayat_service as get_riwayat_service
 from .console_deps import get_scan_service as get_scan_service
+from .console_deps import get_slip_service as get_slip_service
 from .console_deps import require_operator as require_operator
 from .console_deps import require_support as require_support
 from .console_gerbang import antrean_bongkar_router, gerbang_router
 from .console_kamera import kamera_router
+from .console_keadaan import keadaan_router
 from .console_lepas_paksa import lepas_paksa_router
+from .console_sesi import pasang_cookie_sesi, sesi_router
+from .console_shift import shift_router
+from .console_slip import slip_router
 
 logger = logging.getLogger(__name__)
 
 _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
+# Without a Cache-Control the kiosk guesses a lifetime from Last-Modified and keeps showing the
+# previous version's page after an update (Lampung 2026-10-05): the version number is right,
+# it comes from the API, but new sections are missing until someone presses Ctrl+Shift+R.
+# `no-cache` still lets the browser keep the file; it only has to ask the console first.
+_CONSOLE_HTML_CACHE = "no-cache"
 
 
 # ── operator screen + its API ───────────────────────────────────────────
@@ -99,7 +109,9 @@ router = APIRouter(tags=["console"])
 
 @router.get("/console", include_in_schema=False)
 async def console_page() -> FileResponse:
-    return FileResponse(_CONSOLE_HTML, media_type="text/html")
+    return FileResponse(
+        _CONSOLE_HTML, media_type="text/html", headers={"Cache-Control": _CONSOLE_HTML_CACHE}
+    )
 
 
 @router.get("/api/console/operators")
@@ -118,17 +130,8 @@ def login(auth: Auth, response: Response, payload: LoginBody) -> dict:
         token, operator = auth.login(payload.email or "", payload.sandi or "")
     except OperatorError as exc:
         raise _operator_error(429 if exc.code == TERKUNCI else 401, exc) from exc
-    response.set_cookie(
-        SESSION_COOKIE,
-        token,
-        max_age=SESSION_TTL_S,
-        httponly=True,
-        samesite="strict",
-        path="/",
-        # No `secure`: the factory console is plain HTTP on the LAN, and a Secure
-        # cookie would simply never be sent back.
-    )
-    return {"operator": operator}
+    pasang_cookie_sesi(response, token)
+    return {"operator": operator, "sisa_detik": SESSION_TTL_S}
 
 
 @router.post("/api/console/logout")
@@ -148,38 +151,18 @@ async def console_me(operator: Operator) -> dict:
             "email": operator["email"],
             "full_name": operator["full_name"],
             "role": operator["role"],
-        }
+        },
+        # Batch 5.7: the screen warns 15 minutes before the end.
+        "sisa_detik": operator["sisa_detik"],
     }
 
 
-@router.get("/api/console/state")
-async def console_state(
-    service: Service, dev: Dev, pembaruan: Pembaruan, operator: Operator
-) -> dict:
-    """Ringkasan hari kerja, plus keadaan langganan untuk banner operator.
+router.include_router(sesi_router)  # renew a sliding session (batch 5.7)
+router.include_router(slip_router)  # printable grading slip (batch 5.9)
+router.include_router(shift_router)  # working day cutoff (batch 5.11)
 
-    Menumpang di sini, bukan endpoint sendiri: layar sudah memanggil ini tiap 2
-    detik, jadi banner ikut hidup tanpa satu pun request tambahan.
 
-    Sengaja **bukan** lewat `/api/console/dev/*`: banner ini untuk operator
-    biasa, yang justru orang yang akan melihat kamera berhenti. Yang dikirim di
-    sini cuma tanggal, tingkat keparahan, dan nama perusahaan — nomor token tetap
-    support-only. `versi` ikut untuk baris di bawah tulisan AUTOGRADE (2026-09-28):
-    dibaca tiap polling, jadi sesudah `autograde pull` layar yang terbuka ikut
-    menampilkan versi baru tanpa dimuat ulang.
-
-    `service.state()` jalan di thread pool (batch 2.5): polling 2 detik ini membaca
-    beberapa query SQLite, dan di event loop query itu menahan layar lain dan kiriman
-    janjang dari tiga line.
-    """
-    return {
-        **(await run_in_threadpool(service.state)),
-        "lisensi": await dev.license_state(),
-        "versi": dev.app_version(),
-        # Badge "versi X siap dipasang" (batch 4.6) rides this 2 s poll, as the licence
-        # banner does: zero extra requests. Two small file reads, off the event loop.
-        "pembaruan": (await run_in_threadpool(pembaruan.keadaan)).as_dict(),
-    }
+router.include_router(keadaan_router)  # GET /api/console/state, the 2 s poll
 
 
 @router.get("/api/console/history")

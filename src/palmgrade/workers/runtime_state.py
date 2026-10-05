@@ -9,6 +9,8 @@ from queue import Queue
 from typing import Any
 
 from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
+from ..domain.kesehatan_kamera import HitungPutus, JendelaFrameHilang, PenilaiLaju
+from .perintah_kamera import AntreanPerintahKamera
 
 #: Lebar jendela hitung `fps_kamera`. Sama dengan log `[FPS] capture` di
 #: `FrameCaptureWorker`, supaya dua angka itu bisa dibandingkan langsung.
@@ -49,6 +51,8 @@ class RuntimeState:
     tampil_roi_override: bool | None = None
     # ROI box (x1, y1, x2, y2) in stream space, set from the console. None = `ROI_*` from `.env`.
     roi_override: tuple[int, int, int, int] | None = None
+    # Size of the class label on the video, percent (2026-10-05). Display only. None = 100.
+    ukuran_label_override: int | None = None
 
     # Laju yang BENAR-BENAR dikirim kamera, diisi `adopt_camera_frame_rate()`
     # tiap connect. `0` = sumber tidak bisa melapor (berkas video, webcam).
@@ -161,11 +165,19 @@ class RuntimeState:
     # angkanya membeku saat gambar berhenti, jadi pembaca yang menentukan 0.
     fps_kamera: float = 0.0
     # Suhu badan kamera (°C) dan jam bacanya (`jam()`), diisi `FrameCaptureWorker`
-    # tiap `SUHU_JEDA_DETIK` selama gambar mengalir. None = belum pernah terbaca:
+    # tiap `PANTAU_KAMERA_JEDA_DETIK` selama gambar mengalir. None = belum pernah terbaca:
     # sumber tanpa sensor, atau kamera menolak menjawab. Basi-tidaknya diputuskan
     # `HealthService.ringkasan_kamera`, bukan di sini.
     suhu_kamera_c: float | None = None
     suhu_kamera_at: float = 0.0
+    # `CameraSource.suhu_didukung` as last seen by the capture thread: False = the camera
+    # has no sensor, and the card says so instead of a dash.
+    suhu_kamera_didukung: bool | None = None
+    # Camera health without a sensor (`domain/kesehatan_kamera.py`): written only by the
+    # capture thread every `PANTAU_KAMERA_JEDA_DETIK`, read by `HealthService`.
+    laju_kamera: PenilaiLaju = field(default_factory=PenilaiLaju)
+    frame_hilang: JendelaFrameHilang = field(default_factory=JendelaFrameHilang)
+    putus_kamera: HitungPutus = field(default_factory=HitungPutus)
     _fps_jendela_mulai: float = 0.0
     _fps_jumlah: int = 0
     # `PemantauDisk` line ini (batch 3.7), dipasang main.py. None di konsol.
@@ -176,6 +188,12 @@ class RuntimeState:
     # thread safe). An Event so the automatic backoff wait can be cut short by a press.
     sambung_ulang_kamera: threading.Event = field(default_factory=threading.Event)
     sambung_ulang_oleh: str | None = None
+    # Camera commands from request threads (camera settings, spec §3.2), run by the capture thread between two
+    # grabs under `lock` (rule 3). The route waits on it; it never calls the SDK itself.
+    perintah_kamera: AntreanPerintahKamera = field(default_factory=AntreanPerintahKamera)
+    # The `.mfs` pushed at the last connect (`integrations/camera/berkas_fitur.py`): the settings screen says
+    # whether the camera runs on a saved file or on the baseline. None = no file pushed.
+    berkas_fitur_aktif: str | None = None
 
     def penonton_masuk(self) -> None:
         """One more reader of the MJPEG stream."""

@@ -36,6 +36,8 @@ _TIMEOUT_S = 10.0
 #: `hidup()` is asked every quarter second while the console waits for a line to exit; a
 #: line that is going down is expected not to answer.
 _TIMEOUT_HIDUP_S = 0.5
+#: `setelan_aktif()` is read when support opens Settings.
+_TIMEOUT_SETELAN_S = 2.0
 #: The line answers a reconnect request before it touches the camera, so the button
 #: never waits on the camera itself; a line that needs longer than this is not answering.
 TIMEOUT_SAMBUNG_ULANG_S = 5.0
@@ -236,6 +238,7 @@ class LineClient:
         mode_dev: bool = False,
         tampil_garis: bool = True,
         tampil_roi: bool = True,
+        ukuran_label: int = 100,
         **kotak: int | None,
     ) -> dict[str, Any]:
         """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
@@ -256,6 +259,7 @@ class LineClient:
                     "mode_dev": mode_dev,
                     "tampil_garis": tampil_garis,
                     "tampil_roi": tampil_roi,
+                    "ukuran_label": ukuran_label,
                     **kotak,  # roi_x1..roi_y2, None = the line keeps its `.env` box
                 },
                 headers={"x-internal-secret": self._settings.internal_secret},
@@ -288,6 +292,14 @@ class LineClient:
         the operator screen must not be made to wait on a dying line."""
         return await self._get_json(line, "/internal/status", timeout_s=1.5)
 
+    async def setelan_aktif(self, line: LineEndpoint) -> dict[str, Any]:
+        """The grading settings the line uses now, with its own `.env` box (`roi_env`).
+
+        Read when support opens Settings, so the timeout is short: a dead line must not
+        hold the screen (`services/roi_bawaan.py` asks the three side by side).
+        """
+        return await self._get_json(line, "/internal/setelan", timeout_s=_TIMEOUT_SETELAN_S)
+
     async def health_detail(self, line: LineEndpoint) -> dict[str, Any]:
         """Full `/health/detail` for the support diagnostics screen.
 
@@ -296,6 +308,15 @@ class LineClient:
         struggling line instead of flagging it unreachable too eagerly.
         """
         return await self._get_json(line, "/health/detail", timeout_s=5.0)
+
+    async def camera_settings(self, line: LineEndpoint) -> dict[str, Any]:
+        """`/internal/camera/settings` for the support camera settings screen.
+
+        5 s like `health_detail`: the line itself waits up to 2 s for its capture thread. 409 (not a Hikrobot
+        camera), 503 (camera not answering) and 404 (a line older than this route) arrive as `LineUnavailable`
+        with their `status` through `_get_json`; the service words them.
+        """
+        return await self._get_json(line, "/internal/camera/settings", timeout_s=5.0)
 
     async def antrean_line(self, line: LineEndpoint) -> dict[str, Any]:
         """Antrean janjang line itu ke konsol (`/internal/outbox`, batch 2.4), untuk tab Status.

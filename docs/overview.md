@@ -197,7 +197,7 @@ yang muncul sesudahnya tidak pernah terhitung dan angkanya diam-diam terlalu kec
 Arah gerak DI DALAM satu sumbu tidak perlu disetel: pemicunya perpotongan, berlaku dari sisi
 mana pun, jadi conveyor yang membalik arah tetap jalan tanpa satu pun perubahan.
 ⚠️ Sumbu mendatar diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame
-2448x2048 tidak persegi, jadi memakai lebar membuat garis meleset ~19% tanpa satu pun error.
+kamera (1224x1024, rasio sama dengan sensor 2448x2048) tidak persegi, jadi memakai lebar membuat garis meleset ~19% tanpa satu pun error.
 ⚠️ Sumbu yang tidak dikenal **tidak melempar** di jalur deteksi (jatuh ke `tegak`): nilainya
 bisa datang dari konsol versi lain, dan satu string asing tidak boleh menghentikan grading.
 Yang menolak nilai aneh adalah jalur SIMPAN, di gerbang, sebelum sampai ke tiga line.
@@ -403,7 +403,9 @@ still runs (`health.detail.camera_connected=false`), `FrameCaptureWorker` retrie
 
 **Docker-only** (no host venv). Volumes: `.:/app` (hot-reload), anonymous `/app/.venv` (shadow host),
 `./artifacts/line-N:/app/artifacts`, `./models:/app/models:ro`. `entrypoint.sh` lives at `/entrypoint.sh`
-(outside `/app`, so the `.:/app` mount can't shadow it). `load_dotenv(override=False)` in `main.py`;
+(outside `/app`, so the `.:/app` mount can't shadow it). The image also carries `/app/.sidik-image.json`
+(sha256 of every file in `/app/src`, `/app/config`, `/app/scripts` and `/entrypoint.sh`, written last
+in the Dockerfile): the factory launcher checks a downloaded image against it before installing. `load_dotenv(override=False)` in `main.py`;
 docker-compose `environment:` always wins over host `.env`.
 
 **Shared image:** `ripe-line-1` and `console` have `build:` + `image: palmgrade-vision:latest`; line-2/3
@@ -576,8 +578,10 @@ timestamp event itu sendiri (`domain/working_day.py`, zona `FACTORY_TZ`) lalu **
 sebagai kolom**: bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
 atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
 di harinya sendiri. Timestamp cacat → 400 → outbox line menahannya dan terus mencoba (tab Status
-→ Antrean line), sengaja terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disimpan, mengubah
-aturan itu nanti cuma menyentuh satu fungsi. `python:3.11-slim` butuh `tzdata` (sudah
+→ Antrean line), sengaja terlihat gagal. Batasnya tengah malam, kecuali support menggeser awal
+hari kerja (batch 5.11, tab Setelan, jam apa saja; lewat 12:00 layar minta konfirmasi): `work_date` = tanggal dari
+`timestamp - cutoff`, dihitung hanya lewat `services/hari_kerja.py` (`HariKerja.untuk` / `kini`),
+dan baris yang sudah tersimpan tidak pernah dihitung ulang (aturan 10). `python:3.11-slim` butuh `tzdata` (sudah
 ditambahkan): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC.
 
 **Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`, dibagi
@@ -773,7 +777,7 @@ tempat: DocType **`AutoGrade Operator`** di AutoERP (ditarik §4.A) dan akun **l
 pabrik: yang ditarik `password_hash`-nya, bukan sandinya, dan itulah sebabnya field-nya `Data`
 biasa: fieldtype `Password` hidup di `__Auth` yang Frappe sengaja tidak pernah layani lewat REST,
 jadi tidak akan ada yang bisa ditarik. Dua skema berdampingan: `pbkdf2_sha256` milik AutoERP
-(dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi 12 jam (`sesi`), lockout berlipat dua
+(dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi geser 12 jam sejak aktivitas terakhir (`sesi`, aturan 19), lockout berlipat dua
 sesudah lima kali salah, dan `requested_by` Reject Manual sekarang nama operator yang masuk,
 bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`, dan sejak
 2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `docs/rules.md`

@@ -28,6 +28,7 @@ from .core.logging import configure_logging
 from .domain.setelan_grading import KOTAK, bersihkan_setelan, kotak_dari
 from .domain.sumber_kamera_resolver import rencana_kamera
 from .integrations.camera.base import CameraSource
+from .integrations.camera.berkas_fitur import pilih_berkas_fitur
 from .integrations.camera.hikrobot_camera import HikrobotCamera
 from .integrations.camera.opencv_camera import OpenCVCamera
 from .integrations.camera.photo_camera import PhotoCamera
@@ -106,7 +107,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
                 k: data[k]
                 for k in (
                     "conf_threshold", "minimum_size", "garis_capture", "sumbu_garis",
-                    "mode_dev", "tampil_garis", "tampil_roi", *KOTAK,
+                    "mode_dev", "tampil_garis", "tampil_roi", "ukuran_label", *KOTAK,
                 )
                 if k in data
             }
@@ -118,6 +119,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
         state.mode_dev_override = bersih["mode_dev"]
         state.tampil_garis_override = bersih["tampil_garis"]
         state.tampil_roi_override = bersih["tampil_roi"]
+        state.ukuran_label_override = bersih["ukuran_label"]
         state.roi_override = kotak_dari(bersih, settings.stream_width, settings.stream_height)
         if state.roi_override is None and bersih["roi_x1"] is not None:
             logger.warning("Detection box from the console covers none of the picture, keeping ROI_* from .env")
@@ -283,8 +285,9 @@ def create_app() -> FastAPI:
         else:
             camera = HikrobotCamera()
 
+        berkas_fitur = pilih_berkas_fitur(settings.camera_setelan_dir, settings.line_code, settings.camera_feature_file)
         try:
-            camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
+            camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=berkas_fitur)
         except RuntimeError as exc:
             if camera_type == "hikrobot":
                 logger.warning("Camera not found at startup: %s, FrameCaptureWorker will keep retrying", exc)
@@ -294,6 +297,7 @@ def create_app() -> FastAPI:
 
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
+        state.berkas_fitur_aktif = berkas_fitur if getattr(camera, "connected", False) else None
         # Hasil `connect()` di atas, sebelum penjaga menilai: sambung ulang pertama
         # sesudah boot yang gagal tidak boleh membaca "belum pernah dicatat".
         state.catat_sambung_kamera(berhasil=bool(getattr(camera, "connected", False)))
@@ -339,7 +343,7 @@ def create_app() -> FastAPI:
             t.start()
             return t
 
-        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
+        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file, setelan_dir=settings.camera_setelan_dir, line_code=settings.line_code)
         display_worker = DisplayWorker(
             state=state,
             pipeline=pipeline,

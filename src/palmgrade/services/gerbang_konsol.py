@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from typing import Any
 
 from ..domain.gerbang import (
@@ -23,8 +23,9 @@ from ..domain.gerbang import (
     pilih_kedatangan,
     selesai_tanpa_scan_4,
 )
-from ..domain.working_day import JENDELA_TANPA_KELUAR_DETIK, awal_kunjungan, work_date_for
+from ..domain.working_day import JENDELA_TANPA_KELUAR_DETIK, awal_kunjungan
 from ..repositories.console_repository import ConsoleStore
+from .hari_kerja import HariKerja
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +34,16 @@ logger = logging.getLogger(__name__)
 KELONGGARAN_HARI = timedelta(days=1)
 
 
+def _hari_sebelum(work_date: str) -> str:
+    return (date.fromisoformat(work_date) - KELONGGARAN_HARI).isoformat()
+
+
 class GerbangKonsol:
     """Provided by `ConsoleService`: `store` and `tz`."""
 
     store: ConsoleStore
     tz: tzinfo
+    hari_kerja: HariKerja
     today: Callable[[], str]
 
     def sekarang(self) -> datetime:
@@ -65,8 +71,8 @@ class GerbangKonsol:
         # The work date only narrows the read; a day of slack, because it was stamped from
         # the weigh-in text while the window reads the real instant (a PC clock off at
         # weigh-in must not hide a truck still in the yard).
-        sejak_hari = work_date_for(
-            (datetime.fromtimestamp(min(sejak, sejak_tara), UTC) - KELONGGARAN_HARI).isoformat(), self.tz
+        sejak_hari = self.hari_kerja.untuk(
+            (datetime.fromtimestamp(min(sejak, sejak_tara), UTC) - KELONGGARAN_HARI).isoformat()
         )
         rows = self.store.weighings_terbawa(work_date, sejak, sejak_hari, sejak_tara)
         return [row for row in self.tandai_tanpa_scan_4(rows, sekarang) if not row["tanpa_scan_4"]]
@@ -83,8 +89,11 @@ class GerbangKonsol:
         """
         nyata = sekarang or self.sekarang()
         cek = [r for r in rows if r.get("tare_kg") is not None and not r.get("left_at") and r.get("truck_id")]
+        # A day of slack: a return after a cutoff change can be filed one day before the ticket
+        # it finishes (batch 5.11); the times decide, the work date only narrows the read.
         jejak = (
-            self.store.jejak_truk({r["truck_id"] for r in cek}, min(r["work_date"] for r in cek)) if cek else {}
+            self.store.jejak_truk({r["truck_id"] for r in cek}, _hari_sebelum(min(r["work_date"] for r in cek)))
+            if cek else {}
         )
         for row in rows:
             row["tanpa_scan_4"] = selesai_tanpa_scan_4(row, nyata, jejak.get(row.get("truck_id"), ()))
@@ -123,7 +132,9 @@ class GerbangKonsol:
         which is a lie. `sekarang` is for tests; the route passes nothing.
         """
         nyata = sekarang or self.sekarang()
-        sejak_hari = work_date_for((nyata - JENDELA_KEDATANGAN).isoformat(), self.tz)
+        # Slack as in `kunjungan_terbawa`: an arrival keeps the work date of the cutoff it was
+        # filed under, so a lowered cutoff must not push it out of the read (batch 5.11).
+        sejak_hari = self.hari_kerja.untuk((nyata - JENDELA_KEDATANGAN - KELONGGARAN_HARI).isoformat())
         jam = nyata.isoformat()
         return [
             {**a, "menit": menit_antara(a["arrived_at"], jam), "tahap": TAHAP_DATANG}

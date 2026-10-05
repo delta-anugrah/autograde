@@ -7,6 +7,7 @@ menggagalkan timbangan, dan truk yang sudah disortir tidak ditugaskan lagi.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime, timedelta
@@ -22,6 +23,7 @@ from palmgrade.domain.operator_error import (
     PENUGASAN_TANPA_LINE,
     InvalidInput,
 )
+from palmgrade.domain.penugasan_line import KUNCI_PENUGASAN
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
@@ -70,9 +72,17 @@ class FakeErp:
         self.jejak.append(("erp", weighing_id))
 
 
+def matikan_penugasan(store: ConsoleStore) -> None:
+    """These tests start from a mill that turned automatic assignment off and switch it on
+    themselves. A console that never saved it starts on (2026-10-05)."""
+    store.set_state(KUNCI_PENUGASAN, json.dumps({"aktif": False, "lines": ["line-1", "line-2", "line-3"]}))
+
+
 def _buat(tmp_path, line: FakeLine, erp: FakeErp | None = None) -> ConsoleService:
     settings = replace(Settings(), factory_tz="Asia/Jakarta")
-    return ConsoleService(settings, ConsoleStore(tmp_path / "console.db"), line, erp_queue=erp)
+    store = ConsoleStore(tmp_path / "console.db")
+    matikan_penugasan(store)
+    return ConsoleService(settings, store, line, erp_queue=erp)
 
 
 @pytest.fixture

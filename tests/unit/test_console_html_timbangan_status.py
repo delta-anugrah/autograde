@@ -103,7 +103,7 @@ def test_truk_menunggu_yang_belum_terdaftar_tidak_ditawarkan():
 def test_kepala_bagian_bukan_pilihan_dan_menit_tidak_ikut_ke_tombol():
     opsi = ('[{v:"", teks:"Pilih"}, {v:"BE 1 AA", teks:"BE 1 AA", catatan:"5 mnt", grup:"Menunggu"},'
             ' {v:"BE 2 BB", teks:"BE 2 BB", grup:"Lain"}]')
-    html = _jalankan(f'komponenPilih({opsi}, "BE 1 AA", "plat-timbang")', "komponenPilih")
+    html = _jalankan(f'komponenPilih({opsi}, "BE 1 AA", "plat-timbang")', "barisPilih", "komponenPilih")
     assert html.count('class="pilih-grup"') == 2
     assert re.search(r'<div class="pilih-grup" role="presentation">Menunggu</div>', html)
     assert len(re.findall(r'role="option"', html)) == 3
@@ -112,7 +112,7 @@ def test_kepala_bagian_bukan_pilihan_dan_menit_tidak_ikut_ke_tombol():
 
 
 def test_tombol_dropdown_memakai_teks_tanpa_menit():
-    for nama in ("pilihNilai", "segarkanPilih"):
+    for nama in ("aturPilih", "segarkanPilih"):
         assert "dataset.teks" in _fungsi(nama), nama
     assert "panel.firstElementChild" not in _fungsi("bukaPilih"), "a section header is not an option"
 
@@ -120,19 +120,18 @@ def test_tombol_dropdown_memakai_teks_tanpa_menit():
 def test_dropdown_timbang_isi_ikut_poll_tanpa_mengganggu_operator():
     fn = _fungsi("isiPlatTimbang")
     assert "opsiPlatTimbang(trucks, menungguTimbang)" in fn
-    assert 'dataset.buka === "1"' in fn, "never rebuilt while the operator has it open"
-    assert "platTimbangTerakhir" in fn, "an unchanged picker is not redrawn"
-    # The key leaves the pick out: picking a truck alone never forces a redraw.
-    assert "JSON.stringify(opsi)" in fn and "platTimbangTerakhir = kunci" in fn
-    # A redraw while the operator's focus is in the picker puts it back on the new button.
-    assert "contains(document.activeElement)" in fn and "focus(" in fn
+    # Batch 5.6: the rows are refilled in place, so the trigger (and its focus) is never replaced.
+    assert "isiUlangPilih(" in fn and "outerHTML" not in fn
+    isi_ulang = _fungsi("isiUlangPilih")
+    assert 'dataset.buka === "1"' in isi_ulang, "never rebuilt while the operator has it open"
+    assert "tulisKalauBeda(" in isi_ulang, "an unchanged picker is not redrawn"
     assert "isiPlatTimbang()" in _fungsi("isiTrucks")
     assert "isiPlatTimbang()" in _fungsi("muatTimbangan")
     assert "menungguTimbang = " in _fungsi("muatTimbangan")
 
 
 def test_langkah_1_tidak_berubah():
-    assert 'komponenPilih(opsi, datang.dataset.nilai, "plat-datang")' in _fungsi("isiTrucks")
+    assert 'isiUlangPilih($("plat-datang"), opsi)' in _fungsi("isiTrucks")
 
 
 @pytest.mark.parametrize("bahasa", ["id", "en"])

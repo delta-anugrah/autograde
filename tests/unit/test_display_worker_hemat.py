@@ -209,3 +209,15 @@ def test_tiap_render_menulis_objek_frame_baru(layar):
     layar.worker.run_once()
 
     assert layar.state.latest_frame == b"jpeg-2" and layar.state.latest_frame is not pertama
+
+
+def test_ukuran_label_dari_konsol_sampai_ke_gambar_kotak(layar):
+    layar.state.penonton_masuk()
+    layar.hasil_yolo(layar.frame())
+
+    layar.worker.run_once()
+    assert layar.worker.pipeline.ukuran_label == 100, "never set from the console = as drawn before"
+
+    layar.state.ukuran_label_override = 180
+    layar.worker.run_once()
+    assert layar.worker.pipeline.ukuran_label == 180
