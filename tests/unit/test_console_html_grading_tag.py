@@ -72,8 +72,9 @@ def test_judul_modal_foto_ikut_kapital():
     """Judulnya string di dalam atribut `data-judul`, jadi `text-transform`
     tidak menjangkaunya — tanpa `toUpperCase()` di situ, tabel menulis `LINE-1`
     sementara foto yang dibuka dari baris yang sama menulis `line-1`."""
-    blok = HTML[HTML.index("data-judul="):][:420]
-    assert "toUpperCase()" in blok, blok[:200]
+    # Batch 5.12: the cell is drawn by `selFoto`; the title is built by the row and passed in.
+    blok = HTML[HTML.index("function barisRecent("):][:1400]
+    assert "selFoto(r," in blok and "toUpperCase()" in blok, blok[:200]
 
 
 def test_badge_ditulis_kapital():

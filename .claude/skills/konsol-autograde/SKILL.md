@@ -105,6 +105,15 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Kolom terakhirnya dilepas dari paku `#sec-timbangan td:last-child`. KAMUS `riwayatBatalJudul`,
   `thJamDatang`, `thJamBatal`, `thOleh`. Tes: `test_console_html_riwayat_batal.py`,
   `tests/browser/test_browser_riwayat_batal.py`.
+- Tab Grading (batch 5.10, 5.12): saringan `#grading-line` dan `#grading-truk` (komponen
+  dropdown, diisi `segarkanSaringGrading` dari `refresh` dan `isiTrucks`), nilainya di
+  `gradingSaring` (memori, tidak disimpan), permintaan dirakit `paramGrading`; ganti saringan =
+  halaman 1 (`gantiSaringGrading`). Sel foto tabel Grading dan Riwayat satu fungsi, `selFoto`:
+  `<img>` = `thumb_url` (400 px dari folder `thumb/`, dihitung server di
+  `services/tampilan_baris.py` `_with_foto`), `data-foto` = foto penuh untuk dialog; foto kecil
+  yang gagal dimuat jatuh sekali ke foto penuh (listener `error` fase capture, `data-penuh`).
+  Tes: `test_console_html_grading_saring.py`, `tests/integration/test_grading_saring_integrasi.py`,
+  `tests/e2e/test_grading_saring_lane.py`, `tests/browser/test_browser_grading_saring.py`.
 - Sesi geser (batch 5.7, aturan 19): `tandaiAktif` (pointerdown/keydown, capture) menandai
   aktivitas; `pantauSesi` tiap 1 dtk mengirim `perpanjangLatar()` (= `perpanjangSesi(null)`
   dibungkus `sekaliJalan`) kalau `perluPerpanjang` (aktif DAN 5 menit sejak renew terakhir, atau

@@ -129,6 +129,26 @@ def test_url_gambar_menyuntikkan_folder_line(service):
     assert row["image_url"] == "/captures/line-1/results/2026-09-09/f.webp"
 
 
+@pytest.mark.parametrize(
+    ("image_path", "thumb"),
+    [
+        ("captures/results/2026-10-05/070000_BE1AA_ab/bbox/Ripe/f.webp",
+         "/captures/line-1/results/2026-10-05/070000_BE1AA_ab/thumb/Ripe/f.webp"),
+        ("https://captures.smagri.id/m1/results/2026-10-05/x/bbox/Unripe/f.webp",
+         "https://captures.smagri.id/m1/results/2026-10-05/x/thumb/Unripe/f.webp"),
+        # Written before the bbox/clean/thumb layout: there is no small copy.
+        ("captures/results/2026-09-09/f.webp", None),
+    ],
+)
+def test_every_grading_row_names_its_small_photo(service, image_path, thumb):
+    """Batch 5.12: the table loads the 400 px copy the line already writes, never the
+    5 MP one, which is for the photo dialog only."""
+    service.ingest(_event(service, image_path=image_path))
+    row = service.history("2026-09-10")[0]
+    assert row["thumb_url"] == thumb
+    assert row["image_url"] != thumb
+
+
 def test_url_r2_absolut_diteruskan_apa_adanya(service):
     service.ingest(_event(service, image_path="https://captures.smagri.id/x/f.webp"))
     assert service.history("2026-09-10")[0]["image_url"] == "https://captures.smagri.id/x/f.webp"
