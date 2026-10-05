@@ -487,7 +487,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `DEBUG_MODEL_OUTPUT` | - | Log raw output model tiap inferensi (berisik) |
 | `ROI_X1` / `ROI_Y1` / `ROI_X2` / `ROI_Y2` | `0` | Kotak wilayah deteksi (px, ruang stream). `0,0,0,0` = full frame; `X2`/`Y2` `0` = lebar/tinggi penuh. Nilai awal: kotak yang disetel dari tab Setelan menang |
 | `STREAM_WIDTH` / `STREAM_HEIGHT` / `STREAM_FPS` | `1280` / `720` / `12` | MJPEG stream (setelah resize); tidak menyentuh kamera maupun hasil simpan |
-| `BORDER_THICKNESS` / `FONT_SCALE` / `FONT_THICKNESS` | `2` / `0.7` / `2` | Kotak dan label deteksi; frame 2448×2048 butuh angka jauh lebih besar |
+| `BORDER_THICKNESS` / `FONT_SCALE` / `FONT_THICKNESS` | `2` / `0.7` / `2` | Kotak dan label deteksi; frame kamera besar (1224×1024 di Lampung, binning 2×2) butuh angka jauh lebih besar |
 | `CAMERA_TYPE` | `hikrobot` | Jenis sumber. Di Docker diisi compose dari `LINE_N_CAMERA_TYPE` di `media.env` (tab Line → Sumber Kamera), dan line membaca ulang `media.env` sendiri saat boot |
 | `MEDIA_FILE` / `MEDIA_DIR` / `MEDIA_ENV_PATH` | - / `/media` / `/config/media.env` (compose) | Nama berkas video/foto (bukan path), foldernya, dan berkas setelan sumber kamera |
 | `UPDATE_DIR` | `<repo>/update`; compose `/app/update` | Konsol saja: folder Update now (`./update:/app/update`). Demo droplet mengisinya tanpa mount, jadi tombol tidak pernah muncul |

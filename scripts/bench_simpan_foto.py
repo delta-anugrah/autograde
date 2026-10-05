@@ -9,8 +9,9 @@ cv2, atomic write with fsync) and times, per bunch:
 * new: `CaptureWriter.write_pair` as it is now (clean copy on a helper thread);
 * for the record only, not shipped: the clean copy as JPEG, one after another and in parallel.
 
-The frame is `images/sample_sawit.jpg` enlarged to the factory sensor size (2448x2048) with
-light sensor noise added, unless `--gambar` names a real full-size frame.
+The frame is `images/sample_sawit.jpg` at the camera frame size (1224x1024 at Lampung, binning
+2x2; `--ukuran 2448x2048` for the full sensor) with light sensor noise added, unless `--gambar`
+names a real frame (best: a recent `clean/` capture).
 
 Not a test and never run by CI: it imports cv2. Encode time depends on the CPU and on what
 else it is doing. A Mac gives Mac numbers; on the factory PC three lines share the CPU, so
@@ -42,11 +43,11 @@ from palmgrade.services.capture_writer import (  # noqa: E402
     CaptureWriter,
 )
 
-UKURAN_SENSOR = (2448, 2048)
+UKURAN_KAMERA = (1224, 1024)   # binned camera frame at Lampung
 MUTU_JPEG_LATIH = 90
 
 
-def _frame(gambar: Path | None) -> tuple[np.ndarray, np.ndarray]:
+def _frame(gambar: Path | None, ukuran: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
     """(clean, annotated) at sensor size."""
     if gambar is not None:
         clean = cv2.imread(str(gambar))
@@ -54,7 +55,7 @@ def _frame(gambar: Path | None) -> tuple[np.ndarray, np.ndarray]:
             raise SystemExit(f"cannot read {gambar}")
     else:
         kecil = cv2.imread(str(AKAR / "images" / "sample_sawit.jpg"))
-        besar = cv2.resize(kecil, UKURAN_SENSOR, interpolation=cv2.INTER_CUBIC)
+        besar = cv2.resize(kecil, ukuran, interpolation=cv2.INTER_CUBIC)
         derau = np.random.default_rng(1).normal(0, 4, besar.shape)
         clean = np.clip(besar.astype(np.int16) + derau.astype(np.int16), 0, 255).astype(np.uint8)
     annotated = clean.copy()
@@ -94,11 +95,13 @@ def _ukur(fungsi, putaran: int) -> tuple[float, float]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--gambar", type=Path, default=None, help="a real full-size frame")
+    parser.add_argument("--gambar", type=Path, default=None, help="a real frame, e.g. a recent clean/ capture")
+    parser.add_argument("--ukuran", default="%dx%d" % UKURAN_KAMERA, help="sample size WxH, e.g. 2448x2048")
     parser.add_argument("--putaran", type=int, default=7)
     argumen = parser.parse_args()
 
-    clean, annotated = _frame(argumen.gambar)
+    lebar, tinggi = (int(x) for x in argumen.ukuran.lower().split("x"))
+    clean, annotated = _frame(argumen.gambar, (lebar, tinggi))
     storage = LocalFileStorage()
     print(f"cv2 {cv2.__version__}, frame {clean.shape[1]}x{clean.shape[0]}, {argumen.putaran} bunches, median\n")
 

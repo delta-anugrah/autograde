@@ -29,7 +29,7 @@ from palmgrade.pipelines.kotak_deteksi import baca_kotak  # noqa: E402
 
 NAMA = {0: "JK", 1: "Ripe", 2: "TP", 3: "Unripe"}
 BUAH = {"JK", "Ripe", "Unripe"}
-UKURAN_FRAME = (2048, 2448)
+UKURAN_FRAME = (1024, 1224)  # binned camera frame at Lampung; only the shape is stored
 PUTARAN = 2000
 ULANGAN = 5
 
