@@ -128,6 +128,12 @@ end of this file.
    Foto dan sidecar ditulis utuh-atau-tidak-sama-sekali: `cv2.imencode` di memori lalu `tulis_atomik`
    (temp `.<nama>.<acak>.tmp` + fsync + `os.replace` + fsync folder); listrik padam meninggalkan
    sisa `.tmp` tersembunyi, bukan berkas 0 byte bernama sah.
+   Since batch 6.2 the `clean/` copy is written on a helper thread while the `bbox/` copy is
+   written on the writer thread (`CaptureWriter.write_pair`): two full-size WebP encodes side by
+   side, cv2 releases the GIL. The `bbox/` copy stays on the calling thread because its failure
+   is the one that raises. When it fails, the `clean/` copy written beside it is removed again and
+   no thumbnail is made: a `clean/` copy has no manifest row (rule 9), so one without its `bbox/`
+   twin would never be deleted. Numbers: `scripts/bench_simpan_foto.py`.
    **Nama folder TANGGAL selalu UTC** (`FrameProcessingWorker._save_ripeness`,
    `capture_repository`): pembacanya wajib UTC juga. ⚠️ Yang pakai `FACTORY_TZ`
    cuma **folder truk di dalamnya** (aturan 7); dua zona dalam satu pohon itu

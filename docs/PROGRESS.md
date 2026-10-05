@@ -18,6 +18,22 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · vision · Batch 6.2: clean photo written beside the evidence photo (PR #230)
+Changed:        `CaptureWriter.write_pair` writes the `clean/` copy on a helper thread while the
+                `bbox/` copy is written on the calling thread. When the `bbox/` copy fails, the
+                `clean/` copy beside it is removed again and the `OSError` goes up as before (rule
+                8). Format, names, folders and quality unchanged. New `scripts/bench_simpan_foto.py`.
+Validated:      unit 4631 passed, e2e 390, integration 169, ruff clean; overlap test red on the old
+                code, mutations fail the rule 8 tests; rule 8 checked on a real disk with the cv2
+                storage. Benchmark on the MacBook (M2, cv2 5.0.0), frame 2448x2048, one bunch:
+                wall 1,163 ms to 609 ms, CPU 1,173 ms to 1,176 ms (same work, two cores).
+Not validated:  The factory PC was not measured, in particular a burst on three lines next to three
+                detection loops. No line started.
+Decisions:      Clean copy as JPEG is parked for the user: same wall time as this change, half the
+                CPU (641 ms), but 55 % more disk at q65 (637 KB against 410 KB) and a new file
+                extension for retention, R2 and the training upload to follow.
+Next:           Run `scripts/bench_simpan_foto.py` inside a line container in Lampung.
+
 ## 2026-10-04 · vision · Batch 6.1: a frame's boxes are read once (PR #227)
 Changed:        `pipelines/kotak_deteksi.baca_kotak` moves a frame's boxes to the CPU once
                 (`boxes.cpu().numpy()`); the three scans and the DEBUG line of
