@@ -129,7 +129,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
 - **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, di atas kartu line:
-  versi baru sudah diunduh PC dan menunggu dipasang. Ketuk pitanya, kotak Versi & lisensi
+  versi baru sudah diunduh PC, sudah diperiksa utuh, dan menunggu dipasang. PC mencari versi baru
+  sendiri tiap jam (sejak launcher 5 Oktober 2026), jadi pita ini tidak menunggu Start besok pagi. Ketuk pitanya, kotak Versi & lisensi
   terbuka dengan tombol hijau **Pasang sekarang** di sebelah **Tutup**. Tombol **×** di ujung
   pita menyembunyikannya untuk versi itu saja (di PC itu); versi berikutnya memunculkannya lagi,
   dan angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
