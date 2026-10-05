@@ -18,6 +18,25 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · Detection box: the PC's default is shown, one button goes back to it (PR #TBD)
+Changed:        Settings, Camera & Conveyor, detection area box: the box each line uses while the
+                console sets none (`ROI_*` in the lines' `.env`) is now shown, as the placeholder of the
+                four inputs and in one sentence ("Bawaan PC ini: Kiri 100, ..."). New button **Kembalikan
+                ke bawaan** (`button.bahaya`) empties the four inputs; Save then sends `null`, so every
+                line goes back to its own box. The console asks the lines (`GET /api/console/dev/roi-bawaan`,
+                `services/roi_bawaan.py`, all three side by side, first answer wins); a line's
+                `GET /internal/setelan` now carries `roi_env`. New router module (`routes/console.py` is
+                at its size limit).
+Validated:      unit, integration (real `LineClient` against three line apps: one down, one refusing the
+                key, one answering), browser `test_browser_setelan.py` in Chromium and Firefox (8 passed),
+                full suites and ruff (see PR).
+Not validated:  On the factory PC (needs a release). A line on an image before this change answers
+                without `roi_env`, so the sentence says the default is not known until the lines update.
+Decisions:      "Default" = the box the lines already use when nothing is set, read from the lines, not a
+                new constant: Lampung keeps 100/100/1180/620 from its `.env`, and nothing changes on a
+                PC until someone saves. Reset only empties the inputs; Save applies it, like every field.
+Next:           Release with the label size (#242).
+
 ## 2026-10-05 · console + vision · Label text size on the line video, set from Settings (PR #242)
 Changed:        New Settings group **Tampilan video** with `#set-ukuran-label`: the size of the class label
                 (Ripe, Unripe, JK, TP) above each box on the line video, in percent, 25 to 400, default

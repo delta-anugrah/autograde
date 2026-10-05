@@ -53,3 +53,18 @@ def test_ukuran_di_luar_batas_ditolak_line_tidak_berubah(line):
 
     assert _kirim(client, ukuran_label=900).status_code == 400
     assert state.ukuran_label_override is None
+
+
+def test_jawaban_get_membawa_kotak_env_line_ini(line, monkeypatch):
+    """Settings shows the PC's own box (2026-10-05): the line tells its `.env` box even while
+    the console has set another one."""
+    client, _state = line
+    _kirim(client, roi_x1=1, roi_y1=2, roi_x2=300, roi_y2=400)
+
+    jawab = client.get("/internal/setelan", headers={"X-Internal-Secret": RAHASIA}).json()
+
+    from palmgrade.core.config import Settings
+
+    s = Settings()
+    assert jawab["roi_env"] == [s.roi_x1, s.roi_y1, s.roi_x2, s.roi_y2]
+    assert (jawab["roi_x1"], jawab["roi_x2"]) == (1, 300), "the box in use is still the console's"

@@ -2284,6 +2284,10 @@
             <label><span data-t="labelRoiY2">Bawah (Y2)</span>
               <input id="set-roi-y2" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
           </div>
+          <!-- The PC's own box (each line's `.env`), read from the lines (2026-10-05): shown here
+               and as the inputs' placeholder, so "empty" no longer means an unknown box. -->
+          <p class="muted" id="set-roi-bawaan" aria-live="polite"></p>
+          <button type="button" id="set-roi-reset" class="bahaya" data-t="btnRoiReset">Kembalikan ke bawaan</button>
           <small class="muted" data-t="bantuKotak">Piksel pada video (1280 x 720). Janjang di luar kotak tidak dihitung. Isi keempatnya, atau kosongkan keempatnya untuk memakai setelan bawaan PC. 0 semua = seluruh gambar.</small>
           <label class="saklar">
             <input id="set-tampil-roi" type="checkbox" checked>
@@ -3024,6 +3028,11 @@ const KAMUS = {
     labelGaris:"Posisi garis (piksel)", labelSumbu:"Arah conveyor",
     subConveyor:"Conveyor", subGaris:"Garis capture", subKotak:"Kotak area deteksi",
     labelRoiX1:"Kiri (X1)", labelRoiY1:"Atas (Y1)", labelRoiX2:"Kanan (X2)", labelRoiY2:"Bawah (Y2)",
+    btnRoiReset:"Kembalikan ke bawaan",
+    roiBawaanPc:"Bawaan PC ini: Kiri {x1}, Atas {y1}, Kanan {x2}, Bawah {y2}. Dipakai selama keempat kolom kosong.",
+    roiBawaanPenuh:"Bawaan PC ini: seluruh gambar. Dipakai selama keempat kolom kosong.",
+    roiBawaanTakTerbaca:"Bawaan PC belum terbaca: tidak ada line yang menjawab.",
+    roiResetSimpan:"Keempat kolom dikosongkan. Klik Simpan supaya line kembali ke kotak bawaan.",
     bantuKotak:"Piksel pada video (1280 x 720). Janjang di luar kotak tidak dihitung. Isi keempatnya, atau kosongkan keempatnya untuk memakai setelan bawaan PC. 0 semua = seluruh gambar.",
     sumbuTegak:"Mendatar (buah lewat kiri-kanan)", sumbuMendatar:"Menurun (buah lewat atas-bawah)",
     bantuSumbu:"Menentukan garis capture tegak atau mendatar.",
@@ -3538,6 +3547,11 @@ const KAMUS = {
     labelGaris:"Line position (pixels)", labelSumbu:"Conveyor direction",
     subConveyor:"Conveyor", subGaris:"Capture line", subKotak:"Detection area box",
     labelRoiX1:"Left (X1)", labelRoiY1:"Top (Y1)", labelRoiX2:"Right (X2)", labelRoiY2:"Bottom (Y2)",
+    btnRoiReset:"Back to default",
+    roiBawaanPc:"This PC's default: Left {x1}, Top {y1}, Right {x2}, Bottom {y2}. Used while all four inputs are empty.",
+    roiBawaanPenuh:"This PC's default: the whole picture. Used while all four inputs are empty.",
+    roiBawaanTakTerbaca:"This PC's default is not known yet: no line answered.",
+    roiResetSimpan:"The four inputs are cleared. Press Save to put the lines back on the default box.",
     bantuKotak:"Pixels on the video (1280 x 720). Bunches outside the box are not counted. Fill all four, or leave all four empty to use the PC's installation default. All 0 = the whole picture.",
     sumbuTegak:"Horizontal (fruit crosses left-right)", sumbuMendatar:"Vertical (fruit crosses top-bottom)",
     bantuSumbu:"Sets whether the capture line is vertical or horizontal.",
@@ -9204,6 +9218,35 @@ $("set-sumbu").addEventListener("pilih", labelGaris);
 // `set-roi-x1` and so on.
 const KOTAK_ROI = ["roi_x1", "roi_y1", "roi_x2", "roi_y2"];
 
+// The PC's own detection box (each line's `.env`), asked from the lines (2026-10-05): the
+// placeholder of each input and one sentence under them. Not awaited by muatSetelan: a line
+// that does not answer must not hold the rest of the screen.
+async function muatRoiBawaan() {
+  const teks = $("set-roi-bawaan");
+  try {
+    const r = await api("/api/console/dev/roi-bawaan");
+    if (r.roi_x1 === null || r.roi_x1 === undefined) { teks.textContent = t("roiBawaanTakTerbaca"); return; }
+    for (const k of KOTAK_ROI) $(`set-${k.replace("_", "-")}`).placeholder = Number(r[k]);
+    teks.textContent = KOTAK_ROI.every((k) => Number(r[k]) === 0)
+      ? t("roiBawaanPenuh")
+      : t("roiBawaanPc").replace("{x1}", Number(r.roi_x1)).replace("{y1}", Number(r.roi_y1))
+          .replace("{x2}", Number(r.roi_x2)).replace("{y2}", Number(r.roi_y2));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") teks.textContent = t("roiBawaanTakTerbaca");
+  }
+}
+
+// Back to the PC's own box: the four inputs emptied (empty = null = each line's `.env`); it
+// takes effect on Save, like every other field here.
+$("set-roi-reset").addEventListener("click", () => {
+  for (const k of KOTAK_ROI) {
+    const el = $(`set-${k.replace("_", "-")}`);
+    el.value = "";
+    el.removeAttribute("aria-invalid");
+  }
+  toastPeringatan(t("roiResetSimpan"));
+});
+
 async function muatSetelan() {
   // Kotak Danger Zone selalu tertutup saat tab dibuka (spec §2): panel yang
   // tertinggal terbuka membawa angka lama dan mengundang tombol ditekan tanpa
@@ -9228,6 +9271,7 @@ async function muatSetelan() {
     // Empty = never set from the console (null), not 0: 0 is a real value, the picture edge.
     for (const k of KOTAK_ROI) $(`set-${k.replace("_", "-")}`).value = r[k] ?? "";
     labelGaris();
+    muatRoiBawaan();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }

@@ -102,3 +102,31 @@ def test_the_label_size_reaches_the_lines(halaman, lines):
     halaman.click("#set-simpan")
     expect(halaman.locator("#set-simpan")).not_to_have_class(re.compile(r"\bsibuk\b"))
     halaman.wait_for_function("() => document.querySelector('#set-pesan').textContent === ''")
+
+
+def test_the_pc_default_box_is_shown_and_one_button_goes_back_to_it(halaman, lines):
+    """Detection area box (2026-10-05): the lines' own box shows as the inputs' placeholder and
+    in one sentence; Back to default empties the four inputs, and Save sends them as null."""
+    for kode in _HIDUP:
+        lines[kode].diterima.clear()
+    masuk(halaman, SUPPORT)
+    buka_tab(halaman, "setelan")
+    expect(halaman.locator("#set-conf")).not_to_have_value("")
+    halaman.locator('details[data-setelan-grup="kamera"] > summary').click()
+    expect(halaman.locator("#set-roi-bawaan")).to_contain_text("1180")
+    expect(halaman.locator("#set-roi-x2")).to_have_attribute("placeholder", "1180")
+
+    halaman.fill("#set-roi-x1", "200")
+    halaman.fill("#set-roi-y1", "80")
+    halaman.fill("#set-roi-x2", "1000")
+    halaman.fill("#set-roi-y2", "600")
+    halaman.click("#set-roi-reset")
+    for sisi in ("x1", "y1", "x2", "y2"):
+        expect(halaman.locator(f"#set-roi-{sisi}")).to_have_value("")
+    expect(halaman.locator("#toasts .toast.peringatan", has_text=kamus(halaman, "roiResetSimpan"))).to_have_count(1)
+
+    halaman.click("#set-simpan")
+    expect(halaman.locator("#set-simpan")).not_to_have_class(re.compile(r"\bsibuk\b"))
+    halaman.wait_for_function("() => document.querySelector('#set-pesan').textContent === ''")
+    terkirim = [isi for jalur, isi in lines["line-1"].diterima if jalur == "/internal/setelan"]
+    assert terkirim and terkirim[-1]["roi_x1"] is None, terkirim[-1:]
