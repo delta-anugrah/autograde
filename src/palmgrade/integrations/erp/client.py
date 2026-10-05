@@ -22,6 +22,8 @@ from typing import Any
 
 import httpx
 
+from ..klien_http import KlienBersama
+
 _TIMEOUT_S = 15.0
 _REASON_CHARS = 300
 _BODY_CHARS = 120
@@ -63,10 +65,18 @@ class ErpClient:
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = _TIMEOUT_S,
     ) -> None:
-        self._base_url = base_url.rstrip("/")
-        self._headers = {"Authorization": f"token {api_key}:{api_secret}"}
-        self._transport = transport
-        self._timeout = timeout
+        # One client for every message (batch 6.5): a queue of visits goes up over one
+        # connection, and the TLS context is built once, not once per message.
+        self._http = KlienBersama(
+            base_url=base_url.rstrip("/"),
+            headers={"Authorization": f"token {api_key}:{api_secret}"},
+            timeout=timeout,
+            transport=transport,
+        )
+
+    async def aclose(self) -> None:
+        """Close the kept HTTP client."""
+        await self._http.tutup()
 
     async def list_modified_since(
         self, doctype: str, fields: tuple[str, ...] | list[str], since: str | None, *, limit: int
@@ -102,13 +112,7 @@ class ErpClient:
     async def _request(self, verb: str, path: str, **kwargs: Any) -> dict[str, Any]:
         where = f"{verb} {path}"
         try:
-            async with httpx.AsyncClient(
-                base_url=self._base_url,
-                headers=self._headers,
-                timeout=self._timeout,
-                transport=self._transport,
-            ) as client:
-                response = await client.request(verb, path, **kwargs)
+            response = await self._http.ambil().request(verb, path, **kwargs)
         except httpx.HTTPError as exc:
             raise ErpUnavailable(f"{where}: {exc}") from exc
 

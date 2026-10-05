@@ -5,12 +5,21 @@ import math
 import queue
 import threading
 import time
+from collections.abc import Callable
+from typing import TypeVar
 
+from ..domain.kesehatan_kamera import (
+    AMAN,
+    JENDELA_FRAME_HILANG_DETIK,
+    LAJU_TURUN_TAHAN_DETIK,
+    tingkat_frame_hilang,
+)
 from ..domain.transisi import PelacakTransisi, teks_lama
 from ..integrations.camera.base import CameraSource
 from .runtime_state import RuntimeState
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 _MAX_CONSECUTIVE_FAILURES = 5
 #: Pace for a source with no rate of its own that never waits in `grab_frame` (photo, video
@@ -22,9 +31,9 @@ _RECONNECT_BACKOFF_MAX = 30.0
 # The automatic backoff sleeps in slices this long, so a press of the reconnect button
 # (or a stop) waits at most one slice instead of up to `_RECONNECT_BACKOFF_MAX`.
 _IRIS_JEDA_DETIK = 0.25
-# Suhu kamera berubah dalam hitungan menit; 10 detik sudah lebih rapat dari yang
-# dibaca orang di kartu Diagnostik (disegarkan tiap 5 detik).
-SUHU_JEDA_DETIK = 10.0
+# Suhu kamera dan hitungan aliran berubah dalam hitungan menit; 10 detik sudah lebih rapat
+# dari yang dibaca orang di kartu Diagnostik (disegarkan tiap 5 detik).
+PANTAU_KAMERA_JEDA_DETIK = 10.0
 
 
 class FrameCaptureWorker:
@@ -49,8 +58,10 @@ class FrameCaptureWorker:
         # kembali. Di antaranya grab gagal tiap 100 ms dan sambung ulang tiap <=30 dtk
         # cuma DEBUG.
         self._putus = PelacakTransisi()
-        self._suhu_dibaca_at: float | None = None
-        self._suhu_galat_dilapor = False
+        self._pantau_at: float | None = None
+        self._galat_pantau_dilapor: set[str] = set()
+        # One WARNING when frames start getting lost, one when the window is clean again.
+        self._frame_hilang = PelacakTransisi(jam=state.jam)
         self._percobaan_sambung = 0
         self._sambung_gagal = 0
 
@@ -211,6 +222,7 @@ class FrameCaptureWorker:
         satu-dua frame terpotong di GigE itu biasa dan tidak pantas satu baris pun."""
         if not self._putus.gagal():
             return
+        self.state.putus_kamera.catat(self.state.jam())
         alasan = getattr(self.camera, "galat_terakhir", None) or "kamera tidak menyebut alasannya"
         logger.warning(
             "Kamera tidak mengirim gambar: %d kali gagal berturut (terakhir: %s)%s",
@@ -229,23 +241,59 @@ class FrameCaptureWorker:
         self._percobaan_sambung = 0
         self._sambung_gagal = 0
 
-    def _baca_suhu_kalau_waktunya(self) -> None:
-        """Satu panggilan SDK per `SUHU_JEDA_DETIK`, di bawah kunci kamera yang sama
-        dengan `grab_frame()`. Gagal = tidak tahu, bukan alasan berhenti mengambil gambar."""
+    def _pantau_kamera_kalau_waktunya(self) -> None:
+        """One round of camera questions per `PANTAU_KAMERA_JEDA_DETIK`, under the same camera
+        lock as `grab_frame()` (rule 3). A failed question means "not known", never a reason
+        to stop taking frames."""
         sekarang = self.state.jam()
-        if self._suhu_dibaca_at is not None and sekarang - self._suhu_dibaca_at < SUHU_JEDA_DETIK:
+        if self._pantau_at is not None and sekarang - self._pantau_at < PANTAU_KAMERA_JEDA_DETIK:
             return
-        self._suhu_dibaca_at = sekarang
-        try:
-            with self.state.lock:
-                suhu = self.camera.get_temperature()
-        except Exception as exc:
-            level = logging.DEBUG if self._suhu_galat_dilapor else logging.WARNING
-            self._suhu_galat_dilapor = True
-            logger.log(level, "Reading the camera temperature raised %s: %s", type(exc).__name__, exc)
-            return
+        self._pantau_at = sekarang
+        with self.state.lock:
+            suhu = None if self.camera.suhu_didukung is False else self._tanya("temperature", self.camera.get_temperature)
+            statistik = self._tanya("stream counters", self.camera.get_statistik_aliran)
+        self.state.suhu_kamera_didukung = self.camera.suhu_didukung
         if suhu is not None:
             self.state.catat_suhu_kamera(suhu)
+        if statistik is not None:
+            self.state.frame_hilang.tambah(statistik, sekarang)
+        self._nilai_laju(sekarang)
+        self._nilai_frame_hilang(sekarang)
+
+    def _tanya(self, apa: str, fungsi: Callable[[], T]) -> T | None:
+        try:
+            return fungsi()
+        except Exception as exc:
+            level = logging.DEBUG if apa in self._galat_pantau_dilapor else logging.WARNING
+            self._galat_pantau_dilapor.add(apa)
+            logger.log(level, "Reading the camera %s raised %s: %s", apa, type(exc).__name__, exc)
+            return None
+
+    def _nilai_laju(self, sekarang: float) -> None:
+        target = self.state.camera_fps_terukur
+        berubah = self.state.laju_kamera.nilai(self.state.fps_kamera, target, sekarang)
+        if berubah is True:
+            logger.warning(
+                "Laju kamera turun: %.1f fps dari target %.1f, sudah lebih dari %d menit",
+                self.state.fps_kamera, target, int(LAJU_TURUN_TAHAN_DETIK // 60),
+            )
+        elif berubah is False:
+            logger.warning("Laju kamera normal lagi: %.1f fps dari target %.1f", self.state.fps_kamera, target)
+
+    def _nilai_frame_hilang(self, sekarang: float) -> None:
+        ringkas = self.state.frame_hilang.ringkas(sekarang)
+        if ringkas is None:
+            return
+        hilang, total = ringkas
+        menit = int(JENDELA_FRAME_HILANG_DETIK // 60)
+        if tingkat_frame_hilang(hilang, total) == AMAN:
+            if self._frame_hilang.pulih() is not None:
+                logger.warning("Kamera tidak kehilangan gambar lagi dalam %d menit terakhir", menit)
+        elif self._frame_hilang.gagal():
+            logger.warning(
+                "Kamera kehilangan gambar: %d dari %d dalam %d menit terakhir (%.1f%%)",
+                hilang, total, menit, hilang * 100.0 / total,
+            )
 
     def run_once(self) -> None:
         oleh = self.state.ambil_permintaan_sambung_ulang()
@@ -291,7 +339,7 @@ class FrameCaptureWorker:
         # Penjaga AI mati (batch 2.1): gambar MASUK. Tanpa cap ini penilai tidak
         # bisa membedakan "AI mati" dari "kamera tidak mengirim apa pun".
         self.state.catat_frame_masuk()
-        self._baca_suhu_kalau_waktunya()
+        self._pantau_kamera_kalau_waktunya()
 
         # Rekaman developer, kalau menyala. Frame di sini masih CLEAN — bbox
         # digambar jauh di hilir — jadi rekamannya otomatis polos tanpa kerja

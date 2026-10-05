@@ -114,7 +114,8 @@ def _fungsi(nama: str) -> str:
 
 
 # Pembantu baris kartu Diagnostik (batch 3.6 / 3.7), diekstrak bersama kartunya.
-_FUNGSI_DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu"]
+_FUNGSI_DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu",
+                "spanTingkat", "diagFpsKamera", "diagFrameHilang", "diagPutus", "diagTandaGrupKamera"]
 
 
 def _render(fungsi: list[str], ekspresi: str):
