@@ -135,7 +135,7 @@ def get_gate_service() -> GateService:
     writer of gate times is not also a way to write weight. One instance on purpose: it
     holds the lock that serializes two scans of one QR."""
     console = get_console_service()
-    return GateService(console.store, console.tz)
+    return GateService(console.store, console.tz, console.hari_kerja)
 
 
 @lru_cache

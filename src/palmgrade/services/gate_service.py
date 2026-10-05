@@ -40,8 +40,8 @@ from ..domain.gerbang import (
 from ..domain.operator_error import BUKAN_PLAT, INPUT_TIDAK_SAH, InvalidInput
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.qr import baca_qr
-from ..domain.working_day import work_date_for
 from ..repositories.console_repository import ConsoleStore
+from .hari_kerja import HariKerja
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +53,11 @@ _JANGKAUAN = max(JENDELA_KEDATANGAN, JENDELA_KELUAR, JENDELA_TANPA_KELUAR) + tim
 class GateService:
     """Record arrive and leave times. Never weight, never a truck, never AutoERP."""
 
-    def __init__(self, store: ConsoleStore, tz: tzinfo) -> None:
+    def __init__(self, store: ConsoleStore, tz: tzinfo, hari_kerja: HariKerja | None = None) -> None:
         self.store = store
         self.tz = tz
+        # The console passes its own (`get_gate_service`); built here for tests that do not.
+        self.hari_kerja = hari_kerja or HariKerja(store, tz)
         # One lock around each check-then-write. The routes are plain `def`, so two scans
         # of one QR run on two pool threads: without it both could read "nobody waiting"
         # (browser times differ, so the ids differ) and insert two waiting arrivals, or
@@ -75,9 +77,9 @@ class GateService:
         try:
             dt = baca_waktu(teks)
             # Everything the domain and the store will do with it, done once here.
-            work_date_for(teks, self.tz)
+            self.hari_kerja.untuk(teks)
             dt.astimezone(UTC)
-            work_date_for((dt - _JANGKAUAN).isoformat(), self.tz)
+            self.hari_kerja.untuk((dt - _JANGKAUAN).isoformat())
             dt + _JANGKAUAN
         except (ValueError, OverflowError) as exc:
             raise InvalidInput(INPUT_TIDAK_SAH, f"jam tidak terbaca: {teks!r}", field="at") from exc
@@ -126,7 +128,7 @@ class GateService:
             "plate_number": tampil,
             "plate_norm": normalisasi_plat(plate),
             "truck_id": truck_id,
-            "work_date": work_date_for(waktu, self.tz),
+            "work_date": self.hari_kerja.untuk(waktu),
             "arrived_at": waktu,
         })
         return {"hasil": TERCATAT, "plate_number": tampil, "arrived_at": waktu}
@@ -156,7 +158,7 @@ class GateService:
         it left behind is then finished "tanpa scan 4" and a new Keluar never closes it."""
         if not truck_id:
             return []
-        sejak_hari = work_date_for((baca_waktu(waktu) - _JANGKAUAN).isoformat(), self.tz)
+        sejak_hari = self.hari_kerja.untuk((baca_waktu(waktu) - _JANGKAUAN).isoformat())
         return self.store.jejak_truk([truck_id], sejak_hari).get(truck_id, [])
 
     def leave(

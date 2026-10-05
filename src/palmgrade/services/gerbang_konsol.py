@@ -23,8 +23,9 @@ from ..domain.gerbang import (
     pilih_kedatangan,
     selesai_tanpa_scan_4,
 )
-from ..domain.working_day import JENDELA_TANPA_KELUAR_DETIK, awal_kunjungan, work_date_for
+from ..domain.working_day import JENDELA_TANPA_KELUAR_DETIK, awal_kunjungan
 from ..repositories.console_repository import ConsoleStore
+from .hari_kerja import HariKerja
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class GerbangKonsol:
 
     store: ConsoleStore
     tz: tzinfo
+    hari_kerja: HariKerja
     today: Callable[[], str]
 
     def sekarang(self) -> datetime:
@@ -65,8 +67,8 @@ class GerbangKonsol:
         # The work date only narrows the read; a day of slack, because it was stamped from
         # the weigh-in text while the window reads the real instant (a PC clock off at
         # weigh-in must not hide a truck still in the yard).
-        sejak_hari = work_date_for(
-            (datetime.fromtimestamp(min(sejak, sejak_tara), UTC) - KELONGGARAN_HARI).isoformat(), self.tz
+        sejak_hari = self.hari_kerja.untuk(
+            (datetime.fromtimestamp(min(sejak, sejak_tara), UTC) - KELONGGARAN_HARI).isoformat()
         )
         rows = self.store.weighings_terbawa(work_date, sejak, sejak_hari, sejak_tara)
         return [row for row in self.tandai_tanpa_scan_4(rows, sekarang) if not row["tanpa_scan_4"]]
@@ -123,7 +125,7 @@ class GerbangKonsol:
         which is a lie. `sekarang` is for tests; the route passes nothing.
         """
         nyata = sekarang or self.sekarang()
-        sejak_hari = work_date_for((nyata - JENDELA_KEDATANGAN).isoformat(), self.tz)
+        sejak_hari = self.hari_kerja.untuk((nyata - JENDELA_KEDATANGAN).isoformat())
         jam = nyata.isoformat()
         return [
             {**a, "menit": menit_antara(a["arrived_at"], jam), "tahap": TAHAP_DATANG}
