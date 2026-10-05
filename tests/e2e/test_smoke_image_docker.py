@@ -53,7 +53,7 @@ def test_image_yang_sehat_lulus_dan_tidak_meninggalkan_container():
     before = set(_containers_of_image())
     result = _smoke(VERSION, LABEL)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.splitlines()[:4] == ["ok   label", "ok   line", "ok   console", "ok   boot"]
+    assert result.stdout.splitlines()[:5] == ["ok   label", "ok   line", "ok   console", "ok   boot", "ok   sidik"]
     assert set(_containers_of_image()) == before
 
 
