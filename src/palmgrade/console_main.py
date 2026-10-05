@@ -33,6 +33,7 @@ from .routes.console_deps import (
 )
 from .routes.console_ingest import ingest_router
 from .routes.console_lapor_discord import router as lapor_discord_router
+from .routes.console_roi_bawaan import router as roi_bawaan_router
 from .services.akun_bawaan import seed_default_accounts
 from .services.lapor_discord import pasang_handler_lapor
 from .workers.cek_sinkron_worker import build_cek_sinkron
@@ -178,6 +179,7 @@ def create_console_app() -> FastAPI:
 
     app.include_router(console_router)
     app.include_router(antrean_line_router)
+    app.include_router(roi_bawaan_router)
     app.include_router(lapor_discord_router)
     app.include_router(ingest_router, prefix=settings.backend_api_ver)
     pasang_penangan_validasi(app)

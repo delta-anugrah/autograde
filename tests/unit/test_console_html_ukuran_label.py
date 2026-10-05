@@ -6,7 +6,6 @@ other grading settings and sent to every line, which applies it on the next fram
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 HTML = (Path(__file__).resolve().parents[2] / "src" / "palmgrade" / "static" / "console.html").read_text(
@@ -14,18 +13,16 @@ HTML = (Path(__file__).resolve().parents[2] / "src" / "palmgrade" / "static" / "
 )
 
 
-def _grup(kunci: str) -> str:
-    cocok = re.search(rf'<details[^>]*data-setelan-grup="{kunci}".*?</details>', HTML, re.S)
-    assert cocok, kunci
-    return cocok.group(0)
+def _blok_conveyor() -> str:
+    return HTML.split('<legend data-t="subConveyor">', 1)[1].split("</fieldset>", 1)[0]
 
 
-def test_kolom_ada_di_grup_tampilan_video_dan_tertutup_awal():
-    grup = _grup("tampilan")
-    assert 'id="set-ukuran-label"' in grup
-    assert 'inputmode="numeric"' in grup and 'data-angka="bulat"' in grup
-    assert " open" not in re.search(r'<details[^>]*data-setelan-grup="tampilan"[^>]*>', HTML).group(0)
-    assert 'data-t="grupTampilan"' in grup
+def test_kolom_ada_di_blok_conveyor_kamera_dan_conveyor():
+    """Moved from its own sub-tab into Camera & Conveyor (user 2026-10-05)."""
+    blok = _blok_conveyor()
+    assert 'id="set-ukuran-label"' in blok
+    assert 'inputmode="numeric"' in blok and 'data-angka="bulat"' in blok
+    assert 'data-sub="tampilan"' not in HTML and 'data-setelan-grup="tampilan"' not in HTML
 
 
 def test_kolom_sebelum_tombol_simpan_setelan():
@@ -34,7 +31,7 @@ def test_kolom_sebelum_tombol_simpan_setelan():
 
 
 def test_teks_kolom_ada_dua_bahasa():
-    for kunci in ("grupTampilan", "labelUkuranLabel", "bantuUkuranLabel"):
+    for kunci in ("labelUkuranLabel", "bantuUkuranLabel"):
         assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in id and en"
 
 

@@ -36,6 +36,8 @@ _TIMEOUT_S = 10.0
 #: `hidup()` is asked every quarter second while the console waits for a line to exit; a
 #: line that is going down is expected not to answer.
 _TIMEOUT_HIDUP_S = 0.5
+#: `setelan_aktif()` is read when support opens Settings.
+_TIMEOUT_SETELAN_S = 2.0
 #: The line answers a reconnect request before it touches the camera, so the button
 #: never waits on the camera itself; a line that needs longer than this is not answering.
 TIMEOUT_SAMBUNG_ULANG_S = 5.0
@@ -289,6 +291,14 @@ class LineClient:
         """Called once a second by LineStatusWorker, so the timeout is short:
         the operator screen must not be made to wait on a dying line."""
         return await self._get_json(line, "/internal/status", timeout_s=1.5)
+
+    async def setelan_aktif(self, line: LineEndpoint) -> dict[str, Any]:
+        """The grading settings the line uses now, with its own `.env` box (`roi_env`).
+
+        Read when support opens Settings, so the timeout is short: a dead line must not
+        hold the screen (`services/roi_bawaan.py` asks the three side by side).
+        """
+        return await self._get_json(line, "/internal/setelan", timeout_s=_TIMEOUT_SETELAN_S)
 
     async def health_detail(self, line: LineEndpoint) -> dict[str, Any]:
         """Full `/health/detail` for the support diagnostics screen.

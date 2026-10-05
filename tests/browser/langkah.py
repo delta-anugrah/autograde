@@ -56,3 +56,20 @@ def keluar(page: Page) -> None:
 def buka_tab(page: Page, nama: str) -> None:
     page.click(f'#tabs [data-tab="{nama}"]')
     expect(page.locator(f"#sec-{nama}")).to_be_visible()
+
+
+def buka_setelan(page: Page, sub: str) -> None:
+    """The Settings tab, then one of its sub-tabs (2026-10-05). The open sub-tab is remembered
+    in the browser, so a test names the one it needs rather than relying on the last test."""
+    buka_tab(page, "setelan")
+    page.click(f'#setelan-sub button[data-sub="{sub}"]')
+    expect(page.locator(f'#setelan-sub button[data-sub="{sub}"]')).to_have_attribute("aria-pressed", "true")
+
+
+def buka_status(page: Page, sub: str) -> None:
+    """The Status tab, then one of its sub-tabs (2026-10-05), like `buka_setelan`: only the
+    chosen section is visible, and the browser remembers the last one."""
+    buka_tab(page, "status")
+    page.click(f'#status-sub button[data-sub="{sub}"]')
+    expect(page.locator(f'#status-sub button[data-sub="{sub}"]')).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(f'#sec-status [data-status-sub="{sub}"]')).to_be_visible()

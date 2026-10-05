@@ -256,5 +256,5 @@ def test_pilihan_line_lima_kolom_sama_lebar_selebar_panel():
     sempit = re.search(r"@media \(max-width:600px\)\s*\{\s*#line-sub\s*\{([^}]*)\}", css)
     assert sempit, "2 x 2 di layar sempit tidak ada"
     assert "grid-template-columns:repeat(2,minmax(0,1fr))" in sempit.group(1).replace(" ", "")
-    tombol = HTML.split('<div class="log-level" id="line-sub" role="group">', 1)[1].split("</div>", 1)[0]
+    tombol = HTML.split('<div class="sub-tab" id="line-sub" role="group">', 1)[1].split("</div>", 1)[0]
     assert tombol.count("data-sub=") == 5

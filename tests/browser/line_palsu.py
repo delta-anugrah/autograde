@@ -89,6 +89,10 @@ class _Penjawab(BaseHTTPRequestHandler):
             self._json(200, DETAIL_SEHAT)
         elif jalur == "/internal/camera/settings":
             self._json(200, SETELAN_KAMERA)
+        elif jalur == "/internal/setelan":
+            # The line's own `.env` box, as Settings shows it (2026-10-05).
+            self._json(200, {"conf_threshold": 0.75, "minimum_size": 460000, "sumber": "env",
+                             "roi_env": [100, 100, 1180, 620]})
         else:
             self._json(404, {"detail": "Not Found"})
 

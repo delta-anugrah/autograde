@@ -40,6 +40,82 @@ Decisions:      Line choice bar split into five equal columns (`repeat(5)`), not
 Next:           Phase 2 (apply, Simpan, Kembalikan ke baku, compose mount + `CAMERA_SETELAN_DIR`). Carry the
                 deferred review minors: old-line wording on this card, catch-all to 503, float/int fallback
                 per node, "Sumber setelan" from the file loaded at connect, log a late command's exception.
+## 2026-10-05 · console · Outlined Log filters, tooltip component, step cards, Record Video width (PR #243)
+Changed:        Log filters are outlined only (All `--fg`, WARNING `--warn`, ERROR `--rej`), the
+                chosen one at full opacity with a doubled outline, no tick. New tooltip component:
+                `data-t-tip="<KAMUS key>"`, text set by `terapkanBahasa` into `data-tip`, drawn by
+                `[data-tip]:is(:hover, :focus-visible)::after` only while shown; on the four top-bar
+                buttons (`tipSegarkan`, `tipBahasa`, `tipTema`, `tipKeluar`), replacing the native
+                title on Refresh. Weighbridge step cards: tinted in their stage colour, icon tile
+                from 1280 px, round arrow chip between cards. Panel content lost its second
+                `var(--pad)` indent (Record Video note/table/footer, Accounts, Log Discord line,
+                Manifest note, PLC confirm); the Record Video settings card sits 16 px below the
+                table with a styled heading (its summary style had gone with the accordion CSS).
+Validated:      `pytest tests --ignore=tests/browser --deselect tests/unit/test_doc_links.py` → 5647
+                passed, 0 failed; ruff clean; full browser suite (both browsers) found the hidden
+                tooltip widening a 390 px page (`test_the_four_steps_never_scroll_sideways`), fixed
+                by drawing it only on hover; then `test_browser_gerbang.py`, `test_browser_status.py`,
+                `test_browser_semua_halaman.py` in Chromium + Firefox → all passed. Screenshots of Log,
+                tooltips, Weighbridge (1600 and 1100 px), Record Video, Accounts, Manifest checked in
+                id/en and light/dark. `docs/MANUAL.pdf` rebuilt.
+Not validated:  The full browser suite after the tooltip fix (left to CI). Factory PC.
+Next:           Release v1.25.0 (#244).
+
+## 2026-10-05 · console · Status in sub-tabs, flat Settings card, tab-style sub-tabs, Log colours (PR #243)
+Changed:        Status is five sub-tabs (Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean
+                ERP, Manifest R2), the Settings pattern (`SUB_STATUS`, `terapkanSubStatus`, remembered
+                as `subStatus`); all five still load when the tab opens. Every sub-tab bar (Settings,
+                Line, Status, Recap views) is one `.sub-tab` component: as wide as the main tab bar
+                (`.line-sub-bar` lost its second `var(--pad)`), drawn as tabs with an accent underline.
+                Settings: the open part is one card; groups and named blocks draw no box (a block is a
+                heading on a rule). Log filters keep their colour when chosen: All white, WARNING
+                yellow, ERROR red; the chosen one gets a dark ring and a tick.
+Validated:      `pytest tests --ignore=tests/browser --deselect tests/unit/test_doc_links.py` → 5648
+                passed, 25 skipped; `ruff check src/ tests/` → clean; browser suite Chromium + Firefox
+                → all passed except one Firefox slip in `test_browser_grading_saring` (an "auto-released"
+                toast from an earlier test covered the photo), which passed on its own run in both
+                browsers; new tests: Status sub-tabs + remembered on reload, every sub-tab bar as wide
+                as `#tabs`, Log filter colours, Status sections on a 1024 px screen. Screenshots of
+                Settings, Line, Status (all five), Log, Recap in Indonesian and English, plus dark theme,
+                looked at. `docs/MANUAL.pdf` rebuilt (45 pages).
+Not validated:  On the factory PC (needs a release).
+Next:           Same as below: release v1.25.0 (#244).
+
+## 2026-10-05 · console · Settings in sub-tabs, automatic assignment on by default (PR #243)
+Changed:        Settings is six sub-tabs (the Line tab's component): Grading, Kamera & Conveyor, Mode
+                Developer, Penugasan line, Slip grading, Danger Zone; one part at a time, the last one
+                remembered. The three parts saved by one Simpan share `#setform-utama`. The label text
+                size moved into Kamera & Conveyor, block "Conveyor & tampilan" (user: no own sub-tab).
+                "Line yang dipakai" is one block with its checkboxes in a row (its heading used to sit
+                in the middle column, the checkboxes in the right one). Automatic line assignment is ON
+                on every line for a console that never saved it (rule 36; it was off, decision D13);
+                a stored row that cannot be read reads as off.
+Validated:      unit, e2e, integration, ruff; browser suite in Chromium 155 passed; screenshots of
+                Grading, Kamera & Conveyor and Penugasan line looked at.
+Not validated:  On the factory PC (needs a release).
+Decisions:      Tabs rather than the accordion (user, "coba pake tab dulu"). Assignment tests that
+                start from "off" now save off explicitly; the browser session console saves off once.
+Next:           Release v1.25.0 (#244). At Lampung, check the switch after the install: if it was never
+                saved there, trucks go on the lines at weigh-in from that moment.
+
+## 2026-10-05 · console · Detection box: the PC's default is shown, one button goes back to it (PR #243)
+Changed:        Settings, Camera & Conveyor, detection area box: the box each line uses while the
+                console sets none (`ROI_*` in the lines' `.env`) is now shown, as the placeholder of the
+                four inputs and in one sentence ("Bawaan PC ini: Kiri 100, ..."). New button **Kembalikan
+                ke bawaan** (`button.bahaya`) empties the four inputs; Save then sends `null`, so every
+                line goes back to its own box. The console asks the lines (`GET /api/console/dev/roi-bawaan`,
+                `services/roi_bawaan.py`, all three side by side, first answer wins); a line's
+                `GET /internal/setelan` now carries `roi_env`. New router module (`routes/console.py` is
+                at its size limit).
+Validated:      unit, integration (real `LineClient` against three line apps: one down, one refusing the
+                key, one answering), browser `test_browser_setelan.py` in Chromium and Firefox (8 passed),
+                full suites and ruff (see PR).
+Not validated:  On the factory PC (needs a release). A line on an image before this change answers
+                without `roi_env`, so the sentence says the default is not known until the lines update.
+Decisions:      "Default" = the box the lines already use when nothing is set, read from the lines, not a
+                new constant: Lampung keeps 100/100/1180/620 from its `.env`, and nothing changes on a
+                PC until someone saves. Reset only empties the inputs; Save applies it, like every field.
+Next:           Release with the label size (#242).
 
 ## 2026-10-05 · console + vision · Label text size on the line video, set from Settings (PR #242)
 Changed:        New Settings group **Tampilan video** with `#set-ukuran-label`: the size of the class label
