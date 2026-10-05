@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · One dropdown everywhere: type to filter, trucks on site first (batch 5.6) (PR #PRNUM)
+## 2026-10-05 · console · One dropdown everywhere: type to filter, trucks on site first (batch 5.6) (PR #232)
 Changed:        `static/console.html`: a list with 8 rows or more gets a search field while it is
                 open (`pasangCari`, `saringPilih`, `cocokCari`, `hasilSaring`); arrows walk only the
                 rows left, Enter in the field takes the first, a letter typed on a row goes to the
