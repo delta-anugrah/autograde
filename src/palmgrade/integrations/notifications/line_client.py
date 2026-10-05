@@ -299,6 +299,15 @@ class LineClient:
         """
         return await self._get_json(line, "/health/detail", timeout_s=5.0)
 
+    async def camera_settings(self, line: LineEndpoint) -> dict[str, Any]:
+        """`/internal/camera/settings` for the support camera settings screen.
+
+        5 s like `health_detail`: the line itself waits up to 2 s for its capture thread. 409 (not a Hikrobot
+        camera), 503 (camera not answering) and 404 (a line older than this route) arrive as `LineUnavailable`
+        with their `status` through `_get_json`; the service words them.
+        """
+        return await self._get_json(line, "/internal/camera/settings", timeout_s=5.0)
+
     async def antrean_line(self, line: LineEndpoint) -> dict[str, Any]:
         """Antrean janjang line itu ke konsol (`/internal/outbox`, batch 2.4), untuk tab Status.
 
