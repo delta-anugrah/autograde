@@ -1499,7 +1499,10 @@ memang khas satu mesin.
   baru) menarik digest itu dan menjalankan `scripts/smoke_image.py`: label
   `org.opencontainers.image.version` benar (launcher membaca versi dari situ), `main` dan
   `console_main` bisa diimpor (konsol tanpa torch/cv2), konsol nyala tanpa jaringan dan
-  `/health` menjawab versi yang benar; lalu `tests/e2e/test_image_tracker_deps.py` (tracker
+  `/health` menjawab versi yang benar, dan tiap berkas di `/app/.sidik-image.json` cocok (sejak
+  2026-10-05: daftar sidik kode kita yang ditulis `scripts/tulis_sidik_image.py` di akhir
+  Dockerfile, dibaca cek keutuhan launcher pabrik `periksa_image` sebelum memasang; listrik
+  padam sesudah `docker pull` pernah meninggalkan berkas 0 byte tanpa error); lalu `tests/e2e/test_image_tracker_deps.py` (tracker
   jalan offline) dan, untuk demo, `tests/e2e/test_demo_kit_docker.py`. Baru sesudah lulus job
   `promote` menyalin digest yang sama ke `vX.Y.Z` + `latest` (demo: `vX.Y.Z-cpu`) dengan
   `docker buildx imagetools create`, tanpa build ulang. Smoke gagal = tidak ada tag rilis,

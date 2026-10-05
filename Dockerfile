@@ -105,6 +105,12 @@ ENV CONSOLE_DEFAULT_HASH=${CONSOLE_DEFAULT_HASH} \
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Daftar sidik kode kita sendiri, untuk cek keutuhan launcher pabrik sebelum memasang
+# (`periksa_image`, 2026-10-05): listrik padam sesudah `docker pull` pernah meninggalkan
+# berkas 0 byte tanpa error. Paling akhir, sesudah semua COPY: daftar yang ditulis lebih
+# awal akan menyebut berkas yang kemudian berubah.
+RUN python scripts/tulis_sidik_image.py /app/.sidik-image.json
+
 EXPOSE ${APP_PORT:-8000}
 
 ENTRYPOINT ["/entrypoint.sh"]
