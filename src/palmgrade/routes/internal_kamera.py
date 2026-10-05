@@ -78,6 +78,13 @@ def buat_router(
             raise HTTPException(
                 status_code=503, detail={"kode": KAMERA_TIDAK_MENJAWAB, "pesan": "kamera tidak menjawab"}
             ) from exc
+        if nilai and not any(n.didukung for n in nilai):
+            # Every node refused = a camera that went silent (cable pulled, `connected` not yet cleared by the
+            # capture thread), not a camera that supports nothing.
+            logger.info("Camera settings not read: the camera refused every node")
+            raise HTTPException(
+                status_code=503, detail={"kode": KAMERA_TIDAK_MENJAWAB, "pesan": "kamera tidak menjawab"}
+            )
         simpanan = berkas_tersimpan(settings().camera_setelan_dir, settings().line_code)
         return {
             "berkas_tersimpan": simpanan is not None and simpanan.is_file(),

@@ -103,3 +103,23 @@ def test_utas_capture_tidak_melayani_503_dalam_batas(monkeypatch, tmp_path):
     jawab = TestClient(app).get(JALUR, headers=HEADER)
     assert jawab.status_code == 503
     assert jawab.json()["detail"]["kode"] == "kamera_tidak_menjawab"
+
+
+def test_semua_node_ditolak_berarti_kamera_tidak_menjawab_503(line):
+    """Cable just pulled, `connected` still True: every node errors, which is a silent camera, not one that
+    supports nothing (Review Focus 1)."""
+    client, _, kamera, _ = line
+    kamera.setelan = [NilaiSetelan("exposure", None, kode_galat="0x80000007"),
+                      NilaiSetelan("black_level", None, kode_galat="0x80000007")]
+    jawab = client.get(JALUR, headers=HEADER)
+    assert jawab.status_code == 503
+    assert jawab.json()["detail"]["kode"] == "kamera_tidak_menjawab"
+
+
+def test_satu_node_ditolak_tetap_200(line):
+    client, _, kamera, _ = line
+    kamera.setelan = [NilaiSetelan("exposure", 4000.0, 15.0, 9959540.0),
+                      NilaiSetelan("white_balance", None, kode_galat="0x80000106")]
+    jawab = client.get(JALUR, headers=HEADER)
+    assert jawab.status_code == 200
+    assert [b["didukung"] for b in jawab.json()["setelan"]] == [True, False]
