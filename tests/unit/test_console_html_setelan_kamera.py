@@ -82,3 +82,26 @@ def test_bahasa_inggris():
 def test_sub_pilihan_ada_di_tab_line():
     assert 'data-sub="setelan-kamera"' in HTML
     assert '"setelan-kamera": muatSetelanKamera' in HTML
+
+
+def test_tombol_segarkan_dan_kalimatnya_menyebut_label_yang_sama():
+    """User 2026-10-06: the button reads Refresh, and the "not answering" sentence names the same verb (F6)."""
+    assert 'setelanKameraBacaUlang:"Segarkan"' in HTML
+    assert 'setelanKameraBacaUlang:"Refresh"' in HTML
+    assert "Coba Segarkan sebentar lagi" in HTML
+    assert "Try Refresh in a moment" in HTML
+    assert "Baca ulang" not in HTML.split('id="sub-setelan-kamera"', 1)[1].split("</div>", 1)[0]
+
+
+def _css() -> str:
+    return HTML.split("<style>", 1)[1].split("</style>", 1)[0].replace(" ", "")
+
+
+def test_tombol_segarkan_berjarak_dari_kartu():
+    assert re.search(r"#setelan-kamera-baca\{[^}]*margin-bottom:16px", _css())
+
+
+def test_sebab_di_kartu_tidak_menempel_ke_tepi():
+    """User 2026-10-06 screenshot: the reason sentence sat flush against the card border."""
+    aturan = re.search(r"\.kartu-grid\.card>p\.diag-sebab\{([^}]*)\}", _css())
+    assert aturan and "padding:10px13px" in aturan.group(1)

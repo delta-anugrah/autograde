@@ -726,6 +726,9 @@
   .kartu-grid dt.diag-worker { font-family:var(--mono); font-size:.8rem; }
   /* Sebab line tak terbaca: satu kalimat utuh yang dibaca, bukan nilai yang boleh dipotong `…`. */
   .kartu-grid dd.diag-sebab { text-align:left; font-weight:400; }
+  /* Setelan Kamera: the reason is a paragraph straight in the card, so it needs the dl's own inset. */
+  .kartu-grid .card > p.diag-sebab { margin:0; padding:10px 13px; }
+  #setelan-kamera-baca { margin-bottom:16px; }
   /* ✓/✗ berwarna. Token tema, bukan hex: terang dan gelap punya hijau-merah
      sendiri, dan hex yang dipatok cuma terbaca di salah satunya. */
   .tanda-ok { color:var(--acc); font-weight:700; }
@@ -2790,7 +2793,7 @@
     the line's capture thread. Read-only until phase 2 adds change, Simpan and Kembalikan ke baku.
   -->
     <p class="muted" data-t="setelanKameraInfo">Nilai yang dipakai kamera sekarang. Mengubahnya menyusul di versi berikutnya; sampai itu lewat MVS.</p>
-    <button type="button" id="setelan-kamera-baca" data-t="setelanKameraBacaUlang">Baca ulang</button>
+    <button type="button" id="setelan-kamera-baca" data-t="setelanKameraBacaUlang">Segarkan</button>
     <div id="setelan-kamera-kartu" class="kartu-grid"></div>
   </div>
   <div id="sub-model-deteksi" class="sub-line" hidden>
@@ -3583,13 +3586,13 @@ const KAMUS = {
     judulSumberKamera:"Sumber Kamera",
     judulSetelanKamera:"Setelan Kamera",
     setelanKameraInfo:"Nilai yang dipakai kamera sekarang. Mengubahnya menyusul di versi berikutnya; sampai itu lewat MVS.",
-    setelanKameraBacaUlang:"Baca ulang", setelanKameraMemuat:"Menanyai kamera…",
+    setelanKameraBacaUlang:"Segarkan", setelanKameraMemuat:"Menanyai kamera…",
     gagalSetelanKamera:"Gagal membaca setelan kamera",
     setelanKameraTidakDidukung:"tidak didukung kamera ini",
     setelanKameraTersimpan:"Tersimpan dari konsol", setelanKameraBaku:"Setelan bawaan",
     setelanKameraSumber:"Sumber setelan", setelanKameraRentang:"{min} sampai {max}",
     setelanKameraSebab_bukan_kamera:"Sumber gambar line ini bukan kamera Hikrobot, jadi tidak ada setelan kamera.",
-    setelanKameraSebab_kamera_tidak_menjawab:"Kamera tidak menjawab: sedang putus atau menyambung ulang. Coba Baca ulang sebentar lagi.",
+    setelanKameraSebab_kamera_tidak_menjawab:"Kamera tidak menjawab: sedang putus atau menyambung ulang. Coba Segarkan sebentar lagi.",
     setelanKamera_exposure:"Exposure", setelanKamera_gain:"Gain", setelanKamera_black_level:"Black level",
     setelanKamera_white_balance:"White balance", setelanKamera_frame_rate:"Frame rate",
     setelanKamera_exposure_auto:"Exposure otomatis", setelanKamera_gain_auto:"Gain otomatis",
@@ -4113,13 +4116,13 @@ const KAMUS = {
     judulSumberKamera:"Camera Source",
     judulSetelanKamera:"Camera Settings",
     setelanKameraInfo:"The values the camera uses now. Changing them comes in the next version; until then use MVS.",
-    setelanKameraBacaUlang:"Read again", setelanKameraMemuat:"Asking the camera…",
+    setelanKameraBacaUlang:"Refresh", setelanKameraMemuat:"Asking the camera…",
     gagalSetelanKamera:"Failed to read the camera settings",
     setelanKameraTidakDidukung:"not supported by this camera",
     setelanKameraTersimpan:"Saved from the console", setelanKameraBaku:"Default settings",
     setelanKameraSumber:"Settings source", setelanKameraRentang:"{min} to {max}",
     setelanKameraSebab_bukan_kamera:"This line's image source is not a Hikrobot camera, so it has no camera settings.",
-    setelanKameraSebab_kamera_tidak_menjawab:"The camera does not answer: it is disconnected or reconnecting. Try Read again in a moment.",
+    setelanKameraSebab_kamera_tidak_menjawab:"The camera does not answer: it is disconnected or reconnecting. Try Refresh in a moment.",
     setelanKamera_exposure:"Exposure", setelanKamera_gain:"Gain", setelanKamera_black_level:"Black level",
     setelanKamera_white_balance:"White balance", setelanKamera_frame_rate:"Frame rate",
     setelanKamera_exposure_auto:"Exposure auto", setelanKamera_gain_auto:"Gain auto",
