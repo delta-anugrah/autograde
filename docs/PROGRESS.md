@@ -28,6 +28,9 @@ Changed:        Server: `domain/slip_grading.py` (`susun_slip`, `rasio_ripe_pers
                 `body[data-cetak="slip"]` beside the existing QR card print, switch in Settings.
 Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
                 7 mutations, each turned its test red. Screenshot of the slip in print mode.
+                Docs sweep for the whole batch: `docs/MANUAL.pdf` rebuilt from MANUAL 2.15 (45
+                pages, `tests/e2e/test_manual_pdf.py` passed); README and the `panduan-autograde` and
+                `konsol-autograde` skills no longer say "sesi 12 jam" or "20 grading terakhir".
 Not validated:  A real printer and paper size. Nothing on the factory PC.
 Decisions:      The server refuses the slip while the switch is off (rule 21: hiding the button is
                 tidiness). The rate is the verdict share like the Rekap tab and the piston. The
