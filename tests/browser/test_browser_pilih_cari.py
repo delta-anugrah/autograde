@@ -8,7 +8,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import httpx
-from langkah import OPERATOR, SUPPORT, buka_tab, kamus, masuk, plat
+from langkah import OPERATOR, SUPPORT, buka_setelan, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
 _KARTU = '#lines .card[data-line="line-2"] .assign .pilih'
@@ -153,9 +153,8 @@ def test_the_weighbridge_pickers_are_refilled_in_place_and_stay_open(halaman, ko
 
 def test_conveyor_direction_is_the_console_dropdown_and_moves_the_hint(halaman):
     masuk(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
+    buka_setelan(halaman, "kamera")
     halaman.evaluate("() => MUAT_TAB.setelan()")
-    halaman.locator('details[data-setelan-grup="kamera"] > summary').click()
     sumbu = halaman.locator("#set-sumbu")
     awal = sumbu.get_attribute("data-nilai")
     lain = "mendatar" if awal == "tegak" else "tegak"

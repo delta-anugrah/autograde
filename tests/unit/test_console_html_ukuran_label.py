@@ -6,7 +6,6 @@ other grading settings and sent to every line, which applies it on the next fram
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 HTML = (Path(__file__).resolve().parents[2] / "src" / "palmgrade" / "static" / "console.html").read_text(
@@ -15,17 +14,15 @@ HTML = (Path(__file__).resolve().parents[2] / "src" / "palmgrade" / "static" / "
 
 
 def _grup(kunci: str) -> str:
-    cocok = re.search(rf'<details[^>]*data-setelan-grup="{kunci}".*?</details>', HTML, re.S)
-    assert cocok, kunci
-    return cocok.group(0)
+    awal = HTML.index(f'<div class="setelan-grup" data-setelan-grup="{kunci}">')
+    return HTML[awal:HTML.index('<div class="setelan-grup" data-setelan-grup="dev">', awal)]
 
 
-def test_kolom_ada_di_grup_tampilan_video_dan_tertutup_awal():
+def test_kolom_ada_di_bagian_tampilan_video():
     grup = _grup("tampilan")
     assert 'id="set-ukuran-label"' in grup
     assert 'inputmode="numeric"' in grup and 'data-angka="bulat"' in grup
-    assert " open" not in re.search(r'<details[^>]*data-setelan-grup="tampilan"[^>]*>', HTML).group(0)
-    assert 'data-t="grupTampilan"' in grup
+    assert '<button type="button" data-sub="tampilan" data-t="grupTampilan">' in HTML
 
 
 def test_kolom_sebelum_tombol_simpan_setelan():

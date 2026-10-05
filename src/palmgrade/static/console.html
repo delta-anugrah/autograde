@@ -1289,6 +1289,15 @@
      Lebarnya mengikuti layar (dulu dipatok 30rem): di monitor pabrik 1900 px
      kartu selebar 480 px menyisakan dua pertiga layar kosong, dan kolomnya
      berdesak di kiri justru saat support membaca dari jarak beberapa meter. */
+  /* Settings sub-tabs (2026-10-05): the Line tab's component, seven parts. */
+  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:8px; }
+  #setelan-sub button { width:100%; min-width:0; }
+  @media (max-width:1100px) { #setelan-sub { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+  @media (max-width:600px) { #setelan-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  /* `display:grid` beats the browser's `[hidden]`, as for `#akun-tambah`. */
+  .setelan-form[hidden], .setelan-grup[hidden], #setform-bahaya[hidden] { display:none; }
+  /* The lines a truck is assigned to: side by side under their heading. */
+  .setelan-lines { display:flex; flex-wrap:wrap; gap:12px 32px; }
   .setelan-form { display:grid; gap:18px; padding:20px;
                   border:1px solid var(--line); border-radius:var(--r);
                   background:var(--kartu); margin:0 var(--pad); }
@@ -2195,8 +2204,23 @@
     Berlaku untuk SEMUA line sekaligus (keputusan operator 2026-09-16) dan
     langsung dipakai tanpa restart. Tiap perubahan tercatat di tab Log dengan
     email yang mengubahnya - angka ini menggeser tonase yang dibayar.
+
+    Sub-tabs since 2026-10-05 (user: "berantakan banget"): one part at a time, the same
+    component as the Line tab. The four parts saved by one Simpan share one form; Line
+    assignment, Grading slip and Danger Zone keep their own.
   -->
-  <div class="setelan-form">
+  <div class="line-sub-bar">
+    <div class="log-level" id="setelan-sub" role="group">
+      <button type="button" data-sub="grading" data-t="grupGrading">Grading</button>
+      <button type="button" data-sub="kamera" data-t="grupKamera">Kamera &amp; Conveyor</button>
+      <button type="button" data-sub="tampilan" data-t="grupTampilan">Tampilan video</button>
+      <button type="button" data-sub="dev" data-t="grupDev">Mode Developer</button>
+      <button type="button" data-sub="penugasan" data-t="grupPenugasan">Penugasan line</button>
+      <button type="button" data-sub="slip" data-t="grupSlip">Slip grading</button>
+      <button type="button" data-sub="bahaya" data-t="bahayaJudul">Danger Zone</button>
+    </div>
+  </div>
+  <div class="setelan-form" id="setform-utama">
     <!--
       Dibagi tiga kelompok, bukan satu daftar panjang: yang diubah sehari-hari
       cuma dua angka grading, sisanya disetel sekali saat pemasangan. Yang
@@ -2206,8 +2230,7 @@
       kelompok, dan menaruhnya di dalam salah satunya membuatnya ikut
       tersembunyi saat kelompok itu ditutup.
     -->
-    <details class="setelan-grup" data-setelan-grup="grading" open>
-      <summary data-t="grupGrading">Grading</summary>
+    <div class="setelan-grup" data-setelan-grup="grading">
       <div class="setelan-grup-isi">
         <!--
           `inputmode` cuma memilih papan ketik di layar sentuh; papan ketik fisik
@@ -2231,10 +2254,9 @@
           <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
         </label>
       </div>
-    </details>
+    </div>
 
-    <details class="setelan-grup" data-setelan-grup="kamera">
-      <summary data-t="grupKamera">Kamera &amp; Conveyor</summary>
+    <div class="setelan-grup" data-setelan-grup="kamera">
       <div class="setelan-grup-isi setelan-tiga">
         <!-- Three named blocks (user 2026-10-04): conveyor, capture line, detection area box. -->
         <fieldset class="setelan-sub">
@@ -2298,10 +2320,9 @@
           </label>
         </fieldset>
       </div>
-    </details>
+    </div>
 
-    <details class="setelan-grup" data-setelan-grup="tampilan">
-      <summary data-t="grupTampilan">Tampilan video</summary>
+    <div class="setelan-grup" data-setelan-grup="tampilan">
       <div class="setelan-grup-isi">
         <!-- Label size on the line video, percent (user 2026-10-05: "Ripe" read small from
              where the operator stands). Display only: saved photos and detection ignore it. -->
@@ -2312,10 +2333,9 @@
           <small class="muted" data-t="bantuUkuranLabel">Tulisan Ripe, Unripe, JK, TP di atas kotak pada video. 100 = bawaan, 200 = dua kali lebih besar (25 sampai 400).</small>
         </label>
       </div>
-    </details>
+    </div>
 
-    <details class="setelan-grup" data-setelan-grup="dev">
-      <summary data-t="grupDev">Mode Developer</summary>
+    <div class="setelan-grup" data-setelan-grup="dev">
       <div class="setelan-grup-isi">
         <!-- Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf. -->
         <label class="saklar">
@@ -2326,7 +2346,7 @@
           </span>
         </label>
       </div>
-    </details>
+    </div>
 
     <div class="tools lepas">
       <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
@@ -2340,9 +2360,8 @@
     di atas: jalurnya lain, dan berlaku seketika untuk truk berikutnya. Support saja,
     seperti setelan grading: ini menentukan janjang dihitung ke truk mana.
   -->
-  <div class="setelan-form">
-    <details class="setelan-grup" data-setelan-grup="penugasan" open>
-      <summary data-t="grupPenugasan">Penugasan line</summary>
+  <div class="setelan-form" id="setform-penugasan">
+    <div class="setelan-grup" data-setelan-grup="penugasan">
       <div class="setelan-grup-isi">
         <label class="saklar">
           <input id="set-otomatis" type="checkbox">
@@ -2351,19 +2370,21 @@
             <small class="muted" data-t="bantuOtomatis">Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.</small>
           </span>
         </label>
-        <span class="lb" data-t="labelLineOtomatis">Line yang dipakai</span>
-        <div id="set-otomatis-lines"></div>
+        <!-- One block (user 2026-10-05): the heading above its own checkboxes, in a row. -->
+        <fieldset class="setelan-sub">
+          <legend data-t="labelLineOtomatis">Line yang dipakai</legend>
+          <div id="set-otomatis-lines" class="setelan-lines"></div>
+        </fieldset>
       </div>
-    </details>
+    </div>
     <div class="tools lepas">
       <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan">Simpan penugasan</button>
     </div>
   </div>
 
   <!-- Batch 5.9: the printable grading slip, its own save like Penugasan line. -->
-  <div class="setelan-form">
-    <details class="setelan-grup" data-setelan-grup="slip" open>
-      <summary data-t="grupSlip">Slip grading</summary>
+  <div class="setelan-form" id="setform-slip">
+    <div class="setelan-grup" data-setelan-grup="slip">
       <div class="setelan-grup-isi">
         <label class="saklar">
           <input id="set-slip" type="checkbox">
@@ -2373,7 +2394,7 @@
           </span>
         </label>
       </div>
-    </details>
+    </div>
     <div class="tools lepas">
       <button id="set-slip-simpan" class="utama" data-t="btnSimpanSlip">Simpan slip</button>
     </div>
@@ -2394,6 +2415,7 @@
     ulang semuanya — layar cuma menjelaskan.
     Aturannya: CLAUDE.md aturan 25 (Danger Zone).
   -->
+  <div id="setform-bahaya">
   <details id="bahaya" class="bahaya">
     <summary data-t="bahayaJudul">Danger Zone</summary>
     <div class="bahaya-isi">
@@ -2439,6 +2461,7 @@
       <div class="bahaya-panel" data-bahaya-panel="semua" hidden></div>
     </div>
   </details>
+  </div>
 </section>
 
 <section id="sec-status" class="panel" hidden data-dev="1">
@@ -4394,6 +4417,36 @@ $("tabs").addEventListener("click", (ev) => {
   simpan("tab", tab);
   terapkanTab();
   bukaTabDev(tab);
+});
+
+// Settings sub-tabs (user 2026-10-05): one part at a time. The four parts saved by one
+// Simpan live in one form (`setform-utama`); the others have their own form and button.
+const SUB_SETELAN = ["grading", "kamera", "tampilan", "dev", "penugasan", "slip", "bahaya"];
+const FORM_SETELAN = {
+  grading: "setform-utama", kamera: "setform-utama", tampilan: "setform-utama", dev: "setform-utama",
+  penugasan: "setform-penugasan", slip: "setform-slip", bahaya: "setform-bahaya",
+};
+let subSetelan = SUB_SETELAN.includes(baca("subSetelan", "grading")) ? baca("subSetelan", "grading") : "grading";
+
+function terapkanSubSetelan() {
+  document.querySelectorAll("#setelan-sub button[data-sub]").forEach((b) => {
+    const aktif = b.dataset.sub === subSetelan;
+    b.classList.toggle("aktif", aktif);
+    b.setAttribute("aria-pressed", String(aktif));
+  });
+  document.querySelectorAll("#setform-utama [data-setelan-grup]").forEach((g) => {
+    g.hidden = g.dataset.setelanGrup !== subSetelan;
+  });
+  for (const id of new Set(Object.values(FORM_SETELAN))) $(id).hidden = id !== FORM_SETELAN[subSetelan];
+}
+
+terapkanSubSetelan();
+$("setelan-sub").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-sub]");
+  if (!b || b.dataset.sub === subSetelan) return;
+  subSetelan = b.dataset.sub;
+  simpan("subSetelan", subSetelan);
+  terapkanSubSetelan();
 });
 
 terapkanSubLine();

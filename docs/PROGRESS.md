@@ -18,6 +18,22 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · Settings in sub-tabs, automatic assignment on by default (PR #243)
+Changed:        Settings is seven sub-tabs (the Line tab's component): Grading, Kamera & Conveyor,
+                Tampilan video, Mode Developer, Penugasan line, Slip grading, Danger Zone; one part at a
+                time, the last one remembered. The four parts saved by one Simpan share `#setform-utama`.
+                "Line yang dipakai" is one block with its checkboxes in a row (its heading used to sit
+                in the middle column, the checkboxes in the right one). Automatic line assignment is ON
+                on every line for a console that never saved it (rule 36; it was off, decision D13);
+                a stored row that cannot be read reads as off.
+Validated:      unit, e2e, integration, ruff; browser suite in Chromium 155 passed; screenshots of
+                Grading, Kamera & Conveyor and Penugasan line looked at.
+Not validated:  On the factory PC (needs a release).
+Decisions:      Tabs rather than the accordion (user, "coba pake tab dulu"). Assignment tests that
+                start from "off" now save off explicitly; the browser session console saves off once.
+Next:           Release v1.25.0 (#244). At Lampung, check the switch after the install: if it was never
+                saved there, trucks go on the lines at weigh-in from that moment.
+
 ## 2026-10-05 · console · Detection box: the PC's default is shown, one button goes back to it (PR #243)
 Changed:        Settings, Camera & Conveyor, detection area box: the box each line uses while the
                 console sets none (`ROI_*` in the lines' `.env`) is now shown, as the placeholder of the

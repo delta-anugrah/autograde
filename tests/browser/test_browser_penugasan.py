@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from langkah import OPERATOR, SUPPORT, buka_tab, kamus, keluar, masuk, plat
+from langkah import OPERATOR, SUPPORT, buka_setelan, buka_tab, kamus, keluar, masuk, plat
 from playwright.sync_api import expect
 
 _DUA_LINE = ("line-1", "line-2")
@@ -81,9 +81,9 @@ def _terkirim(lines, kode: str) -> list[dict]:
     return [isi for jalur, isi in lines[kode].diterima if jalur == _PERINTAH_LINE]
 
 
-def test_the_switch_is_off_by_default_and_keeps_what_support_saved(halaman, konsol, penugasan_bersih):
+def test_the_switch_keeps_what_support_saved(halaman, konsol, penugasan_bersih):
     masuk(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
+    buka_setelan(halaman, "penugasan")
     expect(halaman.locator("#set-otomatis")).not_to_be_checked()
     pilihan = halaman.locator("#set-otomatis-lines input[data-line]")
     expect(pilihan).to_have_count(3)
@@ -97,7 +97,7 @@ def test_the_switch_is_off_by_default_and_keeps_what_support_saved(halaman, kons
 
     halaman.reload()
     expect(halaman.locator("#keluar")).to_be_visible()
-    buka_tab(halaman, "setelan")
+    buka_setelan(halaman, "penugasan")
     expect(halaman.locator("#set-otomatis")).to_be_checked()
     expect(halaman.locator('#set-otomatis-lines input[data-line="line-3"]')).not_to_be_checked()
     expect(halaman.locator('#set-otomatis-lines input[data-line="line-1"]')).to_be_checked()
@@ -259,7 +259,7 @@ def test_switch_off_hides_the_strip_and_saving_it_on_puts_the_waiting_truck_on(
     for kode in _TIGA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(b)
 
-    buka_tab(halaman, "setelan")
+    buka_setelan(halaman, "penugasan")
     halaman.check("#set-otomatis")
     halaman.uncheck('#set-otomatis-lines input[data-line="line-3"]')
     halaman.click("#set-penugasan-simpan")

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from langkah import SUPPORT, buka_tab, kamus, masuk
+from langkah import SUPPORT, buka_setelan, kamus, masuk
 from playwright.sync_api import expect
 
 _HIDUP = ("line-1", "line-2")
@@ -17,7 +17,7 @@ def test_a_saved_threshold_reaches_the_lines_that_answer(halaman, lines):
     for kode in _HIDUP:
         lines[kode].diterima.clear()
     masuk(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
+    buka_setelan(halaman, "grading")
     expect(halaman.locator("#set-conf")).not_to_have_value("")
     halaman.fill("#set-conf", "0.6")
     halaman.click("#set-simpan")
@@ -37,9 +37,8 @@ def test_the_detection_box_and_the_two_show_switches_reach_the_lines(halaman, li
     for kode in _HIDUP:
         lines[kode].diterima.clear()
     masuk(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
-    expect(halaman.locator("#set-conf")).not_to_have_value("")
-    halaman.locator('details[data-setelan-grup="kamera"] > summary').click()
+    buka_setelan(halaman, "kamera")
+    expect(halaman.locator("#set-garis")).not_to_have_value("")
     for sisi, nilai in (("x1", "100"), ("y1", "50"), ("x2", "1180"), ("y2", "620")):
         halaman.fill(f"#set-roi-{sisi}", nilai)
     halaman.uncheck("#set-tampil-garis")
@@ -78,9 +77,7 @@ def test_the_label_size_reaches_the_lines(halaman, lines):
     for kode in _HIDUP:
         lines[kode].diterima.clear()
     masuk(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
-    expect(halaman.locator("#set-conf")).not_to_have_value("")
-    halaman.locator('details[data-setelan-grup="tampilan"] > summary').click()
+    buka_setelan(halaman, "tampilan")
     expect(halaman.locator("#set-ukuran-label")).to_have_value("100")
     halaman.fill("#set-ukuran-label", "150")
     halaman.click("#set-simpan")
@@ -110,9 +107,8 @@ def test_the_pc_default_box_is_shown_and_one_button_goes_back_to_it(halaman, lin
     for kode in _HIDUP:
         lines[kode].diterima.clear()
     masuk(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
-    expect(halaman.locator("#set-conf")).not_to_have_value("")
-    halaman.locator('details[data-setelan-grup="kamera"] > summary').click()
+    buka_setelan(halaman, "kamera")
+    expect(halaman.locator("#set-garis")).not_to_have_value("")
     expect(halaman.locator("#set-roi-bawaan")).to_contain_text("1180")
     expect(halaman.locator("#set-roi-x2")).to_have_attribute("placeholder", "1180")
 

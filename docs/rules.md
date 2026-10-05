@@ -1217,9 +1217,11 @@ end of this file.
     menunggu; memasangnya sekarang membuat sisa janjang truk lama tercatat ke truk baru.
     Timbang kosong atau Lepas manual pada line TERAKHIR yang memegang truk memasang truk
     berikutnya. Setelannya di `sync_state` (`setelan_penugasan_line`, selamat dari Danger
-    Zone), **mati sampai support menyalakannya** (bawaan mati, supaya pembaruan tidak mengubah
-    cara kerja pabrik di hari ia terpasang: selama mati strip antrean bongkar tidak tampil),
-    dan hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
+    Zone). **Bawaannya NYALA di semua line sejak 2026-10-05** (permintaan user; sebelumnya mati
+    sampai support menyalakannya, keputusan D13): konsol yang belum pernah menyimpan saklar ini
+    langsung menugaskan truk saat timbang isi. Baris tersimpan yang tidak terbaca dibaca MATI
+    (`domain/penugasan_line._tak_terbaca`), bukan bawaan. Selama mati strip antrean bongkar
+    tidak tampil. Hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
     saklar nyala langsung menjalankan `isi_line_otomatis()` (truk yang sudah menunggu naik
     sekarang); rute itu `async def` karena bertanya ke line (aturan 30). `baca_setelan` tidak pernah melempar (dibaca tiap polling
     `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.

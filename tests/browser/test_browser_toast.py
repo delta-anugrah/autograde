@@ -15,7 +15,7 @@ import json
 import re
 
 import pytest
-from langkah import OPERATOR, SUPPORT, buka_tab, kamus, masuk
+from langkah import OPERATOR, SUPPORT, buka_setelan, buka_tab, kamus, masuk
 from playwright.sync_api import expect
 
 _SEJAJAR_PX = 2
@@ -69,7 +69,7 @@ def _setelan_lewat(halaman, semua_sampai: bool) -> None:
 @pytest.mark.parametrize("semua_sampai", [True, False])
 def test_setelan_saved_is_a_toast_not_a_yellow_box(halaman, lines, semua_sampai):
     _masuk_tanpa_toast_lama(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
+    buka_setelan(halaman, "grading")
     expect(halaman.locator("#set-conf")).not_to_have_value("")
     _setelan_lewat(halaman, semua_sampai)
     halaman.fill("#set-conf", "0.6")
