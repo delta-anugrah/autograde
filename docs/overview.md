@@ -403,7 +403,9 @@ still runs (`health.detail.camera_connected=false`), `FrameCaptureWorker` retrie
 
 **Docker-only** (no host venv). Volumes: `.:/app` (hot-reload), anonymous `/app/.venv` (shadow host),
 `./artifacts/line-N:/app/artifacts`, `./models:/app/models:ro`. `entrypoint.sh` lives at `/entrypoint.sh`
-(outside `/app`, so the `.:/app` mount can't shadow it). `load_dotenv(override=False)` in `main.py`;
+(outside `/app`, so the `.:/app` mount can't shadow it). The image also carries `/app/.sidik-image.json`
+(sha256 of every file in `/app/src`, `/app/config`, `/app/scripts` and `/entrypoint.sh`, written last
+in the Dockerfile): the factory launcher checks a downloaded image against it before installing. `load_dotenv(override=False)` in `main.py`;
 docker-compose `environment:` always wins over host `.env`.
 
 **Shared image:** `ripe-line-1` and `console` have `build:` + `image: palmgrade-vision:latest`; line-2/3
