@@ -18,6 +18,23 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · vision · Batch 6.1: a frame's boxes are read once (PR #227)
+Changed:        `pipelines/kotak_deteksi.baca_kotak` moves a frame's boxes to the CPU once
+                (`boxes.cpu().numpy()`); the three scans and the DEBUG line of
+                `FrameProcessingWorker` read that list. Before, every value was a `.item()` or
+                `.tolist()` on the device (43 reads for a frame of 4 boxes). No decision changed.
+                New `scripts/bench_baca_kotak.py`.
+Validated:      Golden file written by the worker before the change (48 seeded conveyors, 410
+                bunches, 72 stalks paired, 31 late stalks) matches after it; old reading swapped
+                back in gives the same trace; mutations fail the tests. unit 4707 passed, e2e 390,
+                integration 166, ruff clean. Benchmark on the MacBook (M2), microseconds per frame,
+                6 boxes: CPU 312.3 to 11.6, MPS 8,631.9 to 213.4.
+Not validated:  The factory PC (RTX 3060, CUDA) was not measured. No real model, no TensorRT engine,
+                no line started.
+Decisions:      `draw_boxes` still reads per value (once per saved bunch and per display frame); left
+                for a follow-up so this PR stays on the detection loop.
+Next:           Run `scripts/bench_baca_kotak.py` inside a line container in Lampung for the CUDA number.
+
 ## 2026-10-04 · console · Batch 6.5: lines read side by side, one kept HTTP client (PR #228)
 Changed:        `LineStatusWorker` asks the three lines at the same time (`asyncio.gather`, one loop
                 per line in `run_loop`); an answer is recorded when it arrives. An unreadable answer
