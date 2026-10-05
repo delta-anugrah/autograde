@@ -18,6 +18,17 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · docs · The camera frame at Lampung is 1224x1024, not 2448x2048 (PR #TBD)
+Changed:        Rule 1b, the save queue sizing, the capture line trap (`CLAUDE.md`, `docs/overview.md`,
+                `docs/rules.md`), `docs/MANUAL.md`, `docs/backend-overview.md` and code comments now
+                say what reaches a line: 1224x1024 (binning 2x2 in `config/camera/hikrobot.mfs`), with
+                2448x2048 only for the sensor or when binning is off. Benchmarks default to 1224x1024
+                (`bench_display.py` also keeps 2448x2048 and 1280x720; `bench_simpan_foto.py --ukuran`).
+Validated:      newest capture on the Lampung PC read with cv2: `(1024, 1224, 3)`. unit 4822 passed, ruff clean.
+                No behaviour change: every scale already reads the frame's own size.
+Not validated:  `docs/MANUAL.pdf` not rebuilt (it already lags `MANUAL.md`).
+Next:           None.
+
 ## 2026-10-05 · release · Images carry their own fingerprint list (PR #240)
 Changed:        `scripts/tulis_sidik_image.py` writes `/app/.sidik-image.json` (sha256 of every file in
                 `/app/src`, `/app/config`, `/app/scripts`, `/entrypoint.sh`) as the last Dockerfile step.

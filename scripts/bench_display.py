@@ -3,7 +3,8 @@
     .venv/bin/python scripts/bench_display.py
 
 Real cv2 and the real `RealtimeInspectionPipeline` drawing code on a sensor-size frame
-(`images/sample_sawit.jpg` enlarged to 2448x2048), with boxes handed in as plain objects (no
+(`images/sample_sawit.jpg` at the camera frame size at Lampung, 1224x1024 with binning 2x2,
+and at the full sensor 2448x2048 for comparison), with boxes handed in as plain objects (no
 model, no GPU, no camera). Three ways are timed:
 
 * old: copy the full frame, draw the boxes on it, shrink, draw line and ROI, encode;
@@ -34,7 +35,8 @@ from palmgrade.pipelines.realtime_inspection_pipeline import RealtimeInspectionP
 from palmgrade.workers.display_worker import DisplayWorker  # noqa: E402
 from palmgrade.workers.runtime_state import RuntimeState  # noqa: E402
 
-SENSOR = (2448, 2048)
+KAMERA = (1224, 1024)   # what reaches a line at Lampung (binning 2x2)
+SENSOR = (2448, 2048)   # full sensor, binning off
 STREAM = (1280, 720)
 PUTARAN = 400
 FPS_STREAM = 12
@@ -73,7 +75,7 @@ class _Hasil:
 
 
 def _settings() -> Settings:
-    # The style used for the 2448x2048 frame, a capture line and an ROI box, as on a line.
+    # The factory style (`.env` at Lampung), a capture line and an ROI box, as on a line.
     return replace(
         Settings(), stream_width=STREAM[0], stream_height=STREAM[1],
         border_thickness=8, font_scale=2.5, font_thickness=5,
@@ -129,7 +131,7 @@ def main() -> None:
     kecil = cv2.imread(str(AKAR / "images" / "sample_sawit.jpg"))
     print(f"cv2 {cv2.__version__}, {PUTARAN} renders, median, milliseconds per render\n")
     print(f"{'source frame':<16}{'boxes':>6}{'old':>9}{'new':>9}{'saved':>9}{'new, nobody watching':>24}")
-    for ukuran in (SENSOR, STREAM):
+    for ukuran in (KAMERA, SENSOR, STREAM):
         frame = cv2.resize(kecil, ukuran, interpolation=cv2.INTER_CUBIC)
         for jumlah in (0, 2, 6):
             results = _Hasil(jumlah, ukuran)

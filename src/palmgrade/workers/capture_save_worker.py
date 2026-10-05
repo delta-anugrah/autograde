@@ -4,7 +4,9 @@ Kenapa ini ada sebagai thread terpisah, dan bukan sekadar beberapa baris di
 dalam `FrameProcessingWorker`: menyimpan satu janjang memakan **~590 ms** pada
 frame kamera 2448x2048 (diukur di PC Lampung 2026-09-17, dari selisih mikrodetik
 antara nama file dan mtime tiap berkasnya). 570 ms dari angka itu adalah dua
-encode WebP — single-thread di cv2, tanpa knob kecepatan.
+encode WebP, single-thread di cv2, tanpa knob kecepatan. (Frame yang sampai ke line di
+Lampung sekarang 1224x1024, binning 2x2 di `config/camera/hikrobot.mfs`: satu janjang 175 ms,
+95 ms sejak batch 6.2, diukur 2026-10-05.)
 
 Selama 590 ms itu, dulu, deteksi BERHENTI. Bukan melambat: loop-nya memang
 memanggil encode secara lurus. Tiga akibatnya, dan tidak satu pun pernah muncul
@@ -51,9 +53,9 @@ logger = logging.getLogger(__name__)
 # rata-rata antrean ini praktis tidak pernah terisi; dia ada untuk **lonjakan**,
 # saat beberapa janjang lewat ROI beruntun.
 #
-# Yang membatasi dari atas: tiap SaveJob menahan DUA frame 2448x2048 BGR = 28,7
-# MB yang belum boleh dilepas GC. Delapan dalam = 230 MB per line, 689 MB untuk
-# tiga line — murah dari RAM 31 GB, dan cukup menampung ~5 detik lonjakan
+# Yang membatasi dari atas: tiap SaveJob menahan DUA frame BGR yang belum boleh
+# dilepas GC: 7,5 MB pada 1224x1024 (binning di Lampung), 28,7 MB tanpa binning.
+# Delapan dalam = 60 MB per line (230 MB tanpa binning): murah dari RAM 31 GB, dan cukup menampung ~5 detik lonjakan
 # beruntun. Puluhan dalam baru mulai berarti buat RAM sekaligus cuma menunda
 # kabar buruk.
 #

@@ -197,7 +197,7 @@ yang muncul sesudahnya tidak pernah terhitung dan angkanya diam-diam terlalu kec
 Arah gerak DI DALAM satu sumbu tidak perlu disetel: pemicunya perpotongan, berlaku dari sisi
 mana pun, jadi conveyor yang membalik arah tetap jalan tanpa satu pun perubahan.
 ⚠️ Sumbu mendatar diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame
-2448x2048 tidak persegi, jadi memakai lebar membuat garis meleset ~19% tanpa satu pun error.
+kamera (1224x1024, rasio sama dengan sensor 2448x2048) tidak persegi, jadi memakai lebar membuat garis meleset ~19% tanpa satu pun error.
 ⚠️ Sumbu yang tidak dikenal **tidak melempar** di jalur deteksi (jatuh ke `tegak`): nilainya
 bisa datang dari konsol versi lain, dan satu string asing tidak boleh menghentikan grading.
 Yang menolak nilai aneh adalah jalur SIMPAN, di gerbang, sebelum sampai ke tiga line.

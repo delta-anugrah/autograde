@@ -59,7 +59,10 @@ end of this file.
    dilewati (WARNING). Sidecar janjang tanpa gambar juga diracun, bukan `done`.
 1b. **Thread deteksi tidak pernah menunggu disk** (sejak 2026-09-18). Encode WebP frame sensor penuh
    memakan **~285 ms per gambar**, dan satu janjang menulis tiga gambar + sidecar + baris outbox:
-   **~590 ms** diukur di PC Lampung 2026-09-17. Selama itu dulu deteksi BERHENTI, dan tiga akibatnya
+   **~590 ms** diukur di PC Lampung 2026-09-17. Angka itu cocok dengan frame penuh 2448x2048; frame
+   yang sampai ke line di Lampung sekarang **1224x1024** (binning 2x2 di `config/camera/hikrobot.mfs`,
+   dicek pada foto terbaru 2026-10-05), dan satu janjang di sana 175 ms, 95 ms sejak batch 6.2
+   (`scripts/bench_simpan_foto.py --gambar <foto clean>`). Selama itu dulu deteksi BERHENTI, dan tiga akibatnya
    semuanya senyap: `frame_queue` (drop-oldest, nol log) membuang ~12 frame per janjang di kamera 20
    fps, ByteTrack kehilangan jejak lalu memberi track id baru pada janjang yang sama (tonase dobel),
    dan layar operator membeku ~1 detik. Sekarang `FrameProcessingWorker` cuma `submit()` satu
@@ -76,8 +79,9 @@ end of this file.
    Antrean **8 dalam, drop yang terbaru + `logger.error`**: menahan deteksi sampai antrean lega akan
    mengembalikan persis lag yang dihilangkan. Angkanya dari dua ukuran: beban nyata **300
    janjang/jam/line** (satu tiap 12 detik, sementara penulis butuh ~0,6 detik, jadi antrean ini
-   untuk **lonjakan**, bukan laju rata-rata) dan biaya memorinya: tiap job menahan dua frame 14,3 MB,
-   jadi 8 dalam = 230 MB per line, 689 MB untuk tiga line dari RAM 31 GB. Antrean yang sering penuh
+   untuk **lonjakan**, bukan laju rata-rata) dan biaya memorinya: tiap job menahan dua frame (3,6 MB
+   masing-masing pada 1224x1024, 14,3 MB tanpa binning), jadi 8 dalam = 60 MB per line (230 MB
+   tanpa binning) dari RAM 31 GB. Antrean yang sering penuh
    berarti disk/CPU tidak mengimbangi laju grading, itu yang harus dibaca dari log, bukan ditambal
    dengan antrean lebih dalam lagi. Satu janjang >1 detik diadukan `logger.warning`
    (`tulis … ms, antre … ms, antrean=N`): itu alat ukur lapangannya.
@@ -1395,7 +1399,7 @@ memang khas satu mesin.
   mendatar, garis vertikal, angka px dari **kiri**; `mendatar` = conveyor menurun, garis
   horizontal, angka px dari **atas**. Arah gerak DI DALAM satu sumbu tidak perlu disetel,
   pemicunya perpotongan, jadi conveyor yang membalik arah tetap jalan. ⚠️ Sumbu mendatar
-  diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame 2448x2048 tidak
+  diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame kamera (1224x1024, rasio sama dengan sensor 2448x2048) tidak
   persegi, jadi memakai lebar meleset ~19% tanpa satu pun error.
 - **Teks layar dan dokumen tanpa em dash (`—`) dan tanpa `" - "` sebagai jeda kalimat** (permintaan user
   2026-09-26: terasa ditulis mesin). Pecah kalimat dengan titik, koma, titik dua, atau kurung.
