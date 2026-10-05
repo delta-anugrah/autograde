@@ -470,10 +470,11 @@ end of this file.
     (`pastikanTabTersedia`). Dulu cuma dibuang: operator yang mewarisi tab Setelan dapat
     layar kosong, dan support sesudahnya harus memuat ulang halaman (tes staging 2026-09-28).
     **Sembilan tab sejak 2026-09-28** (dulu 15, "tab kebanyakan"): **Rekap** = Rekap + Riwayat
-    (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean line + Antrean ERP
-    bertumpuk,
-    **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat tombol
-    pilihan (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang
+    (dibuka di Hari ini, Per truk), **Status** = lima sub-tab sejak 2026-10-05 (Versi & pembaruan,
+    Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2; `SUB_STATUS`, diingat
+    `subStatus`, satu bagian tampil sekaligus; dulu bertumpuk),
+    **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat sub-tab
+    bergaris bawah (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang
     masih tersimpan dipetakan `tabDariSimpanan`/`TAB_LAMA`, bukan jatuh ke Grading. Timer ikut
     yang terlihat (`bukaTabDev`): diagnostik 5 s di Status, PLC 1 s dan rekam 3 s cuma di
     pilihan Line-nya, Rekap 15 s (`segarkanRekap`) hanya kalau rentangnya memuat hari ini dan

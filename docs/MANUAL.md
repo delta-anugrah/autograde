@@ -426,7 +426,7 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 
 Sejak 2026-09-28 tab-tabnya digabung (dulu sepuluh). Nama lama yang mungkin masih tertulis di
 runbook: **Diagnostik, Antrean ERP, Versi** → tab **Status**; **Sumber Kamera, Model Deteksi,
-Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riwayat** → tab
+Uji PLC, Rekam Video** → tab **Line** (empat sub-tab di atasnya); **Riwayat** → tab
 **Rekap** (operator). Tab lama yang masih diingat browser dibuka di tempat barunya.
 
 Tab **Status**, **Line**, dan **Setelan** punya baris sub-tab di bawah baris tab utama, sama
