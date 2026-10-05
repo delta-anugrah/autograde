@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.16"
+versi: "2.17"
 tanggal: 5 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -426,7 +426,7 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 
 Sejak 2026-09-28 tab-tabnya digabung (dulu sepuluh). Nama lama yang mungkin masih tertulis di
 runbook: **Diagnostik, Antrean ERP, Versi** → tab **Status**; **Sumber Kamera, Model Deteksi,
-Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riwayat** → tab
+Uji PLC, Rekam Video** → tab **Line** (tombol pilihan di atasnya; sejak 2026-10-05 ditambah **Setelan Kamera**); **Riwayat** → tab
 **Rekap** (operator). Tab lama yang masih diingat browser dibuka di tempat barunya.
 
 | Tab | Isi |
@@ -439,6 +439,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Status**, bagian Manifest R2 | antrean manifest foto per truk ke R2, tabel sendiri di bawah Antrean ERP; kalau R2 belum disetel tertulis begitu, bukan angka nol |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
 | **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik); kotak kamera line itu menulis "sedang dinyalakan ulang" sampai gambarnya muncul lagi (§3.2) |
+| **Line** → Setelan Kamera | (support) nilai yang **sedang dipakai** kamera Hikrobot tiap line, ditanyakan langsung ke kameranya: exposure, gain, black level, white balance, frame rate, plus exposure otomatis dan gain otomatis. Angka diikuti rentang yang diterima kamera itu. Baris yang ditolak kamera menulis **tidak didukung kamera ini**, baris lain tetap tampil. Baris terakhir **Sumber setelan**: **Setelan bawaan** (berkas `.mfs` dari `.env`) atau **Tersimpan dari konsol**. Line video, foto, atau webcam menulis bahwa sumbernya bukan kamera Hikrobot; kamera yang sedang putus atau menyambung ulang menulis **Kamera tidak menjawab** (tekan **Baca ulang** sebentar lagi); line versi lama atau mati memakai kalimat yang sama dengan kartu Diagnostik. **Baca saja**: mengubah setelan masih lewat MVS sampai versi berikutnya |
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; hasilnya notifikasi (hijau coil menyala, kuning coil tidak menyala karena antrean pulse PLC penuh); heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Stop menulis dulu gambar yang sudah antre saat tombol ditekan (paling banyak 30 gambar; di Mac sekitar 0,6 detik, belum diukur di Lampung); yang berhenti karena disk mepet tetap berhenti seketika. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
@@ -1006,6 +1007,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.17 | 5 Oktober 2026 | Tab Line, pilihan baru **Setelan Kamera** (support): nilai yang sedang dipakai kamera tiap line, baca saja. |
 | 2.16 | 5 Oktober 2026 | Tab Setelan, bagian baru **Tampilan video**: **Ukuran tulisan label (%)** untuk tulisan kelas di atas kotak deteksi pada video (100 = bawaan). |
 | 2.15 | 5 Oktober 2026 | §3.4 dan §3.5: slip grading per truk yang bisa dicetak dari tab Rekap, dinyalakan support di tab Setelan. |
 | 2.14 | 5 Oktober 2026 | §3.4: saringan **Line** dan **Truk** di tab Grading; tabel Grading dan Riwayat memuat foto kecil, foto penuh hanya saat diklik. |
