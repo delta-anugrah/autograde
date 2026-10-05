@@ -775,7 +775,7 @@ tempat: DocType **`AutoGrade Operator`** di AutoERP (ditarik §4.A) dan akun **l
 pabrik: yang ditarik `password_hash`-nya, bukan sandinya, dan itulah sebabnya field-nya `Data`
 biasa: fieldtype `Password` hidup di `__Auth` yang Frappe sengaja tidak pernah layani lewat REST,
 jadi tidak akan ada yang bisa ditarik. Dua skema berdampingan: `pbkdf2_sha256` milik AutoERP
-(dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi 12 jam (`sesi`), lockout berlipat dua
+(dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi geser 12 jam sejak aktivitas terakhir (`sesi`, aturan 19), lockout berlipat dua
 sesudah lima kali salah, dan `requested_by` Reject Manual sekarang nama operator yang masuk,
 bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`, dan sejak
 2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `docs/rules.md`

@@ -225,6 +225,47 @@ def test_a_session_lasts_a_shift_and_not_a_day(tmp_path):
     assert auth.current(token) is None
 
 
+def test_an_operator_who_keeps_working_is_not_signed_out_mid_shift(tmp_path):
+    """Batch 5.7: the mill runs about 20 hours. Activity slides the end of the session."""
+    auth, _, clock = _auth(tmp_path)
+    token, _ = auth.login(EMAIL, SANDI)
+
+    clock[0] += 11 * 60 * 60
+    assert auth.renew(token) == {"sisa_detik": 12 * 60 * 60}
+    clock[0] += 11 * 60 * 60
+
+    assert auth.current(token) is not None
+    clock[0] += 60 * 60 + 1
+    assert auth.current(token) is None, "12 hours without activity still ends it"
+
+
+def test_an_ended_session_cannot_be_renewed(tmp_path):
+    auth, store, clock = _auth(tmp_path)
+    token, _ = auth.login(EMAIL, SANDI)
+    clock[0] += 12 * 60 * 60 + 1
+
+    assert auth.renew(token) is None
+    assert auth.current(token) is None, "a renew that came too late does not bring it back"
+    assert auth.renew(None) is None and auth.renew("tidak-pernah-ada") is None
+
+
+def test_a_switched_off_operator_cannot_renew(tmp_path):
+    auth, store, _ = _auth(tmp_path)
+    token, _ = auth.login(EMAIL, SANDI)
+    store.set_operator_status(operator_id_for(EMAIL), "off")
+
+    assert auth.renew(token) is None
+
+
+def test_the_session_says_how_long_it_has_left(tmp_path):
+    """Seconds left, not a clock time: the browser's clock may be off from the console's."""
+    auth, _, clock = _auth(tmp_path)
+    token, _ = auth.login(EMAIL, SANDI)
+    clock[0] += 60 * 60
+
+    assert auth.current(token)["sisa_detik"] == 11 * 60 * 60
+
+
 def test_signing_out_ends_the_session_at_once(tmp_path):
     auth, _, _ = _auth(tmp_path)
     token, _ = auth.login(EMAIL, SANDI)

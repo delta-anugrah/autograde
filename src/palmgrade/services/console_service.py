@@ -42,7 +42,7 @@ from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, OPSIONAL, bersihkan_setelan
 from ..domain.sinkron import gabung_cloud
 from ..domain.vision_event import prediction_for, verdict_of
-from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, work_date_for
+from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, awal_kunjungan, work_date_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
@@ -265,7 +265,6 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             "work_date": work_date,
             "timezone": self.settings.factory_tz,
             "lines": lines,
-            "recent": self.history(work_date, limit=20),
             # Ringkasan timbangan hari kerja ini untuk strip "Hari ini". Dari
             # tabel yang sama dengan tab Timbangan, jadi begitu program timbangan
             # tersambung angkanya ikut tanpa perubahan layar.
@@ -363,7 +362,9 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         }
 
     def trucks(self) -> list[dict[str, Any]]:
-        return [_with_source_label(row) for row in self.store.trucks()]
+        # `di_lokasi` (batch 5.6): weighed in, not yet out. The screen lists those first.
+        di_lokasi = self.store.trucks_with_open_ticket(awal_kunjungan(self.sekarang()))
+        return [{**_with_source_label(r), "di_lokasi": r["id"] in di_lokasi} for r in self.store.trucks()]
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
         rows = self.tandai_tanpa_scan_4(self.store.weighings(work_date, limit=limit)) + self.kunjungan_terbawa(work_date)

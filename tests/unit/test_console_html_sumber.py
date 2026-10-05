@@ -78,8 +78,8 @@ def test_dropdown_berkas_punya_lebar_dan_boleh_menciut():
     pun galat yang membantah. Terjadi 2026-09-21: diukur 0 px di kartu yang
     barisnya baru dibuka.
     """
-    blok = HTML.split(".sumber-berkas select", 1)
-    assert len(blok) == 2, "aturan `.sumber-berkas select` hilang dari CSS"
+    blok = HTML.split(".sumber-berkas .pilih", 1)
+    assert len(blok) == 2, "aturan `.sumber-berkas .pilih` hilang dari CSS"
     aturan = blok[1].split("}", 1)[0]
     assert "width:100%" in aturan
     assert "min-width:0" in aturan

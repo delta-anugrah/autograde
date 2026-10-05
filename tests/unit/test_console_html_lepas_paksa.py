@@ -47,8 +47,8 @@ def test_the_slot_takes_no_room_of_its_own():
 
 
 def test_the_poll_redraws_the_slot_only_when_it_changes():
-    refresh = fungsi("refresh")
-    assert 'tulisKalauBeda(c.querySelector(".slot-lepas"), tombolLepas(l))' in refresh
+    assert 'tulisKalauBeda(c.querySelector(".slot-lepas"), tombolLepas(l))' in fungsi("perbaruiKartu")
+    assert "perbaruiKartu(c, l)" in fungsi("refresh")
 
 
 def test_the_click_asks_first_then_locks_then_posts():
