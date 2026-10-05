@@ -27,6 +27,36 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 | Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk); empat tombol pilihan `#line-sub` = grid 4 kolom selebar panel, 2 x 2 di bawah 600 px |
 | Setelan | support | `muatSetelan` (+ `muatPenugasan`) | setelan grading, garis capture, dua saklar tampilan `#set-tampil-garis` / `#set-tampil-roi` (2026-10-04: sembunyikan GAMBAR garis capture dan kotak ROI di video untuk semua line; deteksi dan pemotretan tidak berubah; bawaan nyala, `r.tampil_* !== false` supaya server lama tetap tercentang); grup Kamera & Conveyor = tiga `<fieldset class="setelan-sub">` (Conveyor, Garis capture, Kotak area deteksi) dalam `.setelan-tiga` (3fr 4fr 5fr mulai 1100 px, satu kolom di bawahnya; empat sisi kotak satu baris); kotak area deteksi (ROI) diatur lewat `#set-roi-x1/y1/x2/y2` (`KOTAK_ROI`): keempatnya kosong dikirim `null` = line memakai `ROI_*` dari `.env`, `0` semua = seluruh gambar, `domain/setelan_grading._kotak` menolak kotak tanpa luas; tes `tests/browser/test_browser_setelan.py`, **Penugasan line** (saklar + line pilihan, tombol simpan sendiri, `GET/POST /api/console/dev/auto-assign`, hasil simpan lewat toast), Danger Zone. Selalu paling kanan |
 
+- Data segar tanpa refresh (batch 5.3, 5.4, 5.8, 6.4; 2026-10-04):
+  - `refresh` mengambil giliran lewat `kunciRefresh` (`kunciAntre`): satu tarikan pada satu
+    waktu, panggilan sesudah aksi antre di belakang yang sedang jalan. Timer memanggil
+    `detakRefresh` (detak dibuang selama masih ada tarikan); `muatTrucks` dan `muatTimbangan`
+    dibungkus `sekaliJalan`. Tanda tangan `async function refresh()` jangan diubah: banyak tes
+    memotongnya lewat teks itu, dan tes browser memanggil `refresh()` langsung.
+  - `ambil` memberi setiap permintaan batas waktu (`AbortSignal.timeout(batasJawab(opts))`:
+    GET 10 dtk, yang lain 60 dtk); habis waktu = `konsol_putus`. Tes node yang menjalankan
+    `ambil` harus ikut membawa `batasJawab` dan dua konstantanya.
+  - Kartu line diperbarui lewat satu fungsi, `perbaruiKartu(c, l)`, semuanya `tulisKalauBeda`:
+    `.truk`, `.slot-lepas`, `.slot-piston` (`display:contents`), `.slot-pita-piston`, `.slot-ai`.
+    Render pertama memanggilnya juga supaya poll berikutnya punya pembanding. Tabel Grading
+    (`#recent`) dan nomor halamannya ditulis lewat `tulisKalauBeda`; `/api/console/state` tidak
+    lagi membawa `recent`, sumbernya cuma `/api/console/history`.
+  - Dropdown yang sudah di layar diisi ulang lewat `isiUlangPilih(root, opsi)` (baris dari
+    `barisPilih`, pilihan dipertahankan, daftar yang sedang terbuka dilewati sampai tertutup).
+    Daftar truk kartu: `opsiTrukKartu` + `segarkanPilihTruk` (dipanggil `isiTrucks` dan tiap poll).
+  - Line bertambah atau berkurang di server = kartu digambar ulang (`kartuSesuai`, `daftarSama`).
+  - `cekVersiBaru(s.versi)`: versi beda dari saat halaman dimuat = `location.reload()`, ditunda
+    selama `amanMuatUlang()` palsu (dialog terbuka, tombol `.sibuk`, isian sedang diketik).
+    `/console` dikirim dengan `Cache-Control: no-cache`.
+  - Indikator basi: `catatSegar(berhasil)` dari `refresh` (bukan untuk `belum_masuk`),
+    `#segar` di bawah jam (`segarPada` / `basiSejak`), `GAGAL_SAMPAI_BASI` 3 poll gagal =
+    `body[data-basi="1"]` yang mengabu-abukan `#tally`, `.counts`, `.card .body`, antrean bongkar
+    dan semua tabel (bukan `.feed`: gambar kamera datang dari line).
+  - Tombol `#segarkan` di header (`segarkanSemua`): semua poll + pemuat tab yang terbuka.
+    Ganti bahasa juga memuat ulang tab yang terbuka (`muatUlangTabTerbuka`), kecuali Setelan dan
+    Line (`TAB_TANPA_MUAT_ULANG`: form, isian support tidak boleh hilang).
+  - Tes: `test_console_html_data_segar.py`, `tests/integration/test_data_segar_integrasi.py`,
+    `tests/e2e/test_data_segar_lane.py`, `tests/browser/test_browser_data_segar.py`.
 - Penugasan otomatis (aturan 36): strip **Antrean bongkar** `#antrean-bongkar` di atas kartu line di tab
   Grading (`htmlAntreanBongkar` / `gambarAntreanBongkar`, tombol `data-aksi="pasang"|"lewati"`,
   routes `/api/console/unloading-queue/{id}/assign|skip`), dari kunci `antrean_bongkar` dan

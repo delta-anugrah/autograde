@@ -136,12 +136,20 @@
                                     letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
   #pembaruan-isi .pembaruan-ket, #pembaruan-isi .pembaruan-syarat { margin:4px 0 0; }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
-  .jam { display:flex; align-items:baseline; gap:8px; }
+  .jam { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 8px; }
+  /* Batch 5.8: when the numbers on this screen were last read from the console. Red and
+     bold once the polls keep failing: the clock beside it still ticks, the data does not. */
+  #segar { flex-basis:100%; font-size:.72rem; color:var(--muted); }
+  #segar[data-basi="1"] { color:var(--danger-fg); font-weight:700; }
+  body[data-basi="1"] :is(#tally, .counts, .card .body, .antrean-bongkar, table) {
+    filter:grayscale(1); opacity:.45; }
   /* `flex-wrap`: on a 390 px phone the account name and three buttons are wider than the bar,
      and without it the whole page scrolled sideways by 19 px (found 2026-10-03). */
   #topbar .aksi { margin-left:auto; display:flex; flex-wrap:wrap; justify-content:flex-end;
                   gap:8px; max-width:100%; }
   #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
+  /* Icon only: round, as wide as it is tall. */
+  #topbar .aksi #segarkan { min-width:2.6rem; padding:0; }
   /* Sign-out (`#keluar`) is last in the row and wears `button.bahaya`: it drops a
      shift's screen back to the login gate, so it must never be the button a gloved
      hand hits while reaching for the language or theme toggle. */
@@ -895,6 +903,8 @@
   .assign button { min-width:0; padding-left:8px; padding-right:8px; }
   /* Lepas or Lepas paksa (tombolLepas), rewritten by the poll: the slot itself is no box. */
   .slot-lepas { display:contents; }
+  /* The piston button (tombolPiston) sits in a slot of the same kind (batch 5.4). */
+  .slot-piston { display:contents; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
                   border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
@@ -947,7 +957,7 @@
      `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
      bukan mendorong tombol tetangganya. */
   .aksi-line { display:flex; gap:8px; }
-  .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px;
+  .slot-piston > button, .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px;
                         display:flex; align-items:center; justify-content:center; }
   /* Setengah kartu itu sempit: spasi huruf dan petunjuk pintas dibuat lebih
      rapat supaya "REJECT MANUAL" + pintasnya masih satu baris di layar 1680 px
@@ -1618,11 +1628,14 @@
     <h1>AutoGrade</h1>
     <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button>
   </div>
-  <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
+  <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span>
+    <span id="segar" role="status" hidden></span></span>
   <span class="aksi">
     <span id="operator-aktif" hidden></span>
     <!-- Ikon di tiap tombol (user 2026-10-04): bola dunia = bahasa, lingkaran setengah = tema,
          pintu = keluar. Katanya di span, supaya ganti bahasa/tema tidak menghapus ikonnya. -->
+    <!-- Batch 5.3: every part of the screen refreshes itself; this is the spare. -->
+    <button id="segarkan" class="tombol-ikon" data-t-lb="tombolSegarkan" data-t-title="tombolSegarkan"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.5L21 15"/><path d="M21 20v-5h-5"/></svg></button>
     <button id="bahasa" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="bahasa-teks">EN</span></button>
     <button id="tema" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg><span id="tema-teks">Terang</span></button>
     <button id="keluar" class="bahaya tombol-ikon" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span id="keluar-teks" data-t="tombolKeluar">Keluar</span></button>
@@ -3003,6 +3016,9 @@ const KAMUS = {
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
+    segarPada:"Diperbarui {jam}", basiSejak:"Data lama, terakhir diperbarui {jam}",
+    tombolSegarkan:"Segarkan data", sukSegarkan:"Data sudah diperbarui",
+    gagalSegarkan:"Data belum bisa diperbarui. Konsol belum menjawab, coba lagi sebentar.",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     grupMenungguTimbang:"Menunggu timbang", grupTrukLain:"Truk lain",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
@@ -3494,6 +3510,9 @@ const KAMUS = {
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
+    segarPada:"Updated {jam}", basiSejak:"Old data, last updated {jam}",
+    tombolSegarkan:"Refresh data", sukSegarkan:"Data refreshed",
+    gagalSegarkan:"The data could not be refreshed. The console is not answering, try again shortly.",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     grupMenungguTimbang:"Waiting to weigh", grupTrukLain:"Other trucks",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
@@ -3866,7 +3885,17 @@ $("bahasa").addEventListener("click", async () => {
   gambarUlangRiwayat();
   await refresh();
   await muatTimbangan();
+  await muatUlangTabTerbuka();
 });
+
+// Tabs whose tables are drawn in JS keep the old language until they are loaded again
+// (batch 5.3). Setelan and Line are forms: loading them again would throw away what
+// support is typing, and their labels are translated in place by `data-t`.
+const TAB_TANPA_MUAT_ULANG = ["setelan", "line"];
+function muatUlangTabTerbuka() {
+  if (!MUAT_TAB[tab] || TAB_TANPA_MUAT_ULANG.includes(tab)) return undefined;
+  return MUAT_TAB[tab]();
+}
 
 $("tema").addEventListener("click", () => {
   tema = tema === "terang" ? "gelap" : "terang";
@@ -3882,10 +3911,9 @@ $("tema").addEventListener("click", () => {
 // An option may carry `grup` (a section header is written where it changes; the header is
 // not an option, so the arrow keys skip it) and `catatan` (a note on the right, such as
 // the minutes waited, which the closed trigger leaves out: it would go stale there).
-function komponenPilih(opsi, terpilih, id) {
-  const aktif = opsi.find((o) => o.v === terpilih) || opsi[0];
+function barisPilih(opsi, terpilih) {
   let grup;
-  const baris = opsi.map((o) => {
+  return opsi.map((o) => {
     const kepala = o.grup && o.grup !== grup
       ? `<div class="pilih-grup" role="presentation">${esc(o.grup)}</div>` : "";
     grup = o.grup;
@@ -3893,14 +3921,31 @@ function komponenPilih(opsi, terpilih, id) {
       : `<span class="pilih-catatan">${esc(o.catatan)}</span>`;
     return `${kepala}<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"${
       catatan ? ` data-teks="${esc(o.teks)}"` : ""}
-          aria-selected="${o.v === aktif.v}">${esc(o.teks)}${catatan}</div>`;
+          aria-selected="${o.v === terpilih}">${esc(o.teks)}${catatan}</div>`;
   }).join("");
+}
+
+function komponenPilih(opsi, terpilih, id) {
+  const aktif = opsi.find((o) => o.v === terpilih) || opsi[0];
   return `<div class="pilih"${id ? ` id="${esc(id)}"` : ""} data-nilai="${esc(aktif.v)}">
     <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
       <span class="pilih-teks">${esc(aktif.teks)}</span>
     </button>
-    <div class="pilih-panel" role="listbox" hidden>${baris}</div>
+    <div class="pilih-panel" role="listbox" hidden>${barisPilih(opsi, aktif.v)}</div>
   </div>`;
+}
+
+// A dropdown that is already on screen takes a new list (batch 5.3): only its rows are
+// written, and only when they changed, so the trigger keeps its focus and what was picked
+// stays picked. An open list is left alone, never rebuilt under the finger: the caller
+// runs on a poll and the list catches up on the first tick after it closes.
+function isiUlangPilih(root, opsi) {
+  if (root.dataset.buka === "1") return;
+  const aktif = opsi.find((o) => o.v === root.dataset.nilai) || opsi[0];
+  tulisKalauBeda(root.querySelector(".pilih-panel"), barisPilih(opsi, aktif.v));
+  root.dataset.nilai = aktif.v;
+  const teks = root.querySelector(".pilih-teks");
+  if (teks.textContent !== aktif.teks) teks.textContent = aktif.teks;
 }
 
 const tombolPilih = (root) => root.querySelector(".pilih-tombol");
@@ -4132,8 +4177,10 @@ async function muatGrading() {
       gradingOffset = Math.max(0, gradingOffset - per);
       return muatGrading();
     }
-    $("recent").innerHTML = r.items.length
-      ? r.items.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
+    // Only when it changed (batch 5.4): this runs every 2 s on page 1, and a rewrite of the
+    // same rows asked for every photo again and swallowed a tap on one.
+    tulisKalauBeda($("recent"), r.items.length
+      ? r.items.map(barisRecent).join("") : barisKosong(7, "kosongGrading"));
     segarkanHalaman();
   } catch (e) { /* the gate is already up on 401; the screen keeps working */ }
 }
@@ -4148,7 +4195,7 @@ function segarkanHalaman() {
     .replace("{dari}", dari).replace("{sampai}", sampai).replace("{total}", gradingTotal);
   $("grading-prev").disabled = gradingOffset <= 0;
   $("grading-next").disabled = gradingOffset + per >= gradingTotal;
-  $("grading-nomor").innerHTML = tombolNomorHalaman();
+  tulisKalauBeda($("grading-nomor"), tombolNomorHalaman());
 }
 
 // How many page numbers show on each side of the current page. 653 pages
@@ -4309,9 +4356,22 @@ const LANE_GERBANG = new Set(["/api/console/operators", "/api/console/login", "/
 // fetch yang mengubah "tidak ada jawaban sama sekali" (konsol mati, jaringan putus) jadi
 // kode layar sendiri, `konsol_putus`: teks browser ("Failed to fetch", "NetworkError when
 // attempting to fetch resource") tidak pernah sampai ke layar (keputusan user 2026-10-01).
+//
+// Every request has a time limit (batch 6.4): a console that accepts the connection and
+// then never answers used to leave the poll waiting for good. A limit that runs out reads
+// as the same `konsol_putus`. A caller's own `signal` still wins.
+const BATAS_JAWAB_MS = 10000;
+const BATAS_JAWAB_UBAH_MS = 60000;
+
+// A read gives up sooner than a write: a write may wait for a line to answer the console.
+function batasJawab(opts) {
+  const metode = (opts && opts.method) || "GET";
+  return metode === "GET" ? BATAS_JAWAB_MS : BATAS_JAWAB_UBAH_MS;
+}
+
 async function ambil(path, opts) {
   try {
-    return await fetch(path, opts);
+    return await fetch(path, { signal: AbortSignal.timeout(batasJawab(opts)), ...opts });
   } catch (galat) {
     const putus = new Error(t("err_konsol_putus"));
     putus.kode = "konsol_putus";
@@ -4936,6 +4996,20 @@ $("pita-disk").addEventListener("click", (ev) => {
   if (!el.querySelector("p")) el.hidden = true;
 });
 
+// The truck list of a line card, also what the poll writes back into a card that is
+// already on screen (`segarkanPilihTruk`).
+function opsiTrukKartu() {
+  return [{ v: "", teks: t("pilihTruk") }]
+    .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
+}
+
+// Batch 5.3: a truck that arrived from AutoERP after the cards were drawn used to stay
+// out of the Tugaskan list until someone reloaded a kiosk that runs for days.
+function segarkanPilihTruk() {
+  const opsi = opsiTrukKartu();
+  $("lines").querySelectorAll(".assign .pilih").forEach((root) => isiUlangPilih(root, opsi));
+}
+
 // `sekarang` = jam render, dipakai `?t=` URL feed DAN cap `_dimintaPada`
 // (`capFeedBaru`), jadi tiap render = satu permintaan stream sungguhan.
 function kartuLine(l, sekarang = Date.now()) {
@@ -4948,8 +5022,7 @@ function kartuLine(l, sekarang = Date.now()) {
   // frozen picture after a language switch, truck registration, or login.
   const feed = l.port
     ? urlFeedBaru(`${location.protocol}//${location.hostname}:${l.port}/api/video_feed`, sekarang) : "";
-  const opsi = [{ v: "", teks: t("pilihTruk") }]
-    .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
+  const opsi = opsiTrukKartu();
   // line_code only rides along as data-line and is read via dataset - it never
   // enters an onclick attribute, so there is no JS string context to inject.
   return `<div class="card${aiMati(l) ? " ai-mati" : ""}${frameBerhenti(l) ? " frame-berhenti" : ""}" data-line="${esc(l.line_code)}">
@@ -4963,7 +5036,7 @@ function kartuLine(l, sekarang = Date.now()) {
         <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
       </span>
     </h2>
-    ${pitaPiston(l)}
+    <div class="slot-pita-piston">${pitaPiston(l)}</div>
     ${pitaKunciDitolak(l)}
     <div class="slot-ai">${pitaAi(l)}</div>
     ${feed ? `<div class="feed"><img src="${feed}" alt=""><div class="feed-putus"><span>${esc(t("kameraPutus"))}</span>${tombolSambungUlang(l)}</div><div class="slot-restart"></div></div>` : ""}
@@ -4983,7 +5056,7 @@ function kartuLine(l, sekarang = Date.now()) {
       </div>
       <div class="aksi-line">
         <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
-        ${tombolPiston(l)}
+        <span class="slot-piston">${tombolPiston(l)}</span>
       </div>
     </div>
   </div>`;
@@ -6572,12 +6645,134 @@ function gambarBannerLisensi(l) {
   el.textContent = t(kunci).replace("{hari}", hari).replace("{tanggal}", tanggal);
 }
 
+// ── data segar (batch 5.3, 5.4, 5.8, 6.4) ───────────────────────────────
+// A queue of one: `giliran()` resolves when every earlier holder has let go and hands back
+// the function that lets go. `sibuk()` = someone holds it or waits for it.
+function kunciAntre() {
+  let ekor = Promise.resolve();
+  let pemegang = 0;
+  return {
+    sibuk: () => pemegang > 0,
+    giliran() {
+      pemegang++;
+      const sebelum = ekor;
+      let lepas;
+      ekor = new Promise((selesai) => { lepas = () => { pemegang--; selesai(); }; });
+      return sebelum.then(() => lepas);
+    },
+  };
+}
+
+// For a timer: the tick is dropped while the run before it has not finished.
+function sekaliJalan(kerja) {
+  let berjalan = false;
+  return async () => {
+    if (berjalan) return;
+    berjalan = true;
+    try { await kerja(); } finally { berjalan = false; }
+  };
+}
+
+// The parts of a card the poll may change. Each is written only when its markup changed
+// (batch 5.4): the card used to be rewritten every 2 s, and a tap that landed on Lepas or
+// on the piston button during the swap was lost. `terapkanUrutan` repaints the P+n hint.
+function perbaruiKartu(c, l) {
+  if (!c) return;
+  tulisKalauBeda(c.querySelector(".truk"), isiTruk(l.assignment));
+  // Lepas, or Lepas paksa while the line does not answer and holds a truck.
+  tulisKalauBeda(c.querySelector(".slot-lepas"), tombolLepas(l));
+  // The piston button and ribbon follow what the PLC just confirmed, every poll.
+  tulisKalauBeda(c.querySelector(".slot-piston"), tombolPiston(l));
+  tulisKalauBeda(c.querySelector(".slot-pita-piston"), pitaPiston(l));
+  perbaruiAi(c, l);
+}
+
+function daftarSama(a, b) {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+function kartuSesuai(lines) {
+  const kartu = [...$("lines").children].map((c) => c.dataset.line);
+  return daftarSama(kartu, lines.map((l) => l.line_code));
+}
+
+// A kiosk kept running the old page after `autograde pull` put a new console behind it
+// (batch 5.3). The version rides the 2 s poll: once it differs from the one this page was
+// loaded with, the page loads itself again. Never in the middle of something.
+let versiHalaman = null;
+function perluMuatUlang(awal, kini) {
+  return Boolean(awal && kini && awal !== kini);
+}
+
+function sedangMengetik() {
+  const el = document.activeElement;
+  return Boolean(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && el.value);
+}
+
+function amanMuatUlang() {
+  return !document.querySelector("dialog[open]") && !document.querySelector(".sibuk") && !sedangMengetik();
+}
+
+function cekVersiBaru(versi) {
+  if (versiHalaman === null) { versiHalaman = versi || null; return; }
+  if (perluMuatUlang(versiHalaman, versi) && amanMuatUlang()) location.reload();
+}
+
+// Batch 5.8: a console that stopped answering left the old numbers on a screen whose clock
+// kept ticking. The header says when the data was last read; after this many failed polls
+// in a row (6 s) it turns red and the numbers and tables go grey.
+const GAGAL_SAMPAI_BASI = 3;
+let gagalBeruntun = 0;
+let segarPada = null;
+
+function dataBasi(gagal) {
+  return gagal >= GAGAL_SAMPAI_BASI;
+}
+
+function teksSegar(pada, basi) {
+  if (!pada) return "";
+  return t(basi ? "basiSejak" : "segarPada").replace("{jam}", waktu(new Date(pada)).split(" ")[1]);
+}
+
+function gambarSegar() {
+  const basi = dataBasi(gagalBeruntun);
+  const el = $("segar");
+  const teks = teksSegar(segarPada, basi);
+  if (el.textContent !== teks) el.textContent = teks;
+  el.hidden = !teks;
+  el.dataset.basi = basi ? "1" : "";
+  document.body.dataset.basi = basi ? "1" : "";
+}
+
+function catatSegar(berhasil) {
+  if (berhasil) { gagalBeruntun = 0; segarPada = Date.now(); }
+  else gagalBeruntun++;
+  gambarSegar();
+}
+
+// The spare (batch 5.3): every poll and the open tab, now.
+function segarkanSemua(tombol) {
+  return denganSibuk(tombol, async () => {
+    await Promise.all([muatTrucks(), refresh(), muatTimbangan()]);
+    if (MUAT_TAB[tab]) await MUAT_TAB[tab]();
+    if (gagalBeruntun === 0) toastSukses(t("sukSegarkan"));
+    else toastGagal(t("gagalSegarkan"));
+  });
+}
+
+$("segarkan").addEventListener("click", (ev) => segarkanSemua(ev.currentTarget));
+
 // MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
 // reopen three video connections forever.
 let dipasang = false;
+// One pull at a time (batch 6.4): a pull asked for while another is in flight waits its
+// turn, so an older answer can never land on top of a newer one.
+const kunciRefresh = kunciAntre();
 async function refresh() {
+  const lepas = await kunciRefresh.giliran();
   try {
     const s = await api("/api/console/state");
+    cekVersiBaru(s.versi);
     $("tz").textContent = "(" + s.timezone + ")";
     if (s.work_date) hariKerja = s.work_date;
     gambarBannerLisensi(s.lisensi);
@@ -6592,6 +6787,8 @@ async function refresh() {
     isiSinkron(s.sinkron);
     gambarPitaAlarm(s.lines);
     gambarPitaDisk(s.lines);
+    // A line added or removed on the server (batch 5.3): the cards are drawn again.
+    if (!kartuSesuai(s.lines)) dipasang = false;
     if (!dipasang) {
       const dipasangPada = Date.now();
       $("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");
@@ -6599,11 +6796,9 @@ async function refresh() {
       // Angka yang baru digambar jadi titik awal odometer (`tulisAngka`): poll berikutnya
       // bergulir dari sini, bukan menulis polos seolah tulisan pertama.
       $("lines").querySelectorAll(".counts b[data-k]").forEach((el) => { el._angka = Number(el.textContent) || 0; });
-      // What kartuLine just drew is what the next poll compares with (`tulisKalauBeda`).
-      s.lines.forEach((l, i) => {
-        const slot = $("lines").children[i]?.querySelector(".slot-lepas");
-        if (slot) slot._terakhirDitulis = tombolLepas(l);
-      });
+      // What kartuLine just drew is what the next poll compares with (`tulisKalauBeda`):
+      // written once more here, in the same turn, so no tap can land in between.
+      s.lines.forEach((l, i) => perbaruiKartu($("lines").children[i], l));
       dipasang = true;
       terapkanUrutan();
     } else {
@@ -6616,23 +6811,9 @@ async function refresh() {
         c.querySelectorAll(".counts b[data-k]").forEach((el) => {
           tulisAngka(el, l[el.dataset.k] || 0);
         });
-        c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
-        // Lepas, or Lepas paksa while the line does not answer and holds a truck.
-        tulisKalauBeda(c.querySelector(".slot-lepas"), tombolLepas(l));
-        // The piston button and banner must follow what the PLC just confirmed,
-        // every poll - not only on the first render. outerHTML (not innerHTML on
-        // a wrapper) so the button's own hint span comes back with it, and
-        // terapkanUrutan() below repaints the P+n hint the same way it already
-        // does for Reject after every redraw.
-        const tombolLama = c.querySelector("button.piston");
-        if (tombolLama) tombolLama.outerHTML = tombolPiston(l);
-        const pitaLama = c.querySelector(".pita-piston");
-        const pitaBaru = pitaPiston(l);
-        if (pitaLama && !pitaBaru) pitaLama.remove();
-        else if (pitaLama) pitaLama.outerHTML = pitaBaru;
-        else if (pitaBaru) c.querySelector("h2").insertAdjacentHTML("afterend", pitaBaru);
-        perbaruiAi(c, l);
+        perbaruiKartu(c, l);
       });
+      segarkanPilihTruk();
       terapkanUrutan();
     }
     // Only the first page follows the live poll. Past it the operator is reading, and a
@@ -6644,7 +6825,9 @@ async function refresh() {
     if (gradingOffset === 0) await muatGrading();
     segarkanTombol();
     pesan("");
+    catatSegar(true);
   } catch (e) {
+    if (e.kode !== "belum_masuk") catatSegar(false);
     // Not signed in is a normal state, and the gate is already saying so on top of
     // this screen. Claiming the console is down as well trains the shift to ignore
     // that banner, which is the one that matters when it really has stopped answering.
@@ -6654,7 +6837,16 @@ async function refresh() {
     // pita merah di sini membuat operator menekan tombol lain di tengah pemasangan.
     else if (e.kode === "konsol_putus" && pembaruanTerakhir && pembaruanTerakhir.berjalan) pesan(t("pembaruanTersambungLagi"));
     else pesan(e.kode === "konsol_putus" ? alasan(e) : gagalKarena("gagalKonsol", e));
+  } finally {
+    lepas();
   }
+}
+
+// The 2 s timer. A tick that lands while a pull is still in flight is dropped (batch 6.4):
+// a console that answers slowly used to collect a new request every 2 s.
+const JEDA_REFRESH_MS = 2000;
+function detakRefresh() {
+  if (!kunciRefresh.sibuk()) refresh();
 }
 
 async function muatTimbangan() {
@@ -7337,6 +7529,7 @@ function isiTrucks() {
   // sini lewat `muatTrucks()` pada setiap scan masuk.
   const datang = $("plat-datang");
   datang.outerHTML = komponenPilih(opsi, datang.dataset.nilai, "plat-datang");
+  segarkanPilihTruk();
   segarkanTombol();
 }
 
@@ -9612,11 +9805,11 @@ $("plc-kartu").addEventListener("click", (ev) => {
   await muatTrucks();
   await refresh();
   await muatTimbangan();
-  setInterval(refresh, 2000);
-  setInterval(muatTrucks, 60000);
+  setInterval(detakRefresh, JEDA_REFRESH_MS);
+  setInterval(sekaliJalan(muatTrucks), 60000);
   // Weighing is far sparser than grading (two payloads per truck), so 2 s would
   // only burn queries.
-  setInterval(muatTimbangan, 15000);
+  setInterval(sekaliJalan(muatTimbangan), 15000);
   // A remembered developer tab from a previous support sign-in on this shared PC:
   // cekSesi() above has already run aturTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.
