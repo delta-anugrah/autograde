@@ -103,6 +103,97 @@ Decisions:      The stale state greys numbers and tables, not the camera picture
                 already fixed (`gambarUlangRiwayat`); the tabs that still had it were Akun, Log, Status.
 Next:           PR 2, the dropdown component (5.6).
 
+## 2026-10-05 · vision · Camera health without a temperature sensor (PR #238)
+Changed:        Lampung cameras (MV-CS050-10GC, firmware V4.0.43) report `DeviceTemperature` as
+                not implemented (access mode NI, checked on the camera with
+                `sawit/scripts/cek-suhu-kamera.sh`). The Diagnostics card now grades what the
+                camera does instead: rate held below 90 % of the camera's own target for 2 min
+                (clears after 1 min normal), frames lost on the wire in the last 10 min
+                (`MV_MATCH_TYPE_NET_DETECT`, yellow any, red from 5 %), disconnects in the last 24 h
+                (yellow 1-2, red 3+). Rules in `domain/kesehatan_kamera.py`; the capture thread asks
+                every `PANTAU_KAMERA_JEDA_DETIK` (10 s, renamed from `SUHU_JEDA_DETIK`) under the
+                camera lock; `/health/detail` gains `suhu_kamera_didukung`, `fps_kamera_target`,
+                `fps_kamera_turun`, `frame_hilang`, `putus_kamera`, `kamera_tingkat`. The card colours
+                the rows, writes "perlu dicek" on the closed group header, and says "tidak didukung
+                kamera" instead of a dash; a camera answering NI is asked once per connect. Low rate
+                and lost frames log one WARNING at start and one at the end (rule 33). Rule 35,
+                `backend-overview.md`, `MANUAL.md`, `camera-spec.md` §6.4 updated.
+Validated:      unit 4814 passed, e2e 397, integration 176, ruff clean; browser status tests 6/6
+                (chromium + firefox).
+Not validated:  stream counters never read from a real camera (SDK call per the vendored wrapper,
+                tested with ctypes fakes); thresholds are first guesses; `MANUAL.pdf` not rebuilt.
+Next:           release, then read the card on the Lampung PC for a day and tune the thresholds.
+
+## 2026-10-05 · vision · Batch 6.3: display shrinks first and rests with no viewer (PR #231)
+Changed:        `DisplayWorker` shrinks the frame to stream size first and draws the boxes on the
+                small frame (`draw_boxes(skala=...)`, geometry in `domain/skala_tampilan.py`); the
+                sensor frame is never copied or drawn on. `StreamingService` counts MJPEG viewers in
+                and out; with none, nothing is rendered and `latest_frame` is set back to `None`.
+                `cv2` is an argument of the worker, so it runs in the unit suite. New
+                `scripts/bench_display.py`.
+Validated:      unit 4650 passed, e2e 396, integration 169, ruff clean; mutations fail the tests;
+                rule 4 pinned. Real pixels: every box border centre within 1 px of the old render,
+                capture line and ROI box unmoved, evidence photo drawing byte-identical to staging.
+                Benchmark on the MacBook (M2), ms per render of a 2448x2048 frame: 5.05 to 4.70 with
+                no box, 5.38 to 4.78 with 2, 6.08 to 5.01 with 6; 0.001 with nobody watching.
+Not validated:  The factory PC was not measured. The stream was not watched in a browser on a line.
+Decisions:      One scale factor for the label on both axes (geometric mean): the label is a little
+                taller and no longer squashed. The saving from shrinking first is small on this Mac
+                (7 to 18 %); the saving that counts is the render that no longer happens for nobody.
+Next:           The user looks at one line card on a real line and confirms the label reads well.
+
+## 2026-10-05 · vision · Batch 6.2: clean photo written beside the evidence photo (PR #230)
+Changed:        `CaptureWriter.write_pair` writes the `clean/` copy on a helper thread while the
+                `bbox/` copy is written on the calling thread. When the `bbox/` copy fails, the
+                `clean/` copy beside it is removed again and the `OSError` goes up as before (rule
+                8). Format, names, folders and quality unchanged. New `scripts/bench_simpan_foto.py`.
+Validated:      unit 4631 passed, e2e 390, integration 169, ruff clean; overlap test red on the old
+                code, mutations fail the rule 8 tests; rule 8 checked on a real disk with the cv2
+                storage. Benchmark on the MacBook (M2, cv2 5.0.0), frame 2448x2048, one bunch:
+                wall 1,163 ms to 609 ms, CPU 1,173 ms to 1,176 ms (same work, two cores).
+Not validated:  The factory PC was not measured, in particular a burst on three lines next to three
+                detection loops. No line started.
+Decisions:      Clean copy as JPEG is parked for the user: same wall time as this change, half the
+                CPU (641 ms), but 55 % more disk at q65 (637 KB against 410 KB) and a new file
+                extension for retention, R2 and the training upload to follow.
+Next:           Run `scripts/bench_simpan_foto.py` inside a line container in Lampung.
+
+## 2026-10-04 · vision · Batch 6.1: a frame's boxes are read once (PR #227)
+Changed:        `pipelines/kotak_deteksi.baca_kotak` moves a frame's boxes to the CPU once
+                (`boxes.cpu().numpy()`); the three scans and the DEBUG line of
+                `FrameProcessingWorker` read that list. Before, every value was a `.item()` or
+                `.tolist()` on the device (43 reads for a frame of 4 boxes). No decision changed.
+                New `scripts/bench_baca_kotak.py`.
+Validated:      Golden file written by the worker before the change (48 seeded conveyors, 410
+                bunches, 72 stalks paired, 31 late stalks) matches after it; old reading swapped
+                back in gives the same trace; mutations fail the tests. unit 4707 passed, e2e 390,
+                integration 166, ruff clean. Benchmark on the MacBook (M2), microseconds per frame,
+                6 boxes: CPU 312.3 to 11.6, MPS 8,631.9 to 213.4.
+Not validated:  The factory PC (RTX 3060, CUDA) was not measured. No real model, no TensorRT engine,
+                no line started.
+Decisions:      `draw_boxes` still reads per value (once per saved bunch and per display frame); left
+                for a follow-up so this PR stays on the detection loop.
+Next:           Run `scripts/bench_baca_kotak.py` inside a line container in Lampung for the CUDA number.
+
+## 2026-10-04 · console · Batch 6.5: lines read side by side, one kept HTTP client (PR #228)
+Changed:        `LineStatusWorker` asks the three lines at the same time (`asyncio.gather`, one loop
+                per line in `run_loop`); an answer is recorded when it arrives. An unreadable answer
+                marks only that line (it used to end the status loop for good). `LineClient` and
+                `ErpClient` keep one `httpx.AsyncClient` (`integrations/klien_http.KlienBersama`):
+                per-call timeouts unchanged, cookies never stored, a client from another event loop
+                replaced. New `scripts/bench_status_line.py`.
+Validated:      unit 4639 passed, e2e 391, integration 169, ruff clean; new tests red on the old code,
+                mutations fail them. Benchmark on the MacBook (M2), loopback stubs: healthy lines
+                recorded 1,526.9 ms after the round started with one hanging line, now 3.2 ms; a
+                round of three healthy lines 22.7 ms to 2.4 ms; building a client 6.14 ms (3 per
+                second before); 50 messages to an AutoERP stub 8.07 to 1.11 ms each.
+Not validated:  The factory PC and the real AutoERP (TLS) were not measured. Browser suite left to CI.
+                No console or line started.
+Decisions:      Each line keeps its own pace in `run_loop`, so a dead line is read every 2.5 s and
+                the others every second. Cookies are not stored on the kept client, to behave as a
+                client per message did.
+Next:           Watch the Log tab on the factory PC after the release for any new "tidak terbaca" row.
+
 ## 2026-10-04 · console + vision · Detection area box from the console, collapsible Diagnostics (PR #225)
 Changed:        The ROI box is set from Settings, Camera & Conveyor (four stream-space pixels,
                 `roi_x1..roi_y2`) through the grading settings path: `domain/setelan_grading`

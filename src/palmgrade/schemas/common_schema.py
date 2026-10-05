@@ -81,6 +81,18 @@ class HealthDetailSchema(BaseModel):
     # Suhu badan kamera (°C). None = tidak tahu: sumber tanpa sensor, kamera menolak
     # menjawab, atau bacaan terakhir lebih tua dari `SUHU_BASI_DETIK`.
     suhu_kamera_c: float | None = None
+    # False = the camera has no temperature sensor (card: "not supported"); None = not known.
+    suhu_kamera_didukung: bool | None = None
+    # Camera health without a sensor (`domain/kesehatan_kamera.ringkas_kesehatan_kamera`):
+    # the camera's own target rate, whether the measured rate is held below it, frames lost
+    # in the last 10 minutes and disconnects in the last 24 hours, each with its level
+    # (`aman` / `waspada` / `kritis`), and the worst of them for the group header.
+    # None = a line from before these fields.
+    fps_kamera_target: float | None = None
+    fps_kamera_turun: bool = False
+    frame_hilang: dict | None = None
+    putus_kamera: dict | None = None
+    kamera_tingkat: str | None = None
     # Batch 3.7: `PemantauDisk.ringkas()` (tingkat, sisa GB, ambang, sejak).
     # None = pemantau belum dipasang (line versi lama tidak mengirimnya).
     disk: dict | None = None

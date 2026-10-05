@@ -3229,6 +3229,8 @@ const KAMUS = {
     lineSebab_line_galat:"Line menjawab tapi sedang galat. Restart line lewat Setelan, Danger Zone; kalau masih muncul, panggil teknisi. Rinciannya di tab Log.",
     lineSebab_lain:"Konsol tidak bisa membaca line ini. Rinciannya di tab Log.",
     thFps:"FPS kamera / deteksi", thSuhuKamera:"Suhu kamera", thFrameTerakhir:"Gambar terakhir", thDisk:"Disk",
+    thFrameHilang:"Frame hilang (10 mnt)", thPutusKamera:"Putus-nyambung (24 jam)",
+    diagSuhuTidakDidukung:"tidak didukung kamera", diagKameraPerluDicek:"perlu dicek",
     thLisensiLine:"Lisensi", thVersiModel:"Versi / model", thTersimpanGagal:"Janjang tak tersimpan",
     thTpTelat:"TP telat", diagDetikLalu:"{n} dtk lalu", diagDiskBebas:"{bebas} GB bebas ({persen}%)",
     diagPlcTakDiketahui:"tidak diketahui (line versi lama)",
@@ -3718,6 +3720,8 @@ const KAMUS = {
     lineSebab_line_galat:"The line answers but reports an error. Restart the lines under Settings, Danger Zone; if it stays, call a technician. The details are in the Log tab.",
     lineSebab_lain:"The console cannot read this line. The details are in the Log tab.",
     thFps:"Camera / detection FPS", thSuhuKamera:"Camera temperature", thFrameTerakhir:"Last image", thDisk:"Disk",
+    thFrameHilang:"Lost frames (10 min)", thPutusKamera:"Disconnects (24 h)",
+    diagSuhuTidakDidukung:"not supported by the camera", diagKameraPerluDicek:"needs a look",
     thLisensiLine:"Licence", thVersiModel:"Version / model", thTersimpanGagal:"Bunches not saved",
     thTpTelat:"Late TP", diagDetikLalu:"{n} s ago", diagDiskBebas:"{bebas} GB free ({persen}%)",
     diagPlcTakDiketahui:"unknown (older line version)",
@@ -8051,13 +8055,48 @@ function diagFrame(d) {
   return d.ai && d.ai.keadaan === "frame_berhenti" ? `<span class="tanda-gagal">${teks}</span>` : teks;
 }
 
-// Suhu badan kamera dari line (°C). Strip kalau sumbernya tidak punya sensor, kamera
-// menolak membacanya, atau bacaan terakhir sudah basi: line yang memutuskan basi
-// (SUHU_BASI_DETIK), layar cuma menampilkan. Sengaja tanpa warna sampai batas aman
-// diputuskan dari datasheet dan pola suhu Lampung.
-function diagSuhu(c) {
+// Suhu badan kamera dari line (°C). Strip kalau kamera menolak membacanya atau bacaan
+// terakhir sudah basi: line yang memutuskan basi (SUHU_BASI_DETIK), layar cuma
+// menampilkan. Kamera yang memang tidak punya sensor (`didukung === false`, Lampung
+// MV-CS050-10GC) disebut begitu, karena strip terbaca seperti kerusakan. Sengaja tanpa
+// warna sampai batas aman diputuskan dari datasheet.
+function diagSuhu(c, didukung) {
+  if (didukung === false) return esc(t("diagSuhuTidakDidukung"));
   if (c === null || c === undefined) return KOSONG;
   return `${esc(diagAngka(c))} °C`;
+}
+
+// Kesehatan kamera tanpa sensor suhu: tingkatnya diputuskan line
+// (domain/kesehatan_kamera.py), layar cuma memberi warna. Tingkat asing = tanpa kelas.
+function spanTingkat(tingkat, teks) {
+  const kelas = { aman: "tanda-ok", waspada: "tanda-waspada", kritis: "tanda-gagal" }[tingkat];
+  return kelas ? `<span class="${kelas}">${esc(teks)}</span>` : `<span>${esc(teks)}</span>`;
+}
+
+// FPS kamera, kuning kalau line menilai lajunya tertahan di bawah target kamera.
+function diagFpsKamera(d) {
+  const teks = diagAngka(d.fps_kamera);
+  return d.fps_kamera_turun === true ? spanTingkat("waspada", teks) : teks;
+}
+
+// Frame hilang di jaringan dalam 10 menit terakhir: "12 (0,1%)", atau "0".
+function diagFrameHilang(fh) {
+  if (!fh || fh.hilang === null || fh.hilang === undefined) return KOSONG;
+  const n = Number(fh.hilang);
+  const teks = n > 0 ? `${diagAngka(n)} (${diagAngka(fh.persen)}%)` : "0";
+  return spanTingkat(fh.tingkat, teks);
+}
+
+// Kamera putus lalu tersambung lagi dalam 24 jam terakhir (satu per kejadian).
+function diagPutus(p) {
+  if (!p || p.jumlah === null || p.jumlah === undefined) return KOSONG;
+  return spanTingkat(p.tingkat, String(Number(p.jumlah)));
+}
+
+// Judul grup Kamera dan gambar: tanda "perlu dicek" supaya terlihat walau grupnya tertutup.
+function diagTandaGrupKamera(tingkat) {
+  if (tingkat !== "waspada" && tingkat !== "kritis") return "";
+  return ` ${spanTingkat(tingkat, t("diagKameraPerluDicek"))}`;
 }
 
 // Sisa disk (batch 3.7) dengan warna tingkatnya; tingkat asing tidak masuk atribut.
@@ -8119,12 +8158,14 @@ function kartuDiagnostik(kode, d) {
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
     <details class="diag-kelompok" data-grup="kamera">
-    <summary class="diag-grup">${esc(t("diagGrupKamera"))}</summary>
+    <summary class="diag-grup">${esc(t("diagGrupKamera"))}${diagTandaGrupKamera(d.kamera_tingkat)}</summary>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
-      <dt>${esc(t("thSuhuKamera"))}</dt><dd>${diagSuhu(d.suhu_kamera_c)}</dd>
-      <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
+      <dt>${esc(t("thSuhuKamera"))}</dt><dd>${diagSuhu(d.suhu_kamera_c, d.suhu_kamera_didukung)}</dd>
+      <dt>${esc(t("thFps"))}</dt><dd>${diagFpsKamera(d)} / ${diagAngka(d.fps_deteksi)}</dd>
       <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
+      <dt>${esc(t("thFrameHilang"))}</dt><dd>${diagFrameHilang(d.frame_hilang)}</dd>
+      <dt>${esc(t("thPutusKamera"))}</dt><dd>${diagPutus(d.putus_kamera)}</dd>
     </dl>
     </details>
     <details class="diag-kelompok" data-grup="mesin">
