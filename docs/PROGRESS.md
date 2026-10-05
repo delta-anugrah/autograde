@@ -86,6 +86,18 @@ Decisions:      The stale state greys numbers and tables, not the camera picture
                 already fixed (`gambarUlangRiwayat`); the tabs that still had it were Akun, Log, Status.
 Next:           PR 2, the dropdown component (5.6).
 
+## 2026-10-05 · release · Images carry their own fingerprint list (PR #240)
+Changed:        `scripts/tulis_sidik_image.py` writes `/app/.sidik-image.json` (sha256 of every file in
+                `/app/src`, `/app/config`, `/app/scripts`, `/entrypoint.sh`) as the last Dockerfile step.
+                The release smoke (`scripts/smoke_image.py`) gains a `sidik` check: an image whose files
+                do not match its list gets no release tag. Pairs with the factory launcher check
+                (`periksa_image`, sawit workspace), which reads the list before installing.
+Validated:      unit tests for the script, the Dockerfile order and the smoke check; real image: a
+                copy of `v1.24.0-cpu` built with the script passes the launcher checker ("kode aplikasi
+                233 berkas, 0 beda") and `scripts/smoke_image.py` (`ok sidik`).
+Not validated:  The factory image (GPU) was not built locally; the first release after merge builds it.
+Next:           Install the launcher with the integrity check at Lampung, then release.
+
 ## 2026-10-05 · vision · Camera health without a temperature sensor (PR #238)
 Changed:        Lampung cameras (MV-CS050-10GC, firmware V4.0.43) report `DeviceTemperature` as
                 not implemented (access mode NI, checked on the camera with
