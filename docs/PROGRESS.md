@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console + vision · Label text size on the line video, set from Settings (PR #TBD)
+## 2026-10-05 · console + vision · Label text size on the line video, set from Settings (PR #242)
 Changed:        New Settings group **Tampilan video** with `#set-ukuran-label`: the size of the class label
                 (Ripe, Unripe, JK, TP) above each box on the line video, in percent, 25 to 400, default
                 100. Saved with the grading settings (`ukuran_label` in `domain/setelan_grading`), sent to
