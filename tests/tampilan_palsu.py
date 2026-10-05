@@ -72,7 +72,8 @@ class PipelinePalsu:
         self._jejak = jejak
 
     def draw_boxes(self, frame: FramePalsu, results: Any, *, tampilkan_confidence: bool = False,
-                   skala: tuple[float, float] = (1.0, 1.0)) -> FramePalsu:
+                   skala: tuple[float, float] = (1.0, 1.0), ukuran_label: int = 100) -> FramePalsu:
+        self.ukuran_label = ukuran_label
         self._jejak.append(("draw_boxes", frame.ukuran, skala, tampilkan_confidence))
         frame.digambari.append("kotak")
         return frame

@@ -18,6 +18,22 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console + vision · Label text size on the line video, set from Settings (PR #TBD)
+Changed:        New Settings group **Tampilan video** with `#set-ukuran-label`: the size of the class label
+                (Ripe, Unripe, JK, TP) above each box on the line video, in percent, 25 to 400, default
+                100. Saved with the grading settings (`ukuran_label` in `domain/setelan_grading`), sent to
+                every line (`LineClient.kirim_setelan`), pulled again at line start, applied on the next
+                frame (`RuntimeState.ukuran_label_override` -> `DisplayWorker` -> `draw_boxes(ukuran_label=)`,
+                `domain/skala_tampilan.gaya_label`: text, its stroke and gap only, not the box). Display
+                only: saved photos and detection ignore it. The line's `/internal/setelan` now answers 400
+                (not 500) for a refused value.
+Validated:      unit, e2e and integration suites, ruff, browser `test_browser_setelan.py` in Chromium and
+                Firefox (6 passed); real pixels: 200 % draws the label about twice as tall, box unmoved.
+Not validated:  On the factory PC (needs a release).
+Decisions:      Percent of the current drawing, not pixels: 100 keeps every PC as it is today, and one
+                value works for every camera size. Video only, so evidence photos stay comparable.
+Next:           User picks the size at Lampung after the next release.
+
 ## 2026-10-05 · release · Images carry their own fingerprint list (PR #240)
 Changed:        `scripts/tulis_sidik_image.py` writes `/app/.sidik-image.json` (sha256 of every file in
                 `/app/src`, `/app/config`, `/app/scripts`, `/entrypoint.sh`) as the last Dockerfile step.

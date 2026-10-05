@@ -50,6 +50,8 @@ class RuntimeState:
     tampil_roi_override: bool | None = None
     # ROI box (x1, y1, x2, y2) in stream space, set from the console. None = `ROI_*` from `.env`.
     roi_override: tuple[int, int, int, int] | None = None
+    # Size of the class label on the video, percent (2026-10-05). Display only. None = 100.
+    ukuran_label_override: int | None = None
 
     # Laju yang BENAR-BENAR dikirim kamera, diisi `adopt_camera_frame_rate()`
     # tiap connect. `0` = sumber tidak bisa melapor (berkas video, webcam).

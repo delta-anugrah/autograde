@@ -43,6 +43,22 @@ def kotak_berskala(
     return round(x1 * sx), round(y1 * sy), round(x2 * sx), round(y2 * sy)
 
 
+def gaya_label(gaya: GayaKotak, persen: int) -> GayaKotak:
+    """The label text at `persen` of its size, set by support from the console (2026-10-05).
+
+    Only the text grows or shrinks, with its stroke and its distance from the box; the box
+    border stays. 100 returns the style unchanged.
+    """
+    if persen == 100:
+        return gaya
+    faktor = persen / 100
+    return gaya._replace(
+        font_scale=gaya.font_scale * faktor,
+        font_thickness=max(1, round(gaya.font_thickness * faktor)),
+        jarak_label=max(1, round(gaya.jarak_label * faktor)),
+    )
+
+
 def gaya_berskala(
     border: int, font_scale: float, font_thickness: int, skala: tuple[float, float]
 ) -> GayaKotak:

@@ -137,6 +137,8 @@ class SetelanGradingRequest(BaseModel):
     roi_y1: int | None = None
     roi_x2: int | None = None
     roi_y2: int | None = None
+    # Label size on the video, percent (2026-10-05). 100 from an older console.
+    ukuran_label: int = 100
 
 
 class SetelanGradingResponse(BaseModel):
@@ -152,6 +154,7 @@ class SetelanGradingResponse(BaseModel):
     roi_y1: int | None = None
     roi_x2: int | None = None
     roi_y2: int | None = None
+    ukuran_label: int = 100
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env
 
 

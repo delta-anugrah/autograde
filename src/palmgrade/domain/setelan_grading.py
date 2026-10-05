@@ -42,7 +42,15 @@ BATAS: dict[str, tuple[float, float]] = {
     # garis di sana tidak akan pernah disentuh janjang dan line terlihat jalan
     # sambil tidak pernah memfoto apa pun.
     "garis_capture": (0.0, 10_000.0),
+    # Ukuran tulisan kelas di kotak deteksi pada VIDEO, dalam persen dari gambar bawaannya
+    # (2026-10-05, permintaan user: "Ripe" terbaca kecil dari tempat operator berdiri).
+    # Cuma tampilan: foto bukti dan deteksi tidak membacanya. 25-400 = dari seperempat sampai
+    # empat kali; di luar itu tulisannya hilang atau menutupi buahnya.
+    "ukuran_label": (25.0, 400.0),
 }
+
+#: Ukuran label bawaan: gambar seperti sebelum setelan ini ada.
+UKURAN_LABEL_BAWAAN = 100
 
 #: Field yang nilainya PILIHAN, bukan angka — divalidasi terhadap daftar, bukan
 #: rentang. Satu-satunya anggotanya sejauh ini `sumbu_garis`, yang menentukan
@@ -70,6 +78,7 @@ OPSIONAL: dict[str, Any] = {
     "garis_capture": 0, "sumbu_garis": TEGAK, "mode_dev": False,
     "tampil_garis": True, "tampil_roi": True,
     "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None,
+    "ukuran_label": UKURAN_LABEL_BAWAAN,
 }
 
 #: The detection area box (ROI), four stream-space pixels like `garis_capture` (2026-10-04).
@@ -85,7 +94,7 @@ BATAS_KOTAK = 10_000
 #: `conf_threshold` 0 dan `minimum_size` 0 mematikan grading diam-diam, jadi
 #: keduanya ditolak. `garis_capture` 0 justru sah dan berarti "tidak ada garis" —
 #: tanpa ini tidak ada cara mengembalikan perilaku sebelum fitur ini ada.
-BAWAH_INKLUSIF = frozenset({"garis_capture"})
+BAWAH_INKLUSIF = frozenset({"garis_capture", "ukuran_label"})
 
 
 class SetelanTidakSah(ValueError):

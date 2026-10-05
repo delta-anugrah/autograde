@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_STREAM
+from ..domain.setelan_grading import UKURAN_LABEL_BAWAAN
 from ..domain.skala_tampilan import TANPA_SKALA, skala_ke
 from .runtime_state import RuntimeState
 
@@ -99,6 +100,7 @@ class DisplayWorker:
                     else self.settings.mode_dev
                 ),
                 skala=skala,
+                ukuran_label=self.state.ukuran_label_override or UKURAN_LABEL_BAWAAN,
             )
 
         # Garis capture digambar dalam ruang STREAM, sama seperti ROI, dan sama

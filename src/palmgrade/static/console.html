@@ -2225,6 +2225,20 @@
       </div>
     </details>
 
+    <details class="setelan-grup" data-setelan-grup="tampilan">
+      <summary data-t="grupTampilan">Tampilan video</summary>
+      <div class="setelan-grup-isi">
+        <!-- Label size on the line video, percent (user 2026-10-05: "Ripe" read small from
+             where the operator stands). Display only: saved photos and detection ignore it. -->
+        <label>
+          <span data-t="labelUkuranLabel">Ukuran tulisan label (%)</span>
+          <input id="set-ukuran-label" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="3">
+          <small class="muted" data-t="bantuUkuranLabel">Tulisan Ripe, Unripe, JK, TP di atas kotak pada video. 100 = bawaan, 200 = dua kali lebih besar (25 sampai 400).</small>
+        </label>
+      </div>
+    </details>
+
     <details class="setelan-grup" data-setelan-grup="dev">
       <summary data-t="grupDev">Mode Developer</summary>
       <div class="setelan-grup-isi">
@@ -2885,7 +2899,8 @@ const KAMUS = {
     riwayatCatatanFoto:"Foto disimpan di PC ini selama masa simpannya (180 hari di Lampung). Foto yang lebih tua sudah terhapus dari PC; barisnya tetap ada. CSV berisi semua baris filter ini, bukan cuma halaman yang tampil.",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
-    grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
+    grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer", grupTampilan:"Tampilan video",
+    labelUkuranLabel:"Ukuran tulisan label (%)", bantuUkuranLabel:"Tulisan Ripe, Unripe, JK, TP di atas kotak pada video. 100 = bawaan, 200 = dua kali lebih besar (25 sampai 400).",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
     labelGaris:"Posisi garis (piksel)", labelSumbu:"Arah conveyor",
@@ -3378,7 +3393,8 @@ const KAMUS = {
     riwayatCatatanFoto:"Photos stay on this PC for its retention period (180 days in Lampung). Older photos are already deleted from the PC; their rows stay. The CSV holds every row of this filter, not only the page on screen.",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
-    grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
+    grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode", grupTampilan:"Video display",
+    labelUkuranLabel:"Label text size (%)", bantuUkuranLabel:"The Ripe, Unripe, JK, TP text above each box on the video. 100 = default, 200 = twice as big (25 to 400).",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
     labelGaris:"Line position (pixels)", labelSumbu:"Conveyor direction",
@@ -8581,6 +8597,8 @@ async function muatSetelan() {
     // `!== false`, not Boolean(): an older server has no such field, and there both are drawn.
     $("set-tampil-garis").checked = r.tampil_garis !== false;
     $("set-tampil-roi").checked = r.tampil_roi !== false;
+    // `?? 100`: an older server has no such field, and there the label is drawn as before.
+    $("set-ukuran-label").value = r.ukuran_label ?? 100;
     // Empty = never set from the console (null), not 0: 0 is a real value, the picture edge.
     for (const k of KOTAK_ROI) $(`set-${k.replace("_", "-")}`).value = r[k] ?? "";
     labelGaris();
@@ -8640,6 +8658,7 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
         mode_dev: $("set-dev").checked,
         tampil_garis: $("set-tampil-garis").checked,
         tampil_roi: $("set-tampil-roi").checked,
+        ukuran_label: $("set-ukuran-label").value.replace(",", "."),
         ...Object.fromEntries(KOTAK_ROI.map((k) => [k, $(`set-${k.replace("_", "-")}`).value.trim() || null])),
       }),
     });
@@ -8661,6 +8680,7 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
     for (const [field, id] of Object.entries({
       conf_threshold: "set-conf", minimum_size: "set-minsize", garis_capture: "set-garis",
       roi_x1: "set-roi-x1", roi_y1: "set-roi-y1", roi_x2: "set-roi-x2", roi_y2: "set-roi-y2",
+      ukuran_label: "set-ukuran-label",
     })) {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }
