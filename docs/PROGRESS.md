@@ -29,6 +29,25 @@ Validated:      newest capture on the Lampung PC read with cv2: `(1024, 1224, 3)
 Not validated:  `docs/MANUAL.pdf` not rebuilt (it already lags `MANUAL.md`).
 Next:           None.
 
+## 2026-10-05 · console · Printable grading slip per truck behind a support switch (batch 5.9) (PR #239)
+Changed:        Server: `domain/slip_grading.py` (`susun_slip`, `rasio_ripe_persen`),
+                `services/slip_grading.py` (`SlipGrading`: switch in `sync_state` `setelan_slip_cetak` (kept by the Danger Zone wipes), off by
+                default; slip refused 403 `slip_mati` while off, 404 `slip_tidak_ada`), new
+                `routes/console_slip.py` (`GET /api/console/slip`, `GET/POST /api/console/dev/slip`),
+                `/api/console/state` carries `slip_cetak`, two new error codes. Screen: Print button
+                on Rekap truck rows while on, `htmlSlip` into `#slip-cetak`, `@media print` mode
+                `body[data-cetak="slip"]` beside the existing QR card print, switch in Settings.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                7 mutations, each turned its test red. Screenshot of the slip in print mode.
+                Docs sweep for the whole batch: `docs/MANUAL.pdf` rebuilt from MANUAL 2.15 (45
+                pages, `tests/e2e/test_manual_pdf.py` passed); README and the `panduan-autograde` and
+                `konsol-autograde` skills no longer say "sesi 12 jam" or "20 grading terakhir".
+Not validated:  A real printer and paper size. Nothing on the factory PC.
+Decisions:      The server refuses the slip while the switch is off (rule 21: hiding the button is
+                tidiness). The rate is the verdict share like the Rekap tab and the piston. The
+                slip prints from the Rekap tab (any day in its range), not from the Grading tab.
+Next:           5.11 shift cutoff: design only, draft PR.
+
 ## 2026-10-05 · console · Grading filter by line and truck, small photos in tables (batch 5.10, 5.12) (PR #234)
 Changed:        Server: every grading and history row carries `thumb_url` (the 400 px copy in
                 `thumb/` that the line already writes and uploads), from `_with_foto` in the new
