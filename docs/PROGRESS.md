@@ -18,6 +18,29 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · vision + console · Camera settings phase 1, read only (PR #245)
+Changed:        Tab Line gets a fifth choice **Setelan Kamera** (support): one card per line with the values
+                the Hikrobot camera uses now (exposure, gain, black level, white balance, frame rate, exposure
+                auto, gain auto), each with the camera's own range; a refused node reads "tidak didukung kamera
+                ini". Line route `GET /internal/camera/settings` queues the read on `state.perintah_kamera`
+                (`workers/perintah_kamera.py`), which the capture thread runs between two grabs under
+                `state.lock` (rule 3); the route waits up to 2 s, a command it gave up on is skipped. 409
+                `kamera_tanpa_setelan` for video/photo/webcam, 503 `kamera_tidak_menjawab` for a disconnected
+                camera or one that refuses every node. Console `GET /api/console/dev/camera-settings` gathers
+                the three lines. New env var `CAMERA_SETELAN_DIR` (empty = off): at each connect
+                `<dir>/<line_code>.mfs` wins over `CAMERA_FEATURE_FILE`, the baseline (spec §3.1).
+Validated:      ruff → All checks passed!; unit + e2e + integration → 5646 passed, 48 skipped (after the
+                review fix); browser Chromium + Firefox → 300 passed in 566 s, no flaky (before the fix,
+                which touches only the line route the browser suite fakes).
+Not validated:  Against a real camera (needs Lampung; the fake camera answers with the phase 0 values).
+                CI on the PR. Five Line buttons between 600 and 800 px not checked by eye.
+Decisions:      Line choice bar split into five equal columns (`repeat(5)`), not left at four as the plan
+                said: four columns would wrap 4 + 1. Final review (one Important fixed): every node refused
+                = camera not answering (503), not "supports nothing".
+Next:           Phase 2 (apply, Simpan, Kembalikan ke baku, compose mount + `CAMERA_SETELAN_DIR`). Carry the
+                deferred review minors: old-line wording on this card, catch-all to 503, float/int fallback
+                per node, "Sumber setelan" from the file loaded at connect, log a late command's exception.
+
 ## 2026-10-05 · console + vision · Label text size on the line video, set from Settings (PR #242)
 Changed:        New Settings group **Tampilan video** with `#set-ukuran-label`: the size of the class label
                 (Ripe, Unripe, JK, TP) above each box on the line video, in percent, 25 to 400, default
