@@ -258,7 +258,7 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/console` | Halaman `console.html`, dengan `Cache-Control: no-cache` (batch 5.3): browser selalu bertanya dulu, jadi layar yang memuat ulang dirinya sesudah pembaruan mendapat halaman baru |
+| GET | `/console` | Halaman `console.html`, dengan `Cache-Control: no-cache` (#236, batch 5.3): browser selalu bertanya dulu, jadi kiosk yang memuat ulang dirinya sesudah pembaruan mendapat halaman versi baru |
 | GET | `/api/console/operators` | Daftar akun untuk kolom email (tanpa hash), bisa dibaca sebelum masuk |
 | POST | `/api/console/login`, `/api/console/logout` · GET `/api/console/me` | Sesi cookie `konsol_sesi`, geser 12 jam sejak aktivitas terakhir; login dan `/me` membawa `sisa_detik` |
 | POST | `/api/console/session/renew` | Batch 5.7: perpanjang sesi ini 12 jam dari sekarang (layar mengirimnya untuk sentuhan dan tombol, bukan untuk polling); `{sisa_detik}` + cookie baru, 401 `belum_masuk` kalau sudah habis |
@@ -576,7 +576,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/console` | layar operator (satu file HTML statis): terbuka, dia yang menggambar gerbang login |
+| GET | `/console` | layar operator (satu file HTML statis): terbuka, dia yang menggambar gerbang login. `Cache-Control: no-cache`: tanpa itu kiosk menyimpan halaman versi lama sesudah update (Lampung 2026-10-05) |
 | GET | `/api/console/operators` | email + nama akun aktif untuk mengisi kolom email, **tanpa** hash, terbuka |
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
