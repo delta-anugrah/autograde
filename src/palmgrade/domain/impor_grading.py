@@ -22,7 +22,7 @@ import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from .grade_class import JK, UNRIPE, grade_class_of
@@ -36,6 +36,7 @@ from .operator_error import (
 from .plate import normalisasi_plat
 from .riwayat import JENIS_CAPTURE, KEPALA_CSV, TP_YA
 from .vision_event import verdict_of
+from .working_day import CUTOFF_MAKS
 
 #: Batas ukuran berkas. Sebulan data pabrik yang sibuk muat; lebih dari itu diminta
 #: dipecah per rentang tanggal, supaya satu unggahan tidak menahan memori konsol.
@@ -214,12 +215,14 @@ def _tanggal(nilai: str) -> str:
 
 def _waktu(nilai: str, work_date: str) -> str:
     try:
-        datetime.strptime(nilai, _FORMAT_WAKTU)
+        jam = datetime.strptime(nilai, _FORMAT_WAKTU)
     except ValueError:
         raise _Salah("waktu_tidak_sah", nilai=_potong(nilai)) from None
-    # Tanggal kerja = tanggal kalender jam pabrik (§6.1), jadi keduanya selalu sama
-    # di berkas yang dibuat konsol. Beda berarti berkasnya sudah diubah.
-    if nilai[:10] != work_date:
+    # The working day is the date of `time - cutoff` (§6.1, batch 5.11), and the cutoff is at
+    # most 12:00: in a file the console made, the time falls on the working day itself or on
+    # the next morning before noon. Anything else means the file was edited.
+    hari = date.fromisoformat(work_date)
+    if not (jam.date() == hari or (jam.date() == hari + timedelta(days=1) and jam.time() < CUTOFF_MAKS)):
         raise _Salah("waktu_beda_tanggal", nilai=nilai, tanggal=work_date)
     return nilai
 

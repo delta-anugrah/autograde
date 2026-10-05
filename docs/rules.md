@@ -1281,7 +1281,8 @@ end of this file.
     yang timbang isi dalam jendela yang sama sebelum sekarang, dan tabel Timbangan hari ini
     membawa kunjungan hari kerja sebelumnya yang belum keluar gerbang (tanpa tara: dalam jendela
     itu; bertara: 24 jam dari timbang kosong, lihat Tanpa scan 4)
-    (`kunjungan_terbawa`, 2026-10-02): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
+    (`kunjungan_terbawa`, 2026-10-02; sejak batch 5.11 juga dari hari kerja SESUDAHNYA, kalau
+    cutoff dinaikkan malam hari): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
     milik hari kerjanya sendiri; total hari, Rekap, CSV dan AutoERP tidak berpindah hari.
     Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
     platnya milik truk terdaftar (plat dinas, plat lama): truk itu tetap bisa dicatat datang

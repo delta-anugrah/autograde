@@ -2389,7 +2389,7 @@
       </div>
     </details>
     <div class="tools lepas">
-      <button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff">Simpan hari kerja</button>
+      <button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled>Simpan hari kerja</button>
     </div>
   </div>
 
@@ -9301,8 +9301,12 @@ $("set-slip-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTar
 }));
 
 async function muatCutoffSetelan() {
+  // Save stays off until the stored value is in the field: an empty field would save 00:00
+  // over a cutoff the load never showed.
+  $("set-cutoff-simpan").disabled = true;
   try {
     $("set-cutoff").value = (await api("/api/console/dev/shift")).cutoff;
+    $("set-cutoff-simpan").disabled = false;
   } catch (e) {
     if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
   }

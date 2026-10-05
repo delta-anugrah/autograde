@@ -40,3 +40,11 @@ def test_the_poll_reads_the_cutoff_and_settings_save_it():
     assert 'gagalKarena("gagalSetelan", e)' in kerja and 'toastSukses(t("cutoffTersimpan"))' in kerja
     assert '<input id="set-cutoff" type="time"' in HTML
     assert re.search(r'<span id="riwayat-cutoff" class="muted"( hidden)?></span>', HTML)
+
+
+def test_save_stays_off_until_the_stored_cutoff_is_loaded():
+    """Review 5.11: a failed load left the field empty, and Save then stored 00:00 over 05:00."""
+    muat = fungsi("muatCutoffSetelan")
+    assert muat.index('$("set-cutoff-simpan").disabled = true') < muat.index('api("/api/console/dev/shift")')
+    assert '$("set-cutoff-simpan").disabled = false' in muat.split("catch")[0]
+    assert '<button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled>' in HTML

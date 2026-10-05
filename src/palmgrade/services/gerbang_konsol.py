@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from typing import Any
 
 from ..domain.gerbang import (
@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 #: How far before the visit window the carried-visit read looks by work date (see
 #: `kunjungan_terbawa`): the read stays on two or three days of the day index.
 KELONGGARAN_HARI = timedelta(days=1)
+
+
+def _hari_sebelum(work_date: str) -> str:
+    return (date.fromisoformat(work_date) - KELONGGARAN_HARI).isoformat()
 
 
 class GerbangKonsol:
@@ -85,8 +89,11 @@ class GerbangKonsol:
         """
         nyata = sekarang or self.sekarang()
         cek = [r for r in rows if r.get("tare_kg") is not None and not r.get("left_at") and r.get("truck_id")]
+        # A day of slack: a return after a cutoff change can be filed one day before the ticket
+        # it finishes (batch 5.11); the times decide, the work date only narrows the read.
         jejak = (
-            self.store.jejak_truk({r["truck_id"] for r in cek}, min(r["work_date"] for r in cek)) if cek else {}
+            self.store.jejak_truk({r["truck_id"] for r in cek}, _hari_sebelum(min(r["work_date"] for r in cek)))
+            if cek else {}
         )
         for row in rows:
             row["tanpa_scan_4"] = selesai_tanpa_scan_4(row, nyata, jejak.get(row.get("truck_id"), ()))
@@ -125,7 +132,9 @@ class GerbangKonsol:
         which is a lie. `sekarang` is for tests; the route passes nothing.
         """
         nyata = sekarang or self.sekarang()
-        sejak_hari = self.hari_kerja.untuk((nyata - JENDELA_KEDATANGAN).isoformat())
+        # Slack as in `kunjungan_terbawa`: an arrival keeps the work date of the cutoff it was
+        # filed under, so a lowered cutoff must not push it out of the read (batch 5.11).
+        sejak_hari = self.hari_kerja.untuk((nyata - JENDELA_KEDATANGAN - KELONGGARAN_HARI).isoformat())
         jam = nyata.isoformat()
         return [
             {**a, "menit": menit_antara(a["arrived_at"], jam), "tahap": TAHAP_DATANG}

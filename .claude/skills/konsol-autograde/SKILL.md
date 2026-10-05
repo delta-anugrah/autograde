@@ -121,7 +121,8 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   kunci `sync_state` `setelan_cutoff_shift`, ikut selamat dari Danger Zone, bawaan 00:00). `/state`
   membawa `cutoff_shift` -> `aturCutoffShift` -> `cutoffShift` + label `#riwayat-cutoff` di kepala
   tabel Rekap (`teksCutoffRekap`, kosong dan tersembunyi kalau 00:00; ganti bahasa membacanya
-  ulang). Tanggal kerja tetap dari server (`work_date` di `/state`, aturan 10); layar tidak
+  ulang). `#set-cutoff-simpan` mati sampai `muatCutoffSetelan` berhasil (kolom kosong akan
+  menyimpan 00:00). Tanggal kerja tetap dari server (`work_date` di `/state`, aturan 10); layar tidak
   menghitung apa pun. Tes: `test_console_html_cutoff.py`, `test_working_day_cutoff.py`,
   `test_hari_kerja.py`, `tests/integration/test_cutoff_shift_integrasi.py`,
   `tests/e2e/test_cutoff_shift_lane.py`, `tests/browser/test_browser_cutoff.py`.

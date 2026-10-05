@@ -37,9 +37,12 @@ class HariKerja:
                 self._rusak_dilaporkan = teks
             return CUTOFF_BAWAAN
 
-    def atur(self, teks: str | None) -> dict[str, str]:
+    def atur(self, teks: str | None, oleh: str = "") -> dict[str, str]:
         cutoff = baca_cutoff(teks)
+        lama = teks_cutoff(self.cutoff())
         self._store.set_state(KUNCI_CUTOFF, teks_cutoff(cutoff))
+        # The only record of when the working day boundary moved (factory PC: AnyDesk only).
+        logger.warning("Cutoff hari kerja diubah %s -> %s oleh %s", lama, teks_cutoff(cutoff), oleh or "-")
         return {"cutoff": teks_cutoff(cutoff)}
 
     def untuk(self, timestamp_iso: str) -> str:

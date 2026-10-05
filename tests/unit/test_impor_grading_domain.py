@@ -115,6 +115,16 @@ def test_line_asing_berupa_machine_id_tetap_diterima():
     assert (j.line_code, j.image_path) == (mesin, "captures/results/x.webp")
 
 
+@pytest.mark.parametrize("waktu", ["2026-09-25 02:30:00", "2026-09-25 11:59:59"])
+def test_a_night_shift_bunch_exported_under_a_cutoff_is_read_back(waktu):
+    """Batch 5.11: with a 05:00 cutoff the console exports a bunch graded 25 Sept 02:30 under
+    working day 24 Sept. Its own export must import again; the file's working day is kept."""
+    j = _satu(waktu=waktu)
+
+    assert isinstance(j, JanjangImpor), j
+    assert (j.work_date, j.waktu) == ("2026-09-24", waktu)
+
+
 @pytest.mark.parametrize(
     ("ganti", "kode"),
     [
@@ -124,6 +134,9 @@ def test_line_asing_berupa_machine_id_tetap_diterima():
         ({"tanggal": "2026-02-30"}, "tanggal_tidak_sah"),
         ({"waktu": "24/09/2026 08:00"}, "waktu_tidak_sah"),
         ({"waktu": "2026-09-23 23:59:59"}, "waktu_beda_tanggal"),
+        # The next day is accepted only before the latest cutoff (12:00, batch 5.11).
+        ({"waktu": "2026-09-25 12:00:00"}, "waktu_beda_tanggal"),
+        ({"waktu": "2026-09-26 02:00:00"}, "waktu_beda_tanggal"),
         ({"line": ""}, "line_kosong"),
         ({"line": "line 1<script>"}, "line_tidak_sah"),
         ({"hasil": "OK"}, "hasil_tidak_sah"),

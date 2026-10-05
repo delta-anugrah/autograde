@@ -20,6 +20,6 @@ def shift_cutoff(service: Service, operator: Support) -> dict:
 def save_shift_cutoff(service: Service, operator: Support, payload: ShiftBody) -> dict:
     """Applies to the next bunch, ticket and scan; rows already stored keep their date (rule 10)."""
     try:
-        return service.hari_kerja.atur(payload.cutoff)
+        return service.hari_kerja.atur(payload.cutoff, oleh=operator["email"])
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
