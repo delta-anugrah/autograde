@@ -1270,7 +1270,7 @@
   /* Empat pilihan Line membentang selebar panel, dibagi empat sama rata (permintaan
      operator 2026-09-29); layar sempit jadi 2 x 2, tetap sama lebar. `minmax(0,1fr)`,
      bukan `1fr`: label panjang tidak boleh melebarkan kolomnya sendiri. */
-  #line-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:0; }
+  #line-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:0; }
   #line-sub button { width:100%; min-width:0; }
   @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Status sub-tabs (user 2026-10-05): one section of the tab at a time. */
@@ -2706,6 +2706,7 @@
   <div class="line-sub-bar">
     <div class="sub-tab" id="line-sub" role="group">
       <button type="button" data-sub="sumber-kamera" data-t="judulSumberKamera">Sumber Kamera</button>
+      <button type="button" data-sub="setelan-kamera" data-t="judulSetelanKamera">Setelan Kamera</button>
       <button type="button" data-sub="model-deteksi" data-t="judulModelDeteksi">Model Deteksi</button>
       <button type="button" data-sub="plc" data-t="judulPlc">Uji PLC</button>
       <button type="button" data-sub="rekam" data-t="judulRekamVideo">Rekam Video</button>
@@ -2780,6 +2781,15 @@
       <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan">Simpan &amp; Restart</button>
     </div>
   </div>
+  </div>
+  <div id="sub-setelan-kamera" class="sub-line" hidden>
+  <!--
+    Support-only (spec §3.2, phase 1): what each Hikrobot camera is really using, asked of the camera through
+    the line's capture thread. Read-only until phase 2 adds change, Simpan and Kembalikan ke baku.
+  -->
+    <p class="muted" data-t="setelanKameraInfo">Nilai yang dipakai kamera sekarang. Mengubahnya menyusul di versi berikutnya; sampai itu lewat MVS.</p>
+    <button type="button" id="setelan-kamera-baca" data-t="setelanKameraBacaUlang">Baca ulang</button>
+    <div id="setelan-kamera-kartu" class="kartu-grid"></div>
   </div>
   <div id="sub-model-deteksi" class="sub-line" hidden>
   <!--
@@ -3566,6 +3576,18 @@ const KAMUS = {
     err_impor_sudah_dibatalkan:"Impor itu sudah dibatalkan.",
     err_impor_hapus_berjalan:"Data sedang dihapus dari Danger Zone. Tunggu sampai selesai, lalu coba lagi.",
     judulSumberKamera:"Sumber Kamera",
+    judulSetelanKamera:"Setelan Kamera",
+    setelanKameraInfo:"Nilai yang dipakai kamera sekarang. Mengubahnya menyusul di versi berikutnya; sampai itu lewat MVS.",
+    setelanKameraBacaUlang:"Baca ulang", setelanKameraMemuat:"Menanyai kamera…",
+    gagalSetelanKamera:"Gagal membaca setelan kamera",
+    setelanKameraTidakDidukung:"tidak didukung kamera ini",
+    setelanKameraTersimpan:"Tersimpan dari konsol", setelanKameraBaku:"Setelan bawaan",
+    setelanKameraSumber:"Sumber setelan", setelanKameraRentang:"{min} sampai {max}",
+    setelanKameraSebab_bukan_kamera:"Sumber gambar line ini bukan kamera Hikrobot, jadi tidak ada setelan kamera.",
+    setelanKameraSebab_kamera_tidak_menjawab:"Kamera tidak menjawab: sedang putus atau menyambung ulang. Coba Baca ulang sebentar lagi.",
+    setelanKamera_exposure:"Exposure", setelanKamera_gain:"Gain", setelanKamera_black_level:"Black level",
+    setelanKamera_white_balance:"White balance", setelanKamera_frame_rate:"Frame rate",
+    setelanKamera_exposure_auto:"Exposure otomatis", setelanKamera_gain_auto:"Gain otomatis",
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
     rekamSelesai:"Rekaman tersimpan di folder videos/:",
@@ -4081,6 +4103,18 @@ const KAMUS = {
     err_impor_sudah_dibatalkan:"That import was already undone.",
     err_impor_hapus_berjalan:"Data is being deleted from the Danger Zone. Wait until it finishes, then try again.",
     judulSumberKamera:"Camera Source",
+    judulSetelanKamera:"Camera Settings",
+    setelanKameraInfo:"The values the camera uses now. Changing them comes in the next version; until then use MVS.",
+    setelanKameraBacaUlang:"Read again", setelanKameraMemuat:"Asking the camera…",
+    gagalSetelanKamera:"Failed to read the camera settings",
+    setelanKameraTidakDidukung:"not supported by this camera",
+    setelanKameraTersimpan:"Saved from the console", setelanKameraBaku:"Default settings",
+    setelanKameraSumber:"Settings source", setelanKameraRentang:"{min} to {max}",
+    setelanKameraSebab_bukan_kamera:"This line's image source is not a Hikrobot camera, so it has no camera settings.",
+    setelanKameraSebab_kamera_tidak_menjawab:"The camera does not answer: it is disconnected or reconnecting. Try Read again in a moment.",
+    setelanKamera_exposure:"Exposure", setelanKamera_gain:"Gain", setelanKamera_black_level:"Black level",
+    setelanKamera_white_balance:"White balance", setelanKamera_frame_rate:"Frame rate",
+    setelanKamera_exposure_auto:"Exposure auto", setelanKamera_gain_auto:"Gain auto",
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
     rekamSelesai:"Recording saved in the videos/ folder:",
@@ -4450,7 +4484,7 @@ document.addEventListener("focusout", (ev) => {
 // Versi + Diagnostik + Antrean ERP, Line = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video.
 const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "status", "akun", "line", "setelan"];
 // Pilihan di dalam tab Line.
-const SUB_LINE = ["sumber-kamera", "model-deteksi", "plc", "rekam"];
+const SUB_LINE = ["sumber-kamera", "setelan-kamera", "model-deteksi", "plc", "rekam"];
 // Tab lama yang masih tersimpan di browser dibuka di tempat barunya, bukan jatuh ke Grading.
 const TAB_LAMA = { riwayat: "rekap", diagnostik: "status", antrean: "status", versi: "status" };
 
@@ -4492,7 +4526,7 @@ function terapkanTab() {
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
 const MUAT_TAB = { rekap: muatRiwayat, log: muatLog, status: muatStatus, akun: muatAkun, line: muatLine, setelan: muatSetelan };
-const MUAT_SUB_LINE = { "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, plc: muatPlc, rekam: muatRekam };
+const MUAT_SUB_LINE = { "sumber-kamera": muatSumberKamera, "setelan-kamera": muatSetelanKamera, "model-deteksi": muatModelDeteksi, plc: muatPlc, rekam: muatRekam };
 
 function muatStatus() {
   return Promise.all([muatVersi(), muatDiagnostik(), muatAntreanLine(), muatAntrean()]);
@@ -10031,6 +10065,56 @@ function perbaruiTampakSumber(kode) {
   // adalah pilihan yang tidak pernah bisa disimpan.
   blok.querySelector(".sumber-berkas").hidden = !SUMBER_BUTUH_BERKAS.has(sumber);
 }
+
+// ── Line > Setelan Kamera (support only, spec §3.2) ────────────────────────
+// Rows and their order come from the line (domain/setelan_kamera.py); the screen only formats them.
+// Two decimals: `diagAngka`'s one decimal would show gain 23,981 as 24.
+function angkaSetelan(v) {
+  return Number(v).toLocaleString(lokal(), { maximumFractionDigits: 2 });
+}
+
+function nilaiSetelanKamera(s) {
+  if (!s.didukung) return esc(t("setelanKameraTidakDidukung"));
+  if (s.jenis === "enum") return esc(s.nilai);
+  const isi = `${esc(angkaSetelan(s.nilai))}${s.satuan ? ` ${esc(s.satuan)}` : ""}`;
+  const rentang = rentangSetelanKamera(s);
+  return rentang ? `${isi} <span class="muted">(${rentang})</span>` : isi;
+}
+
+function rentangSetelanKamera(s) {
+  if (s.min === null || s.min === undefined || s.max === null || s.max === undefined) return "";
+  return esc(t("setelanKameraRentang").replace("{min}", angkaSetelan(s.min)).replace("{max}", angkaSetelan(s.max)));
+}
+
+function kartuSetelanKamera(kode, d) {
+  if (!d.terjangkau) {
+    const kunci = "setelanKameraSebab_" + d.sebab_kode;
+    const sebab = KAMUS[bahasa][kunci] ? t(kunci) : t(kunciSebabTakTerbaca(d));
+    return `<div class="card tidak-terjangkau" data-line="${esc(kode)}">
+      <h2><span class="nama">${esc(kode)}</span></h2><p class="diag-sebab">${esc(sebab)}</p></div>`;
+  }
+  const baris = (d.setelan || [])
+    .map((s) => `<dt>${esc(t("setelanKamera_" + s.kunci))}</dt><dd>${nilaiSetelanKamera(s)}</dd>`)
+    .join("");
+  const sumber = t(d.berkas_tersimpan ? "setelanKameraTersimpan" : "setelanKameraBaku");
+  return `<div class="card" data-line="${esc(kode)}">
+    <h2><span class="nama">${esc(kode)}</span></h2>
+    <dl>${baris}<dt>${esc(t("setelanKameraSumber"))}</dt><dd>${esc(sumber)}</dd></dl>
+  </div>`;
+}
+
+async function muatSetelanKamera() {
+  $("setelan-kamera-kartu").innerHTML = `<p class="muted">${esc(t("setelanKameraMemuat"))}</p>`;
+  try {
+    const r = await api("/api/console/dev/camera-settings");
+    $("setelan-kamera-kartu").innerHTML = Object.entries(r.lines)
+      .map(([kode, d]) => kartuSetelanKamera(kode, d)).join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("setelan-kamera-kartu").innerHTML = `<p class="muted">${esc(t("gagalSetelanKamera"))}</p>`;
+  }
+}
+
+$("setelan-kamera-baca").addEventListener("click", () => muatSetelanKamera());
 
 async function muatSumberKamera() {
   try {

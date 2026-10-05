@@ -28,6 +28,7 @@ from .core.logging import configure_logging
 from .domain.setelan_grading import KOTAK, bersihkan_setelan, kotak_dari
 from .domain.sumber_kamera_resolver import rencana_kamera
 from .integrations.camera.base import CameraSource
+from .integrations.camera.berkas_fitur import pilih_berkas_fitur
 from .integrations.camera.hikrobot_camera import HikrobotCamera
 from .integrations.camera.opencv_camera import OpenCVCamera
 from .integrations.camera.photo_camera import PhotoCamera
@@ -284,8 +285,9 @@ def create_app() -> FastAPI:
         else:
             camera = HikrobotCamera()
 
+        berkas_fitur = pilih_berkas_fitur(settings.camera_setelan_dir, settings.line_code, settings.camera_feature_file)
         try:
-            camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
+            camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=berkas_fitur)
         except RuntimeError as exc:
             if camera_type == "hikrobot":
                 logger.warning("Camera not found at startup: %s, FrameCaptureWorker will keep retrying", exc)
@@ -295,6 +297,7 @@ def create_app() -> FastAPI:
 
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
+        state.berkas_fitur_aktif = berkas_fitur if getattr(camera, "connected", False) else None
         # Hasil `connect()` di atas, sebelum penjaga menilai: sambung ulang pertama
         # sesudah boot yang gagal tidak boleh membaca "belum pernah dicatat".
         state.catat_sambung_kamera(berhasil=bool(getattr(camera, "connected", False)))
@@ -340,7 +343,7 @@ def create_app() -> FastAPI:
             t.start()
             return t
 
-        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
+        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file, setelan_dir=settings.camera_setelan_dir, line_code=settings.line_code)
         display_worker = DisplayWorker(
             state=state,
             pipeline=pipeline,

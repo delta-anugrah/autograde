@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from ...domain.kesehatan_kamera import StatistikAliran
+from ...domain.setelan_kamera import NilaiSetelan
 
 
 class CameraSource(ABC):
@@ -23,6 +24,10 @@ class CameraSource(ABC):
     #: source that never says), False = the camera reports none, so the Diagnostics card says
     #: "not supported" and the line stops asking, True = a reading came back.
     suhu_didukung: bool | None = None
+
+    #: The source has camera settings the console can show (a Hikrobot camera). False = the line answers
+    #: 409 `kamera_tanpa_setelan` and never queues a read.
+    punya_setelan: bool = False
 
     def __init__(self) -> None:
         self.connected: bool = False
@@ -57,6 +62,13 @@ class CameraSource(ABC):
         running totals into a 10-minute window (`domain/kesehatan_kamera.py`).
         """
         return None
+
+    def baca_setelan(self) -> list[NilaiSetelan]:
+        """Camera settings as the camera reports them now (`domain/setelan_kamera.py`).
+
+        Only sources with `punya_setelan` implement it; the route checks that flag first.
+        """
+        raise NotImplementedError
 
     @property
     def exhausted(self) -> bool:
