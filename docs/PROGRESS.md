@@ -19,9 +19,10 @@ Next:           ...
 ---
 
 ## 2026-10-05 · console · Settings in sub-tabs, automatic assignment on by default (PR #243)
-Changed:        Settings is seven sub-tabs (the Line tab's component): Grading, Kamera & Conveyor,
-                Tampilan video, Mode Developer, Penugasan line, Slip grading, Danger Zone; one part at a
-                time, the last one remembered. The four parts saved by one Simpan share `#setform-utama`.
+Changed:        Settings is six sub-tabs (the Line tab's component): Grading, Kamera & Conveyor, Mode
+                Developer, Penugasan line, Slip grading, Danger Zone; one part at a time, the last one
+                remembered. The three parts saved by one Simpan share `#setform-utama`. The label text
+                size moved into Kamera & Conveyor, block "Conveyor & tampilan" (user: no own sub-tab).
                 "Line yang dipakai" is one block with its checkboxes in a row (its heading used to sit
                 in the middle column, the checkboxes in the right one). Automatic line assignment is ON
                 on every line for a console that never saved it (rule 36; it was off, decision D13);

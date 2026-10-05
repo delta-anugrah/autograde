@@ -72,12 +72,12 @@ def test_the_detection_box_and_the_two_show_switches_reach_the_lines(halaman, li
 
 
 def test_the_label_size_reaches_the_lines(halaman, lines):
-    """Video display (2026-10-05): the label size goes out as a whole percent; a size out of
+    """Camera & Conveyor (2026-10-05): the label size goes out as a whole percent; a size out of
     range is refused at the console, its input marked, nothing sent."""
     for kode in _HIDUP:
         lines[kode].diterima.clear()
     masuk(halaman, SUPPORT)
-    buka_setelan(halaman, "tampilan")
+    buka_setelan(halaman, "kamera")
     expect(halaman.locator("#set-ukuran-label")).to_have_value("100")
     halaman.fill("#set-ukuran-label", "150")
     halaman.click("#set-simpan")

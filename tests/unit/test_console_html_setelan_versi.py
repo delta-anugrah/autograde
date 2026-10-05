@@ -15,14 +15,14 @@ HTML = (REPO_ROOT / "src" / "palmgrade" / "static" / "console.html").read_text(e
 
 # ── Setelan: sub-tabs (user 2026-10-05, replacing the accordion) ───────────
 
-SUB = ("grading", "kamera", "tampilan", "dev", "penugasan", "slip", "bahaya")
+SUB = ("grading", "kamera", "dev", "penugasan", "slip", "bahaya")
 
 
 def _bagian() -> str:
     return HTML.split('<section id="sec-setelan"', 1)[1].split("</section>", 1)[0]
 
 
-def test_tujuh_sub_tab_berlabel_dua_bahasa():
+def test_enam_sub_tab_berlabel_dua_bahasa():
     """Same component as the Line tab, one button per part, each worded through KAMUS."""
     bar = re.search(r'<div class="log-level" id="setelan-sub" role="group">(.*?)</div>', _bagian(), re.S)
     assert bar, "the Settings sub-tab bar is missing"
@@ -39,11 +39,11 @@ def test_tiap_bagian_punya_panelnya():
     assert '<div id="setform-bahaya">' in bagian and '<details id="bahaya" class="bahaya">' in bagian
 
 
-def test_empat_bagian_satu_tombol_simpan_dalam_satu_form():
-    """Grading, Camera & Conveyor, Video display and Developer Mode are saved by one Simpan,
-    so they share one form and the button sits after all four, outside each of them."""
+def test_tiga_bagian_satu_tombol_simpan_dalam_satu_form():
+    """Grading, Camera & Conveyor and Developer Mode are saved by one Simpan, so they share
+    one form and the button sits after all three, outside each of them."""
     utama = _bagian().split('id="setform-utama"', 1)[1].split('id="setform-penugasan"', 1)[0]
-    for kunci in ("grading", "kamera", "tampilan", "dev"):
+    for kunci in ("grading", "kamera", "dev"):
         assert f'data-setelan-grup="{kunci}"' in utama, kunci
     assert utama.index('id="set-simpan"') > utama.index('data-setelan-grup="dev"')
 

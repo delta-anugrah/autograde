@@ -1289,8 +1289,8 @@
      Lebarnya mengikuti layar (dulu dipatok 30rem): di monitor pabrik 1900 px
      kartu selebar 480 px menyisakan dua pertiga layar kosong, dan kolomnya
      berdesak di kiri justru saat support membaca dari jarak beberapa meter. */
-  /* Settings sub-tabs (2026-10-05): the Line tab's component, seven parts. */
-  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:8px; }
+  /* Settings sub-tabs (2026-10-05): the Line tab's component, six parts. */
+  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; }
   #setelan-sub button { width:100%; min-width:0; }
   @media (max-width:1100px) { #setelan-sub { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
   @media (max-width:600px) { #setelan-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
@@ -2206,14 +2206,13 @@
     email yang mengubahnya - angka ini menggeser tonase yang dibayar.
 
     Sub-tabs since 2026-10-05 (user: "berantakan banget"): one part at a time, the same
-    component as the Line tab. The four parts saved by one Simpan share one form; Line
+    component as the Line tab. The three parts saved by one Simpan share one form; Line
     assignment, Grading slip and Danger Zone keep their own.
   -->
   <div class="line-sub-bar">
     <div class="log-level" id="setelan-sub" role="group">
       <button type="button" data-sub="grading" data-t="grupGrading">Grading</button>
       <button type="button" data-sub="kamera" data-t="grupKamera">Kamera &amp; Conveyor</button>
-      <button type="button" data-sub="tampilan" data-t="grupTampilan">Tampilan video</button>
       <button type="button" data-sub="dev" data-t="grupDev">Mode Developer</button>
       <button type="button" data-sub="penugasan" data-t="grupPenugasan">Penugasan line</button>
       <button type="button" data-sub="slip" data-t="grupSlip">Slip grading</button>
@@ -2260,7 +2259,7 @@
       <div class="setelan-grup-isi setelan-tiga">
         <!-- Three named blocks (user 2026-10-04): conveyor, capture line, detection area box. -->
         <fieldset class="setelan-sub">
-          <legend data-t="subConveyor">Conveyor</legend>
+          <legend data-t="subConveyor">Conveyor &amp; tampilan</legend>
           <!-- A `div`, not a `label`: a click on a row inside a label is sent on to the
                trigger and reopens the list (batch 5.6). -->
           <div class="label">
@@ -2274,6 +2273,15 @@
             </div>
             <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
           </div>
+          <!-- Label size on the line video, percent (user 2026-10-05: "Ripe" read small from
+               where the operator stands; moved here from its own sub-tab the same day).
+               Display only: saved photos and detection ignore it. -->
+          <label>
+            <span data-t="labelUkuranLabel">Ukuran tulisan label (%)</span>
+            <input id="set-ukuran-label" type="text" inputmode="numeric" autocomplete="off"
+                   data-angka="bulat" maxlength="3">
+            <small class="muted" data-t="bantuUkuranLabel">Tulisan Ripe, Unripe, JK, TP di atas kotak pada video. 100 = bawaan, 200 = dua kali lebih besar (25 sampai 400).</small>
+          </label>
         </fieldset>
         <fieldset class="setelan-sub">
           <legend data-t="subGaris">Garis capture</legend>
@@ -2322,18 +2330,6 @@
       </div>
     </div>
 
-    <div class="setelan-grup" data-setelan-grup="tampilan">
-      <div class="setelan-grup-isi">
-        <!-- Label size on the line video, percent (user 2026-10-05: "Ripe" read small from
-             where the operator stands). Display only: saved photos and detection ignore it. -->
-        <label>
-          <span data-t="labelUkuranLabel">Ukuran tulisan label (%)</span>
-          <input id="set-ukuran-label" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="3">
-          <small class="muted" data-t="bantuUkuranLabel">Tulisan Ripe, Unripe, JK, TP di atas kotak pada video. 100 = bawaan, 200 = dua kali lebih besar (25 sampai 400).</small>
-        </label>
-      </div>
-    </div>
 
     <div class="setelan-grup" data-setelan-grup="dev">
       <div class="setelan-grup-isi">
@@ -3044,12 +3040,12 @@ const KAMUS = {
     riwayatCatatanFoto:"Foto disimpan di PC ini selama masa simpannya (180 hari di Lampung). Foto yang lebih tua sudah terhapus dari PC; barisnya tetap ada. CSV berisi semua baris filter ini, bukan cuma halaman yang tampil.",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
-    grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer", grupTampilan:"Tampilan video",
+    grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
     labelUkuranLabel:"Ukuran tulisan label (%)", bantuUkuranLabel:"Tulisan Ripe, Unripe, JK, TP di atas kotak pada video. 100 = bawaan, 200 = dua kali lebih besar (25 sampai 400).",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
     labelGaris:"Posisi garis (piksel)", labelSumbu:"Arah conveyor",
-    subConveyor:"Conveyor", subGaris:"Garis capture", subKotak:"Kotak area deteksi",
+    subConveyor:"Conveyor & tampilan", subGaris:"Garis capture", subKotak:"Kotak area deteksi",
     labelRoiX1:"Kiri (X1)", labelRoiY1:"Atas (Y1)", labelRoiX2:"Kanan (X2)", labelRoiY2:"Bawah (Y2)",
     btnRoiReset:"Kembalikan ke bawaan",
     roiBawaanPc:"Bawaan PC ini: Kiri {x1}, Atas {y1}, Kanan {x2}, Bawah {y2}. Dipakai selama keempat kolom kosong.",
@@ -3563,12 +3559,12 @@ const KAMUS = {
     riwayatCatatanFoto:"Photos stay on this PC for its retention period (180 days in Lampung). Older photos are already deleted from the PC; their rows stay. The CSV holds every row of this filter, not only the page on screen.",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
-    grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode", grupTampilan:"Video display",
+    grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
     labelUkuranLabel:"Label text size (%)", bantuUkuranLabel:"The Ripe, Unripe, JK, TP text above each box on the video. 100 = default, 200 = twice as big (25 to 400).",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
     labelGaris:"Line position (pixels)", labelSumbu:"Conveyor direction",
-    subConveyor:"Conveyor", subGaris:"Capture line", subKotak:"Detection area box",
+    subConveyor:"Conveyor & display", subGaris:"Capture line", subKotak:"Detection area box",
     labelRoiX1:"Left (X1)", labelRoiY1:"Top (Y1)", labelRoiX2:"Right (X2)", labelRoiY2:"Bottom (Y2)",
     btnRoiReset:"Back to default",
     roiBawaanPc:"This PC's default: Left {x1}, Top {y1}, Right {x2}, Bottom {y2}. Used while all four inputs are empty.",
@@ -4419,11 +4415,11 @@ $("tabs").addEventListener("click", (ev) => {
   bukaTabDev(tab);
 });
 
-// Settings sub-tabs (user 2026-10-05): one part at a time. The four parts saved by one
+// Settings sub-tabs (user 2026-10-05): one part at a time. The three parts saved by one
 // Simpan live in one form (`setform-utama`); the others have their own form and button.
-const SUB_SETELAN = ["grading", "kamera", "tampilan", "dev", "penugasan", "slip", "bahaya"];
+const SUB_SETELAN = ["grading", "kamera", "dev", "penugasan", "slip", "bahaya"];
 const FORM_SETELAN = {
-  grading: "setform-utama", kamera: "setform-utama", tampilan: "setform-utama", dev: "setform-utama",
+  grading: "setform-utama", kamera: "setform-utama", dev: "setform-utama",
   penugasan: "setform-penugasan", slip: "setform-slip", bahaya: "setform-bahaya",
 };
 let subSetelan = SUB_SETELAN.includes(baca("subSetelan", "grading")) ? baca("subSetelan", "grading") : "grading";
