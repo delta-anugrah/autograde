@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-06 · docs · Skill for the truck QR scanner (PR pending)
+## 2026-10-06 · docs · Skill for the truck QR scanner (PR #250)
 Changed:        New skill `scanner-qr` (mirrored in `.agents/skills/`) from the user's notes on the
                 CASHCOW HC-4208DB: USB ids, connection modes, lights and beeps, manual-barcode
                 settings, how the console receives a scan. Row in CLAUDE.md §6 and MANUAL §10.
