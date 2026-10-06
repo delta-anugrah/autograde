@@ -29,6 +29,8 @@ Changed:        Support turns on the four QR scan fields of the Timbangan tab wi
                 browser tests now turn the switch on (`scanner_nyala`, `setel_scanner`) instead of
                 un-hiding by JS, which the poll now undoes. Bought for it: Cashcow HC-4208DB (USB
                 2.4G receiver, types the plate plus Enter).
+                Settings sub-tab grid 7 -> 8 columns so Danger Zone stays on the same row (user
+                2026-10-06), pinned by a unit test and a browser test at 1280/1600/1920 px.
 Validated:      unit + e2e + integration 5752 passed / 48 skipped / 0 failed, ruff clean;
                 make test-browser 322 passed (Chromium + Firefox). First full browser run had 2
                 unrelated-looking failures, one of them caused by this branch (poll re-hid a field

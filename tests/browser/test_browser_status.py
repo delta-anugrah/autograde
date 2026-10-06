@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 
+import pytest
 from langkah import SUPPORT, buka_status, kamus, masuk
 from playwright.sync_api import expect
 
@@ -92,6 +93,19 @@ def test_sub_tab_bars_are_as_wide_as_the_main_tab_bar(halaman):
         kotak = halaman.locator(bar).bounding_box()
         assert abs(kotak["x"] - utama[0]) <= 1, (tab, kotak, utama)
         assert abs(kotak["x"] + kotak["width"] - utama[1]) <= 1, (tab, kotak, utama)
+
+
+@pytest.mark.parametrize("lebar", [1280, 1600, 1920])
+def test_settings_sub_tabs_stay_on_one_row(halaman, lebar):
+    """User 2026-10-06: with Scanner QR there are eight sub-tabs, all on one row, Danger Zone
+    included, from 1280 px up."""
+    halaman.set_viewport_size({"width": lebar, "height": 1000})
+    masuk(halaman, SUPPORT)
+    halaman.click('#tabs [data-tab="setelan"]')
+    tombol = halaman.locator("#setelan-sub button")
+    expect(tombol.first).to_be_visible()
+    atas = {round(tombol.nth(i).bounding_box()["y"]) for i in range(tombol.count())}
+    assert len(atas) == 1, (lebar, atas)
 
 
 def test_log_filters_are_outlined_in_their_colour_when_chosen(halaman):

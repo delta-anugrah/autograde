@@ -32,6 +32,14 @@ def test_delapan_sub_tab_berlabel_dua_bahasa():
         assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in id and en"
 
 
+def test_semua_sub_tab_satu_baris_di_layar_lebar():
+    """User 2026-10-06: Danger Zone fell to a second row once Scanner QR made eight buttons in
+    a seven-column grid. The wide-screen column count follows the number of buttons."""
+    kolom = re.search(r"#setelan-sub \{[^}]*repeat\((\d+), minmax\(0, 1fr\)\)", HTML)
+    assert kolom, "the Settings sub-tab grid rule is missing"
+    assert int(kolom.group(1)) == len(SUB)
+
+
 def test_tiap_bagian_punya_panelnya():
     bagian = _bagian()
     for kunci in SUB[:-1]:
