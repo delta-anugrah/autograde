@@ -18,6 +18,15 @@ Next:           ...
 
 ---
 
+## 2026-10-06 · docs · Skill for the truck QR scanner (PR pending)
+Changed:        New skill `scanner-qr` (mirrored in `.agents/skills/`) from the user's notes on the
+                CASHCOW HC-4208DB: USB ids, connection modes, lights and beeps, manual-barcode
+                settings, how the console receives a scan. Row in CLAUDE.md §6 and MANUAL §10.
+Validated:      test_doc_links + test_dokumen_tanpa_em_dash → 0 failed; MANUAL.pdf rebuilt (46 pages).
+Not validated:  Whether the scanner sends Enter after a scan (the console needs it); the 2.4G
+                dongle on the Linux factory PC. The dongle types nothing on macOS (user test).
+Next:           Scan into a text editor and check the cursor moves to a new line.
+
 ## 2026-10-06 · console · Live weighbridge weight from the PLC, rule 39 (PR #248)
 Changed:        Data timbangan tile = live weight read by the console from a PLC word register
                 (MC Protocol, own port 1028), state word Stabil/Bergerak/putus/error/Belum
