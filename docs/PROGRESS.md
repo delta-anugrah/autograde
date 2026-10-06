@@ -46,6 +46,15 @@ Decisions:      User 2026-10-05: a switch in Settings, support only, default off
                 still says "Ketujuh /api/console/dev/*".
 Next:           Merge to staging, release, install on the Lampung PC, plug in the scanner, turn
                 the switch on, scan a printed card and a phone screen.
+## 2026-10-06 · console · Setelan Kamera: Refresh button, spacing, reason text inset (PR #247)
+Changed:        The Setelan Kamera button reads **Segarkan** / **Refresh** (was Baca ulang / Read again), and
+                the "camera not answering" sentence names the same verb. 16 px under the button, and the
+                reason on an unreadable line's card gets the card's own inset instead of touching its border
+                (user screenshot 2026-10-06). `docs/MANUAL.md` follows the label.
+Validated:      ruff → All checks passed!; unit → 5134 passed, 28 skipped; browser
+                `test_browser_setelan_kamera.py` Chromium + Firefox → 2 passed; screenshot of the panel checked by eye.
+Not validated:  Factory PC (needs a release).
+Next:           Release with #244.
 
 ## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #246)
 Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, any hour
