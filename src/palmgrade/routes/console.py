@@ -77,7 +77,7 @@ from .console_deps import get_scan_service as get_scan_service
 from .console_deps import get_slip_service as get_slip_service
 from .console_deps import require_operator as require_operator
 from .console_deps import require_support as require_support
-from .console_gerbang import antrean_bongkar_router, gerbang_router
+from .console_gerbang import antrean_bongkar_router, gerbang_router, scanner_router
 from .console_kamera import kamera_router
 from .console_keadaan import keadaan_router
 from .console_lepas_paksa import lepas_paksa_router
@@ -667,6 +667,9 @@ async def dev_penugasan_simpan(service: Service, operator: Support, payload: Aut
         )
     except InvalidInput as exc:
         raise _operator_error(400, exc) from exc
+
+
+router.include_router(scanner_router)  # Scanner QR switch, support (2026-10-05)
 
 
 #: Kode yang line pakai untuk menolak perintah rekam, dan pesan yang dibaca

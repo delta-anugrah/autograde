@@ -1,22 +1,24 @@
 """Weighbridge gate scan: a known plate fills the form, an unknown one asks for registration,
 anything that is not a plate is refused in the screen's words (rule 20).
 
-The QR field ships `hidden` until the mill buys a scanner (the comment above `#scan-keluar`
-in `console.html`); today the operator picks the plate from the list, which
-`test_browser_timbangan.py` drives. These tests un-hide the field the way that day will, so
-the scan path is already proven in both engines when it arrives.
+The QR field ships `hidden` and shows when support turns on the Scanner QR switch
+(2026-10-05); without it the operator picks the plate from the list, which
+`test_browser_timbangan.py` drives. Every test here runs with the switch on (`scanner_nyala`).
 """
 
 from __future__ import annotations
 
 import re
 
+import pytest
 from langkah import OPERATOR, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
+pytestmark = pytest.mark.usefixtures("scanner_nyala")
+
 
 def _scan(halaman, teks: str) -> None:
-    halaman.locator("#scan-plat").evaluate("(el) => { el.hidden = false; }")
+    expect(halaman.locator("#scan-plat")).to_be_visible()
     halaman.fill("#scan-plat", teks)
     halaman.press("#scan-plat", "Enter")
 

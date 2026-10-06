@@ -15,14 +15,14 @@ HTML = (REPO_ROOT / "src" / "palmgrade" / "static" / "console.html").read_text(e
 
 # ── Setelan: sub-tabs (user 2026-10-05, replacing the accordion) ───────────
 
-SUB = ("grading", "kamera", "dev", "penugasan", "slip", "harikerja", "bahaya")
+SUB = ("grading", "kamera", "dev", "penugasan", "scanner", "slip", "harikerja", "bahaya")
 
 
 def _bagian() -> str:
     return HTML.split('<section id="sec-setelan"', 1)[1].split("</section>", 1)[0]
 
 
-def test_tujuh_sub_tab_berlabel_dua_bahasa():
+def test_delapan_sub_tab_berlabel_dua_bahasa():
     """Same component as the Line tab, one button per part, each worded through KAMUS."""
     bar = re.search(r'<div class="sub-tab" id="setelan-sub" role="group">(.*?)</div>', _bagian(), re.S)
     assert bar, "the Settings sub-tab bar is missing"
@@ -30,6 +30,14 @@ def test_tujuh_sub_tab_berlabel_dua_bahasa():
     assert [sub for sub, _ in tombol] == list(SUB)
     for _, kunci in tombol:
         assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in id and en"
+
+
+def test_semua_sub_tab_satu_baris_di_layar_lebar():
+    """User 2026-10-06: Danger Zone fell to a second row once Scanner QR made eight buttons in
+    a seven-column grid. The wide-screen column count follows the number of buttons."""
+    kolom = re.search(r"#setelan-sub \{[^}]*repeat\((\d+), minmax\(0, 1fr\)\)", HTML)
+    assert kolom, "the Settings sub-tab grid rule is missing"
+    assert int(kolom.group(1)) == len(SUB)
 
 
 def test_tiap_bagian_punya_panelnya():

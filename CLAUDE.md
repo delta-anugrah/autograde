@@ -89,7 +89,7 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 17. Recap: grading and weighing are two sources, only placed side by side.
 18. Truck visit: one message, rebuilt every time, never patched (contract §4.C).
 19. Console login: email + password, two account sources, verified offline; the session slides 12 h from the last touch, polls never renew it.
-20. A QR scan carries the plate number and nothing else.
+20. A QR scan carries the plate number and nothing else; the four QR fields show only when support turns on the Scanner QR switch (default off).
 21. Developer lane: the backend guards, the screen only tidies.
 22. Licence: the factory verifies, AutoERP issues.
 23. Developer video recording never slows grading.

@@ -455,7 +455,7 @@
   .langkah-ruas .scan-pesan { min-height:0; font-size:.85rem; line-height:1.3; }
   .langkah-ruas .scan-pesan:empty { display:none; }
   .langkah-ruas .scan-pesan:not(:empty) + .langkah-di { display:none; }
-  /* Kolom QR langkah 3 dan 4, `hidden` sampai scanner dibeli: begitu dimunculkan ia mengisi
+  /* Kolom QR langkah 3 dan 4, `hidden` sampai saklar Scanner QR nyala: begitu dimunculkan ia mengisi
      lebar ruasnya. `flex:none`: `.tools input.plat` memberi basis 13rem, dan di kolom flex basis
      itu menjadi TINGGI. */
   .timbang-alat .langkah-ruas input.plat { flex:none; width:100%; max-width:none; margin-top:4px; }
@@ -1376,7 +1376,7 @@
      kartu selebar 480 px menyisakan dua pertiga layar kosong, dan kolomnya
      berdesak di kiri justru saat support membaca dari jarak beberapa meter. */
   /* Settings sub-tabs (2026-10-05): the Line tab's component, six parts. */
-  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:0; }
+  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(8, minmax(0, 1fr)); gap:0; }
   @media (max-width:1100px) { #setelan-sub { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
   @media (max-width:600px) { #setelan-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* `display:grid` beats the browser's `[hidden]`, as for `#akun-tambah`. */
@@ -2034,7 +2034,7 @@
       Strip empat langkah (user 2026-10-03): tiap ruas = pita tahap + di mana langkah itu
       dikerjakan. Langkah 3 dan 4 tidak punya kontrol sendiri (tombolnya di baris tabel),
       jadi tidak diberi kartu berisi kotak kosong. Label tetap `for` kolom QR-nya: kolom itu
-      `hidden` sampai scanner dibeli, lalu muncul di form (1, 2) atau di ruasnya (3, 4).
+      `hidden` sampai saklar Scanner QR nyala (`tampilkanKolomScan`), lalu muncul di form (1, 2) atau di ruasnya (3, 4).
       Scan 1 dan 4 (2026-09-30): jam datang dan jam keluar gerbang, cuma disimpan di PC ini.
       Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
     -->
@@ -2312,6 +2312,7 @@
       <button type="button" data-sub="kamera" data-t="grupKamera">Kamera &amp; Conveyor</button>
       <button type="button" data-sub="dev" data-t="grupDev">Mode Developer</button>
       <button type="button" data-sub="penugasan" data-t="grupPenugasan">Penugasan line</button>
+      <button type="button" data-sub="scanner" data-t="grupScanner">Scanner QR</button>
       <button type="button" data-sub="slip" data-t="grupSlip">Slip grading</button>
       <button type="button" data-sub="harikerja" data-t="grupHariKerja">Hari kerja</button>
       <button type="button" data-sub="bahaya" data-t="bahayaJudul">Danger Zone</button>
@@ -2473,6 +2474,29 @@
     </div>
     <div class="tools lepas">
       <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan">Simpan penugasan</button>
+    </div>
+  </div>
+
+  <!--
+    Scanner QR (2026-10-05). The four QR fields on the Timbangan tab ship `hidden`; this
+    switch shows them on every open screen at the next 2 s poll. Support only, with its own
+    Simpan like Penugasan line. Off = the plate picker and the row buttons, as before; on,
+    those stay too (rule 20: broken scanner, cracked phone screen, card not printed).
+  -->
+  <div class="setelan-form" id="setform-scanner">
+    <div class="setelan-grup" data-setelan-grup="scanner">
+      <div class="setelan-grup-isi">
+        <label class="saklar">
+          <input id="set-scanner" type="checkbox">
+          <span>
+            <span data-t="labelScanner">Tampilkan kolom scan QR di tab Timbangan</span>
+            <small class="muted" data-t="bantuScanner">Nyalakan setelah scanner dicolok ke PC ini. Pilih truk dari daftar tetap bisa.</small>
+          </span>
+        </label>
+      </div>
+    </div>
+    <div class="tools lepas">
+      <button id="set-scanner-simpan" class="utama" data-t="btnSimpanScanner">Simpan scanner</button>
     </div>
   </div>
 
@@ -3207,6 +3231,9 @@ const KAMUS = {
     bantuOtomatis:"Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.",
     labelLineOtomatis:"Line yang dipakai", btnSimpanPenugasan:"Simpan penugasan",
     penugasanTersimpan:"Penugasan line tersimpan.",
+    grupScanner:"Scanner QR", labelScanner:"Tampilkan kolom scan QR di tab Timbangan",
+    bantuScanner:"Nyalakan setelah scanner dicolok ke PC ini. Pilih truk dari daftar tetap bisa.",
+    btnSimpanScanner:"Simpan scanner", scannerTersimpan:"Setelan scanner tersimpan.",
     antreanBongkarOtomatis:"Antrean bongkar (otomatis)",
     btnTugaskanSekarang:"Tugaskan sekarang", btnLewati:"Lewati",
     konfirmasiLewatiJudul:"Lewati {truk}?", konfirmasiLewati:"Truk ini tidak akan ditugaskan otomatis.",
@@ -3753,6 +3780,9 @@ const KAMUS = {
     bantuOtomatis:"One truck on the lines until it is weighed out. The next truck waits in the unloading queue.",
     labelLineOtomatis:"Lines to use", btnSimpanPenugasan:"Save assignment",
     penugasanTersimpan:"Line assignment saved.",
+    grupScanner:"QR scanner", labelScanner:"Show the QR scan fields on the Weighbridge tab",
+    bantuScanner:"Turn on after the scanner is plugged into this PC. Picking the truck from the list still works.",
+    btnSimpanScanner:"Save scanner", scannerTersimpan:"Scanner setting saved.",
     antreanBongkarOtomatis:"Unloading queue (automatic)",
     btnTugaskanSekarang:"Assign now", btnLewati:"Skip",
     konfirmasiLewatiJudul:"Skip {truk}?", konfirmasiLewati:"It will not be assigned automatically.",
@@ -4616,10 +4646,10 @@ $("tabs").addEventListener("click", (ev) => {
 
 // Settings sub-tabs (user 2026-10-05): one part at a time. The three parts saved by one
 // Simpan live in one form (`setform-utama`); the others have their own form and button.
-const SUB_SETELAN = ["grading", "kamera", "dev", "penugasan", "slip", "harikerja", "bahaya"];
+const SUB_SETELAN = ["grading", "kamera", "dev", "penugasan", "scanner", "slip", "harikerja", "bahaya"];
 const FORM_SETELAN = {
   grading: "setform-utama", kamera: "setform-utama", dev: "setform-utama",
-  penugasan: "setform-penugasan", slip: "setform-slip", harikerja: "setform-harikerja", bahaya: "setform-bahaya",
+  penugasan: "setform-penugasan", scanner: "setform-scanner", slip: "setform-slip", harikerja: "setform-harikerja", bahaya: "setform-bahaya",
 };
 let subSetelan = SUB_SETELAN.includes(baca("subSetelan", "grading")) ? baca("subSetelan", "grading") : "grading";
 
@@ -6290,6 +6320,18 @@ $("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
 // normalises the plate and rejects anything that is not a plate - the screen
 // does not guess on its own, so there is no second rule that could disagree
 // with the server's.
+// Scanner QR switch (support, 2026-10-05): the four QR fields ship `hidden` and follow the
+// 2 s poll, so turning it on reaches every open screen without a reload. Writes only on a
+// change (F9): the same value every poll is noise, and a field re-hidden mid-scan loses
+// what the scanner was typing.
+const KOLOM_SCAN = ["scan-datang", "scan-plat", "scan-keluar", "scan-pergi"];
+function tampilkanKolomScan(aktif) {
+  for (const id of KOLOM_SCAN) {
+    const el = $(id);
+    if (el.hidden !== !aktif) el.hidden = !aktif;
+  }
+}
+
 let scanSibuk = false;
 
 // A scan result does not go through the global banner: `refresh()` clears it
@@ -7502,6 +7544,8 @@ async function refresh() {
     aturCutoffShift(s.cutoff_shift);
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
+    // `=== true`: an older server has no field, and that reads as off.
+    tampilkanKolomScan(s.scanner_qr === true);
     selarasUrutan(s.lines);
     segarkanSaringGrading();
     isiTally(s.lines);
@@ -9611,6 +9655,7 @@ async function muatSetelan() {
     $("set-pesan").textContent = "";
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
   await muatPenugasan();
+  await muatScanner();
   await muatSlipSetelan();
   await muatCutoffSetelan();
 }
@@ -9699,6 +9744,30 @@ $("set-penugasan-simpan").addEventListener("click", (ev) => denganSibuk(ev.curre
     toastSukses(t("penugasanTersimpan"));
     // Disimpan nyala: truk yang sudah menunggu langsung naik ke line yang bebas.
     umumkanPasang(r.dipasang);
+    await refresh();
+  } catch (e) {
+    toastGagal(alasan(e, "gagalSetelan"));
+  }
+}));
+
+// Saklar scanner QR: jalurnya sendiri, seperti penugasan line.
+async function muatScanner() {
+  try {
+    const r = await api("/api/console/dev/scanner-qr");
+    $("set-scanner").checked = Boolean(r.aktif);
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
+  }
+}
+
+$("set-scanner-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
+  try {
+    await api("/api/console/dev/scanner-qr", {
+      method: "POST", body: JSON.stringify({ aktif: $("set-scanner").checked }),
+    });
+    toastSukses(t("scannerTersimpan"));
+    // Through the refresh queue, like the sibling switches: shown or hidden on this screen at
+    // once, and a poll that read /state before the save cannot flip it back for 2 s.
     await refresh();
   } catch (e) {
     toastGagal(alasan(e, "gagalSetelan"));

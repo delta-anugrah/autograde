@@ -59,7 +59,7 @@ def test_empat_tahap_berurutan_dalam_satu_baris_alat():
     assert len(re.findall(r'class="tools\b', blok)) == 1
 
 
-def test_empat_kolom_scan_tersembunyi_sampai_scanner_datang():
+def test_empat_kolom_scan_tersembunyi_sampai_saklar_scanner_nyala():
     blok = _blok_alat()
     for id_ in ("scan-datang", "scan-plat", "scan-keluar", "scan-pergi"):
         tag = re.search(rf'<input id="{id_}"[^>]*>', blok, re.S)
