@@ -117,3 +117,25 @@ def ringkas(
     else:
         keadaan = STABIL if bacaan.stabil else BERGERAK
     return {"keadaan": keadaan, "kg": bacaan.kg, "umur_detik": round(umur, 1)}
+
+
+#: A reading with no stable bit (`terbaca`) must hold the same kilograms this long before a
+#: scan may save it (user 2026-10-06): a truck still rolling onto the bridge changes it.
+TAHAN_DETIK = 2.0
+
+
+def berat_layak(snapshot: dict, tahan_detik: float | None, minimum: float) -> int | float | None:
+    """The live kilograms a scan may save as a ticket weight, or None (the operator types it).
+
+    Fit = `stabil`, or `terbaca` held unchanged for `TAHAN_DETIK`; never moving, cut, stale
+    or faulted (`ringkas` gives no kg then), and never below `minimum`: an empty bridge reads
+    near zero, and a ticket of 40 kg is a mistake, not a weight.
+    """
+    kg = snapshot.get("kg")
+    if kg is None or kg < minimum:
+        return None
+    if snapshot.get("keadaan") == STABIL:
+        return kg
+    if snapshot.get("keadaan") == TERBACA and tahan_detik is not None and tahan_detik >= TAHAN_DETIK:
+        return kg
+    return None
