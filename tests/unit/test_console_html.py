@@ -534,7 +534,7 @@ def test_scan_dikirim_saat_enter_dan_kolomnya_dikosongkan():
 def test_langkah_diputuskan_server_bukan_layar():
     """L4: layar tidak menebak langkah. Ia mengirim QR dan menuliskan jawaban server."""
     badan = _badan("kirimScanOtomatis", "async function tanyaScanUlang")
-    assert "/api/console/scan/otomatis" in badan
+    assert "/api/console/scan/auto" in badan
     assert "konfirmasi" in badan and "new Date().toISOString()" in badan
     for kata in ("tercatat", "timbang_isi", "keluar"):
         assert f'=== "{kata}"' not in badan, "layar memilih langkah sendiri"
@@ -621,8 +621,9 @@ def test_kartu_line_mengikuti_penugasan_tanpa_merebut_pilihan():
     yang ditugaskan berubah dan daftarnya tertutup."""
     assert "ikutiPenugasan(c," in _fungsi("perbaruiKartu")
     fn = _fungsi("ikutiPenugasan")
-    assert "c.dataset.trukTugas === truckId" in fn and 'data' in fn and 'buka === "1"' in fn
-    assert "aturPilih(pilih, truckId)" in fn
+    assert "c.dataset.trukTugas === truckId" in fn and 'buka !== "1"' in fn
+    # A truck missing from the list is tried again on the next poll, not marked done.
+    assert fn.index("aturPilih(pilih, truckId)") < fn.index("c.dataset.trukTugas = truckId")
 
 
 def test_label_arah_gerbang_diterjemahkan():

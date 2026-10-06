@@ -65,3 +65,10 @@ def test_putus_mengulang_tahan():
 def test_tidak_dipakai_tidak_pernah_layak():
     live = TimbanganLive(dipakai=False)
     assert live.berat_layak(1000) is None
+
+
+def test_satu_bacaan_lalu_macet_bukan_tahan_2_detik():
+    live, jam = _live()
+    live.berhasil(Bacaan(kg=15000))
+    jam.t += 2.5  # no new read: the link stalls
+    assert live.berat_layak(1000) is None

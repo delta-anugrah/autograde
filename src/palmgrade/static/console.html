@@ -2034,7 +2034,7 @@
     <!--
       Satu kolom scan (user 2026-10-06), `hidden` sampai saklar Scanner QR nyala
       (`tampilkanKolomScan`). Operator tidak memilih kolom: server membaca keadaan truk dan
-      mencatat langkah berikutnya (`/api/console/scan/otomatis`). Kolom ini memegang fokus
+      mencatat langkah berikutnya (`/api/console/scan/auto`). Kolom ini memegang fokus
       selama tab Timbangan terbuka dan tidak ada kolom lain yang sedang diisi (`jagaFokusScan`),
       jadi scanner bisa langsung dipakai tanpa klik.
     -->
@@ -2481,8 +2481,8 @@
   </div>
 
   <!--
-    Scanner QR (2026-10-05). The four QR fields on the Timbangan tab ship `hidden`; this
-    switch shows them on every open screen at the next 2 s poll. Support only, with its own
+    Scanner QR (2026-10-05). The scan field on the Timbangan tab (one since 2026-10-06) ships
+    `hidden`; this switch shows it on every open screen at the next 2 s poll. Support only, with its own
     Simpan like Penugasan line. Off = the plate picker and the row buttons, as before; on,
     those stay too (rule 20: broken scanner, cracked phone screen, card not printed).
   -->
@@ -3788,7 +3788,7 @@ const KAMUS = {
     bantuOtomatis:"One truck on the lines until it is weighed out. The next truck waits in the unloading queue.",
     labelLineOtomatis:"Lines to use", btnSimpanPenugasan:"Save assignment",
     penugasanTersimpan:"Line assignment saved.",
-    grupScanner:"QR scanner", labelScanner:"Show the QR scan fields on the Weighbridge tab",
+    grupScanner:"QR scanner", labelScanner:"Show the QR scan field on the Weighbridge tab",
     bantuScanner:"Turn on after the scanner is plugged into this PC. Picking the truck from the list still works.",
     btnSimpanScanner:"Save scanner", scannerTersimpan:"Scanner setting saved.",
     antreanBongkarOtomatis:"Unloading queue (automatic)",
@@ -6330,7 +6330,7 @@ $("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
 // derives the working day from it (§6.1).
 // ── one scan field (user 2026-10-06) ──────────────────────────────────────
 // The scanner types the QR then presses Enter. The operator no longer picks a field: the
-// server reads the truck's state and records the next step (`/api/console/scan/otomatis`),
+// server reads the truck's state and records the next step (`/api/console/scan/auto`),
 // and the screen only words its answer (L4). The plate dropdowns, Catat datang and the row
 // buttons stay as the fallback (rule 20: broken scanner, cracked phone screen, no card).
 // Scanner QR switch (support, 2026-10-05): the field ships `hidden` and follows the 2 s
@@ -6407,7 +6407,7 @@ async function kirimScanOtomatis(qr, konfirmasi = false) {
   scanSibuk = true;
   let h = null;
   try {
-    h = await api("/api/console/scan/otomatis", {
+    h = await api("/api/console/scan/auto", {
       method: "POST", body: JSON.stringify({ qr, at: new Date().toISOString(), konfirmasi }),
     });
   } catch (e) {
@@ -7478,10 +7478,11 @@ function perbaruiKartu(c, l) {
 // so an operator's open list or fresh pick is never yanked away; a release changes nothing.
 function ikutiPenugasan(c, truckId) {
   if (c.dataset.trukTugas === truckId) return;
-  c.dataset.trukTugas = truckId;
   const pilih = c.querySelector(".assign .pilih");
-  if (!truckId || !pilih || pilih.dataset.buka === "1") return;
-  if (aturPilih(pilih, truckId)) segarkanTombol();
+  // A truck not in the list yet (the 60 s truck poll) is tried again on the next poll.
+  if (truckId && pilih && pilih.dataset.buka !== "1" && !aturPilih(pilih, truckId)) return;
+  c.dataset.trukTugas = truckId;
+  if (truckId) segarkanTombol();
 }
 
 function daftarSama(a, b) {

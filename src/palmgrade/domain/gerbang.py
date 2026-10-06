@@ -264,6 +264,11 @@ GANDA = "ganda"
 #: reads one QR twice would otherwise record the next step (a weigh-in with whatever stands
 #: on the bridge, or a weigh-out with the weigh-in's own weight).
 JEDA_SCAN_ULANG = timedelta(minutes=3)
+#: How long after its weigh-out a scan still means "this truck leaves now". A truck leaves the
+#: bridge for the gate within minutes; one scanned hours later skipped its Keluar and is back
+#: for a new visit, and closing the old ticket with this time would make up a gate time (rule
+#: 37: a returning truck finishes the old visit "tanpa scan 4", nothing written).
+JENDELA_SCAN_KELUAR = timedelta(hours=2)
 
 
 @dataclass(frozen=True)
@@ -290,7 +295,8 @@ def putuskan_langkah(
 
     1. A ticket waiting for its tare inside the visit window → timbang kosong. Two of them →
        `ganda`, never a guess (same rule as the old exit scan).
-    2. A weighed-out ticket not left and not finished "tanpa scan 4" → keluar (`putuskan_keluar`).
+    2. A weighed-out ticket not left, not finished "tanpa scan 4" (`putuskan_keluar`) and weighed
+       out less than `JENDELA_SCAN_KELUAR` ago → keluar. Older: the truck is back, so datang.
     3. A waiting arrival a weigh-in now would claim → timbang isi (`pilih_kedatangan`).
     4. Otherwise a new visit → datang; `sebelumnya` is the newest leave time, so a double
        read right after Keluar does not open a new visit unasked.
@@ -311,7 +317,8 @@ def putuskan_langkah(
     keluar = putuskan_keluar(tiket, at, kembali=kembali)
     if keluar.hasil == TERCATAT and keluar.weighing is not None:
         saat = saat_timbang_kosong(keluar.weighing)
-        return Langkah(LANGKAH_KELUAR, keluar.weighing, sebelumnya=saat.isoformat() if saat else None)
+        if saat is not None and saat >= sekarang - JENDELA_SCAN_KELUAR:
+            return Langkah(LANGKAH_KELUAR, keluar.weighing, sebelumnya=saat.isoformat())
 
     datang = pilih_kedatangan(kedatangan, at)
     if datang is not None:

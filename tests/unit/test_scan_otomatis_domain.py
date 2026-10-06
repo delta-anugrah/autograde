@@ -140,3 +140,16 @@ def test_berat_layak_di_bawah_minimum():
 
 def test_berat_tanpa_kg_tidak_layak():
     assert berat_layak(_snap("stabil", None), None, 1000) is None
+
+
+def test_timbang_kosong_lama_tanpa_keluar_dibaca_kunjungan_baru():
+    # Weighed out at 06:00, scan 4 skipped, back loaded at 10:00: a new visit, not a Keluar
+    # stamped four hours late on the old ticket (rule 37).
+    tiket = _tiket(masuk="2026-10-06T05:00:00+00:00", tara=6000, keluar="2026-10-06T06:00:00+00:00")
+    langkah = putuskan_langkah([tiket], [], JAM)
+    assert (langkah.nama, langkah.sebelumnya) == (LANGKAH_DATANG, None)
+
+
+def test_timbang_kosong_baru_masih_keluar():
+    tiket = _tiket(tara=6000, keluar="2026-10-06T08:30:00+00:00")
+    assert putuskan_langkah([tiket], [], JAM).nama == LANGKAH_KELUAR

@@ -26,7 +26,7 @@ from palmgrade.services.timbangan_live import TimbanganLive
 
 SANDI = "sawit2026"
 OPERATOR = "op@pks.test"
-RUTE = "/api/console/scan/otomatis"
+RUTE = "/api/console/scan/auto"
 PLAT = "BE 4412 OFL"
 
 

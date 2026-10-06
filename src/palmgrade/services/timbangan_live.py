@@ -50,5 +50,7 @@ class TimbanganLive:
 
     def berat_layak(self, minimum: float) -> int | float | None:
         """The kilograms a scan may save now, or None (the operator types the weight)."""
-        tahan = None if self._sama_sejak is None else self._jam() - self._sama_sejak
+        # Between the first and the LAST read of this number, not until now: one read followed
+        # by a stalled link must not count as two seconds of holding.
+        tahan = None if self._sama_sejak is None or self._ok_pada is None else self._ok_pada - self._sama_sejak
         return berat_layak(self.snapshot(), tahan, minimum)

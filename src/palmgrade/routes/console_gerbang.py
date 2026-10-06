@@ -57,7 +57,7 @@ def console_departure(gate: Gate, operator: Operator, payload: DepartureBody) ->
         raise _operator_error(400, exc) from exc
 
 
-@gerbang_router.post("/api/console/scan/otomatis")
+@gerbang_router.post("/api/console/scan/auto")
 async def console_scan_otomatis(scan: ScanAuto, operator: Operator, payload: ScanOtomatisBody) -> dict:
     """The one scan field (2026-10-06): the next step of this truck's visit, decided from its state.
 
@@ -98,7 +98,7 @@ def unloading_queue_skip(weighing_id: str, service: Service, operator: Operator)
 
 @scanner_router.get("/api/console/dev/scanner-qr")
 def dev_scanner_baca(service: Service, operator: Support) -> dict:
-    """Scanner QR switch: whether the four QR fields show on the Timbangan tab."""
+    """Scanner QR switch: whether the scan field shows on the Timbangan tab."""
     return {"aktif": service.scanner_qr()}
 
 
