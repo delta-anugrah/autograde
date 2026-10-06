@@ -74,7 +74,7 @@ def test_a_truck_from_before_midnight_is_finished_from_todays_table(halaman, kon
     assert (tiket["work_date"], tiket["tahap"], tiket["net_kg"]) == (kemarin, "selesai", 8000.0)
 
 
-def test_two_open_tickets_across_midnight_are_refused_not_guessed(halaman, konsol, browser_name):
+def test_two_open_tickets_across_midnight_are_refused_not_guessed(halaman, konsol, browser_name, scanner_nyala):
     """What the night run of `test_two_open_tickets_are_refused_not_guessed` hit before 00:30,
     now at any hour: the first ticket on yesterday's work date, the second on today's. Both are
     open in the visit window, so the exit scan asks the operator to choose."""
@@ -89,7 +89,7 @@ def test_two_open_tickets_across_midnight_are_refused_not_guessed(halaman, konso
     halaman.evaluate("() => muatTimbangan()")  # the API weigh-in came after the first load
     expect(halaman.locator("#timbangan tr", has_text=nomor)).to_have_count(2)
 
-    halaman.locator("#scan-keluar").evaluate("(el) => { el.hidden = false; }")
+    expect(halaman.locator("#scan-keluar")).to_be_visible()
     halaman.fill("#scan-keluar", nomor)
     halaman.press("#scan-keluar", "Enter")
     expect(halaman.locator("#scan-keluar-pesan")).to_have_text(f"{kamus(halaman, 'scanGanda')} {nomor}")

@@ -3,8 +3,8 @@ isi, 3 Timbang kosong, 4 Keluar, each its own labelled side, because the console
 which step a scan is (scan 1 may be skipped).
 
 Without a scanner (the four QR fields ship `hidden`), step 1 is the truck picker plus "Catat
-datang" and step 4 is the Keluar button on the ticket row. The scan tests un-hide a field the
-way the day the scanner arrives will, as `test_browser_scan.py` does.
+datang" and step 4 is the Keluar button on the ticket row. The scan tests turn the Scanner QR
+switch on (`scanner_nyala`), as `test_browser_scan.py` does.
 
 The console lives for the whole session, so every truck weighed in here is weighed out and
 leaves, and every arrival is claimed by a weigh-in: an open ticket stays in the table and in
@@ -82,12 +82,12 @@ def _pergi(halaman, nomor: str) -> None:
 
 
 def _scan(halaman, kolom: str, teks: str) -> None:
-    halaman.locator(kolom).evaluate("(el) => { el.hidden = false; }")
+    expect(halaman.locator(kolom)).to_be_visible()
     halaman.fill(kolom, teks)
     halaman.press(kolom, "Enter")
 
 
-def test_four_labelled_steps_and_two_new_columns(halaman):
+def test_four_labelled_steps_and_two_new_columns(halaman, scanner_mati):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
     for kunci in _LANGKAH:
@@ -153,7 +153,9 @@ def test_weigh_out_then_leave_fills_the_total(halaman, browser_name, penugasan_b
     expect(sel.nth(_TOTAL)).to_have_attribute("title", re.compile("^" + re.escape(kamus(halaman, "jamPergi"))))
 
 
-def test_leaving_before_weigh_out_is_refused_and_nothing_is_written(halaman, konsol, browser_name, penugasan_bersih):
+def test_leaving_before_weigh_out_is_refused_and_nothing_is_written(
+    halaman, konsol, browser_name, penugasan_bersih, scanner_nyala
+):
     nomor = plat(browser_name, 1203)
     masuk(halaman, OPERATOR)
     _daftar(halaman, nomor)
@@ -175,7 +177,7 @@ def test_leaving_before_weigh_out_is_refused_and_nothing_is_written(halaman, kon
     expect(pesan).to_contain_text(kamus(halaman, "pergiSudah"))
 
 
-def test_arrival_scanned_twice_then_while_inside(halaman, browser_name, penugasan_bersih):
+def test_arrival_scanned_twice_then_while_inside(halaman, browser_name, penugasan_bersih, scanner_nyala):
     nomor = plat(browser_name, 1204)
     masuk(halaman, OPERATOR)
     _daftar(halaman, nomor)
@@ -197,7 +199,7 @@ def test_arrival_scanned_twice_then_while_inside(halaman, browser_name, penugasa
     _pergi(halaman, nomor)
 
 
-def test_not_a_plate_is_refused_on_both_gate_fields(halaman):
+def test_not_a_plate_is_refused_on_both_gate_fields(halaman, scanner_nyala):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
     for kolom, pesan in (("#scan-datang", "#scan-datang-pesan"), ("#scan-pergi", "#scan-pergi-pesan")):

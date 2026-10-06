@@ -64,6 +64,8 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/dev/setelan"),
     ("GET", "/api/console/dev/auto-assign"),
     ("POST", "/api/console/dev/auto-assign"),
+    ("GET", "/api/console/dev/scanner-qr"),
+    ("POST", "/api/console/dev/scanner-qr"),
     ("GET", "/api/console/dev/rekam"),
     ("POST", "/api/console/dev/rekam/setelan"),
     ("POST", "/api/console/dev/rekam/{line_code}/mulai"),

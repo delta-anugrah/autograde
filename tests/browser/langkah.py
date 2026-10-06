@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 
+import httpx
 import pytest
 
 if os.environ.get("WAJIB_BROWSER") != "1":
@@ -73,3 +74,10 @@ def buka_status(page: Page, sub: str) -> None:
     page.click(f'#status-sub button[data-sub="{sub}"]')
     expect(page.locator(f'#status-sub button[data-sub="{sub}"]')).to_have_attribute("aria-pressed", "true")
     expect(page.locator(f'#sec-status [data-status-sub="{sub}"]')).to_be_visible()
+
+
+def setel_scanner(url: str, aktif: bool) -> None:
+    """The Scanner QR switch (support, 2026-10-05), set over HTTP like the other settings."""
+    with httpx.Client(base_url=url, timeout=10) as c:
+        c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
+        c.post("/api/console/dev/scanner-qr", json={"aktif": aktif}).raise_for_status()

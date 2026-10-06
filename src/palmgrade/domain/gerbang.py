@@ -47,6 +47,10 @@ JENDELA_KELUAR = timedelta(seconds=JENDELA_KUNJUNGAN_DETIK)
 #: visit is finished "tanpa scan 4" (user 2026-10-03). Why it differs: `JENDELA_TANPA_KELUAR_DETIK`.
 JENDELA_TANPA_KELUAR = timedelta(seconds=JENDELA_TANPA_KELUAR_DETIK)
 
+#: Console state key for the Scanner QR switch (support, 2026-10-05): "1" shows the four QR
+#: fields on the Timbangan tab. Missing or anything else = off, the plate picker only.
+KUNCI_SCANNER_QR = "setelan_scanner_qr"
+
 
 def baca_waktu(teks: str) -> datetime:
     """ISO text → aware datetime. No offset is read as UTC, like `work_date_for`."""

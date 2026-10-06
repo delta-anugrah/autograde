@@ -285,6 +285,9 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             "penugasan_otomatis": {
                 k: v for k, v in self.penugasan_otomatis().items() if k != "lines_tersedia"
             },
+            # Scanner QR switch: on the 2 s poll so every open screen shows the QR fields
+            # without a reload once support turns it on.
+            "scanner_qr": self.scanner_qr(),
             # Menumpang polling 2 detik ini, bukan endpoint sendiri: yang melihat
             # sambungan putus itu operator biasa (alasan sama dengan banner lisensi).
             "sinkron": self._sinkron_aman(),

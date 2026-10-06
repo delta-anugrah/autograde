@@ -1188,18 +1188,17 @@ def _baris_input(elemen_id: str) -> str:
     return HTML[mulai : HTML.index(">", mulai) + 1]
 
 
-def test_kedua_kolom_qr_disembunyikan_selama_scanner_belum_ada():
-    """Kolom yang tidak bisa dipakai siapa pun cuma membuat operator bertanya-
-    tanya apa yang salah dengan alat yang tidak ada."""
+def test_kolom_qr_dikirim_hidden_dan_dimunculkan_saklar_scanner():
+    """The markup ships the QR fields hidden; the Scanner QR switch (support, Setelan)
+    shows them through `tampilkanKolomScan`. A PC without a scanner never sees them."""
     for elemen_id in ("scan-plat", "scan-keluar"):
         assert " hidden" in _baris_input(elemen_id), (
-            f"#{elemen_id} tidak lagi hidden — kalau scanner-nya memang sudah "
-            "dibeli, hapus test ini bersama atributnya"
+            f"#{elemen_id} must ship hidden: the Scanner QR switch shows it, not the markup"
         )
 
 
 def test_jalur_scan_tidak_ikut_dihapus():
-    """Disembunyikan, bukan dibuang: scanner-nya akan dibeli.
+    """Markup-nya `hidden` dan dimunculkan saklar Scanner QR, bukan dibuang.
 
     Kalau jalur ini ikut terhapus, menghidupkan gerbang QR nanti berarti menulis
     ulang endpoint, penangan, dan penjaga bacaan-ganda dari nol — padahal ketiga

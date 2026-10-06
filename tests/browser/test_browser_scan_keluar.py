@@ -7,16 +7,19 @@ decision 2026-09-15: a guess can put the tare on the wrong visit).
 30 minutes ago used to land on yesterday's work date before 00:30 and drop out of the
 lookup. Across an actual work-date boundary: `test_browser_tengah_malam.py`.
 
-`#scan-keluar` ships `hidden` until the mill buys a scanner, like `#scan-plat` in
-`test_browser_scan.py`; these tests un-hide it the way that day will.
+`#scan-keluar` ships `hidden` and shows with the Scanner QR switch on, like `#scan-plat` in
+`test_browser_scan.py`; every test here runs with it on (`scanner_nyala`).
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from langkah import OPERATOR, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
+
+pytestmark = pytest.mark.usefixtures("scanner_nyala")
 
 # The row's number cells, in order: gross, tare, net (`barisTimbangan` in console.html).
 _NETO = 2
@@ -38,7 +41,7 @@ def _timbang_masuk(halaman, konsol, nomor: str, *, menit_lalu: int = 0) -> None:
 
 
 def _scan_keluar(halaman, teks: str) -> None:
-    halaman.locator("#scan-keluar").evaluate("(el) => { el.hidden = false; }")
+    expect(halaman.locator("#scan-keluar")).to_be_visible()
     halaman.fill("#scan-keluar", teks)
     halaman.press("#scan-keluar", "Enter")
 

@@ -1,4 +1,4 @@
-"""Gate times and the unloading queue (rules 36 and 37). Included by `routes/console.py`.
+"""Gate times, the unloading queue and the Scanner QR switch (rules 20, 36 and 37). Included by `routes/console.py`.
 
 A module of its own because `routes/console.py` stays under 1,000 lines
 (`tests/unit/test_ukuran_berkas.py`). The two routers are included at the exact spots the
@@ -12,11 +12,12 @@ from fastapi import APIRouter
 
 from ..domain.operator_error import InvalidInput, OperatorError
 from ..domain.pembaruan import PembaruanBerjalan
-from ..schemas.console_schema import ArrivalBody, DepartureBody
-from .console_deps import Gate, Operator, Service, _operator_error
+from ..schemas.console_schema import ArrivalBody, DepartureBody, ScannerQrBody
+from .console_deps import Gate, Operator, Service, Support, _operator_error
 
 gerbang_router = APIRouter(tags=["console"])
 antrean_bongkar_router = APIRouter(tags=["console"])
+scanner_router = APIRouter(tags=["console"])
 
 
 @gerbang_router.post("/api/console/arrivals")
@@ -78,3 +79,15 @@ def unloading_queue_skip(weighing_id: str, service: Service, operator: Operator)
     except InvalidInput as exc:
         raise _operator_error(409, exc) from exc
     return {"weighing_id": weighing_id, "dilewati": True}
+
+
+@scanner_router.get("/api/console/dev/scanner-qr")
+def dev_scanner_baca(service: Service, operator: Support) -> dict:
+    """Scanner QR switch: whether the four QR fields show on the Timbangan tab."""
+    return {"aktif": service.scanner_qr()}
+
+
+@scanner_router.post("/api/console/dev/scanner-qr")
+def dev_scanner_simpan(service: Service, operator: Support, payload: ScannerQrBody) -> dict:
+    """Support only, logged WARNING with who. Plain `def` (rule 30): one SQLite write."""
+    return service.simpan_scanner_qr(bool(payload.aktif), diubah_oleh=operator["email"])

@@ -75,6 +75,13 @@ class AutoAssignBody(_Body):
     lines: list[str] | None = None
 
 
+class ScannerQrBody(_Body):
+    """Scanner QR switch (support, 2026-10-05). A missing `aktif` saves off, like
+    `AutoAssignBody`: `{}` never turns it on."""
+
+    aktif: bool | None = None
+
+
 class SlipBody(_Body):
     """The printable slip switch (support, batch 5.9). A missing field saves "off"."""
 
