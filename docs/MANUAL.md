@@ -975,6 +975,7 @@ Kalau gejalanya tidak ada di tabel: tab Log dulu, lalu `make logs-<line>`, lalu 
 | Compose di host PC pabrik (yang tidak ikut `autograde pull`) | skill `compose-host-pabrik` |
 | Kerja di layar konsol (tab, test, aturan teks) | skill `konsol-autograde` |
 | Spek terukur PC Lampung | skill `spek-pc-pabrik` |
+| Scanner QR truk (cara colok, bunyi beep, setelan, Enter sesudah scan) | skill `scanner-qr` |
 | Kontrak dengan AutoERP (yang harus dicocokkan dulu) | `../autoerp/docs/autograde-integration.md` |
 | Pasang PC pabrik (image produksi), OPS-2, rilis | `../docs/runbooks/` dan skill `install-factory-pc` / `tag-release` di workspace `sawit` |
 | Sisa pekerjaan | `../docs/TODO-AUTOGRADE-AUTOERP.md` |

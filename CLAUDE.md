@@ -163,6 +163,7 @@ never a "Co-Authored-By: Claude" or other AI mention.
 | A new env var, mount, port that the factory PC must receive | skill `compose-host-pabrik` |
 | PLC, MC Protocol, coils, commissioning | `docs/plc-integration.md`, `docs/plc-mc-handoff.md`, skill `plc-mc-protocol` |
 | Camera tuning (MVS), camera spec | skill `mvs-camera`, `docs/camera-spec.md` |
+| The truck QR scanner (connecting, beeps, settings, Enter after a scan) | skill `scanner-qr` |
 | Swapping or evaluating a detection model | skill `model-swap-eval`, `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | Image source per line (video/photo) | `docs/runbooks/2026-09-21-sumber-kamera-per-line.md` |
 | From-zero factory setup (NVIDIA, MVS, camera IP) | `docs/SETUP.md`; PC capacity: skill `spek-pc-pabrik` |
