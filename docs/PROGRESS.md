@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-06 · console · Scanner QR switch (PR pending)
+## 2026-10-06 · console · Scanner QR switch (PR #249)
 Changed:        Support turns on the four QR scan fields of the Timbangan tab with a new Settings
                 sub-tab Scanner QR (default off, so a PC without a scanner looks as before; plate
                 picker and row buttons stay). Key `setelan_scanner_qr` in sync_state (survives
