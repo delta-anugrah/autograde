@@ -150,6 +150,16 @@ class GerbangStore:
             hasil.setdefault(row["truck_id"], []).append(row["saat"])
         return hasil
 
+    def nama_supplier_truk(self, truck_id: str) -> str | None:
+        """The supplier's name for a scan toast (2026-10-06); None for no truck or no supplier."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT s.name FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
+                    WHERE t.id = ?""",
+                (truck_id,),
+            ).fetchone()
+        return row[0] if row else None
+
     def weighings_for_truck(self, truck_id: str) -> list[dict[str, Any]]:
         """One truck's newest tickets, for scan 4 to choose from (window in the domain)."""
         with self._lock:

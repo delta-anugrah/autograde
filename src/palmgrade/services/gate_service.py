@@ -64,7 +64,7 @@ class GateService:
         # both close one ticket. One instance per process (`get_gate_service`).
         self._kunci = threading.Lock()
 
-    def _waktu(self, at: Any) -> str:
+    def baca_jam(self, at: Any) -> str:
         """The browser's clock, like weigh-in and weigh-out. Server UTC only when absent.
 
         An unreadable or absurd clock (`jam sembilan`, year 0001 with an offset) is the
@@ -85,7 +85,7 @@ class GateService:
             raise InvalidInput(INPUT_TIDAK_SAH, f"jam tidak terbaca: {teks!r}", field="at") from exc
         return teks
 
-    def _plat(self, qr_text: str) -> str:
+    def baca_plat(self, qr_text: str) -> str:
         """The scan as a normalised plate. A REGISTERED truck is accepted whatever its shape.
 
         `baca_qr` refuses what is not plate-shaped, so a stray QR never adds a ghost truck.
@@ -105,8 +105,8 @@ class GateService:
             return plat
 
     def arrive(self, qr_text: str, at: Any = None) -> dict[str, Any]:
-        plate = self._plat(qr_text)
-        waktu = self._waktu(at)
+        plate = self.baca_plat(qr_text)
+        waktu = self.baca_jam(at)
         with self._kunci:
             return self._datang(plate, waktu)
 
@@ -153,7 +153,7 @@ class GateService:
                     row["plate_number"], oleh, arrival_id, row["arrived_at"])
         return {"hasil": DIBATALKAN, "plate_number": row["plate_number"]}
 
-    def _kembali(self, truck_id: str | None, waktu: str) -> list[str]:
+    def kembali(self, truck_id: str | None, waktu: str) -> list[str]:
         """When this truck was seen again (waiting arrivals, weigh-ins): a weighed-out ticket
         it left behind is then finished "tanpa scan 4" and a new Keluar never closes it."""
         if not truck_id:
@@ -164,7 +164,7 @@ class GateService:
     def leave(
         self, qr_text: str | None = None, at: Any = None, weighing_id: str | None = None
     ) -> dict[str, Any]:
-        waktu = self._waktu(at)
+        waktu = self.baca_jam(at)
         with self._kunci:
             return self._keluar(qr_text, waktu, weighing_id)
 
@@ -174,13 +174,13 @@ class GateService:
             row = self.store.weighing(weighing_id)
             if row is None:
                 return {"hasil": TIDAK_ADA_TIKET, "plate_number": None, "weighing_id": None}
-            keputusan = putuskan_keluar([row], waktu, jendela=None, kembali=self._kembali(row.get("truck_id"), waktu))
+            keputusan = putuskan_keluar([row], waktu, jendela=None, kembali=self.kembali(row.get("truck_id"), waktu))
             plate = row.get("plate_number")
         else:
-            plate = self._plat(qr_text or "")
+            plate = self.baca_plat(qr_text or "")
             truck_id = truck_id_for(plate)
             keputusan = putuskan_keluar(
-                self.store.weighings_for_truck(truck_id), waktu, kembali=self._kembali(truck_id, waktu)
+                self.store.weighings_for_truck(truck_id), waktu, kembali=self.kembali(truck_id, waktu)
             )
 
         tiket = keputusan.weighing or {}

@@ -43,6 +43,7 @@ from ..services.operator_admin import OperatorAdmin
 from ..services.pantau_antrean_line import PantauAntreanLine
 from ..services.pembaruan_service import PembaruanService
 from ..services.riwayat_service import RiwayatService
+from ..services.scan_otomatis import ScanOtomatis
 from ..services.scan_service import ScanService
 from ..services.slip_grading import SlipGrading
 from ..services.status_sinkron import StatusSinkron
@@ -296,6 +297,13 @@ def get_timbangan_live() -> TimbanganLive:
     (`build_timbangan_live` turns `dipakai` on), so a route test sees "not connected"."""
     return TimbanganLive(dipakai=False)
 
+@lru_cache
+def get_scan_otomatis() -> ScanOtomatis:
+    """The one scan field (2026-10-06). One instance on purpose: it holds the lock that keeps
+    two reads of one QR from both recording a step."""
+    return ScanOtomatis(get_console_service(), get_gate_service(), get_timbangan_live())
+
+
 def hangatkan_singleton() -> None:
     """Build, before the first request, EVERY `lru_cache` singleton in this module.
 
@@ -323,11 +331,13 @@ def hangatkan_singleton() -> None:
     get_impor_grading_service()
     get_pembaruan_service()
     get_timbangan_live()
+    get_scan_otomatis()
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
 Gate = Annotated[GateService, Depends(get_gate_service)]
+ScanAuto = Annotated[ScanOtomatis, Depends(get_scan_otomatis)]
 Dev = Annotated[DevService, Depends(get_dev_service)]
 Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
 Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]
