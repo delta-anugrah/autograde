@@ -23,7 +23,7 @@ strict boundary; the coding rules that go with it are in `docs/coding-standard.m
 | Workers | `workers/` | background loop, queue, lock, `RuntimeState` | return HTTP, save to file directly (delegate to repo) |
 | Schemas | `schemas/` | Pydantic models that validate input at the boundary and shape responses | logic, I/O |
 | Integrations | `integrations/` | the outside world: AutoERP client and outbox store, camera sources, file storage, R2 upload, notifications, scheduler | business rules, deciding a verdict |
-| PLC | `plc/` | MC Protocol and Modbus clients, pulse and hold, the PLC worker | deciding a verdict (that is `domain/`) |
+| PLC | `plc/` | MC Protocol and Modbus clients, pulse and hold, the PLC worker, the console's scale reader | deciding a verdict (that is `domain/`) |
 | Core | `core/` | `Settings` from env vars, DI factories, logging, constants | business rules; no other module reads env vars |
 
 ---
@@ -42,6 +42,7 @@ strict boundary; the coding rules that go with it are in `docs/coding-standard.m
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di PC dev). Satu-satunya thread yang menyentuh socket ke PLC (MC Protocol ke CPU Mitsubishi; Modbus ke coupler ODOT kalau `PLC_PROTOCOL=modbus`): kuras antrean keputusan → pulse bit OK/NG, kedipkan heartbeat, baca blok input, tulis bit ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya**. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
 | `EventBroadcastWorker` | asyncio task | drain `event_queue` → push to `/ws/results` WebSocket clients |
 | `_watchdog` | asyncio task | every **10s**, restart any dead worker thread |
+| `TimbanganLiveWorker` | asyncio task, **console only** | reads the weighbridge weight from a PLC word register on its own MC connection every `SCALE_POLL_MS`; result held in memory, no SQLite, never fills a ticket (rule 39). Absent while `SCALE_PLC_REGISTER` is empty |
 
 `UploadScheduler` (APScheduler) menjalankan `BatchUploadWorker.run_batch_once` tiap jam (menit `UPLOAD_MINUTE`): scan `artifacts/results/` → manifest SQLite → upload gambar ke R2 → POST teks ke `UPLOAD_API_URL` **kalau diisi** (kosong di pabrik: penerimanya, palmgrade-api, sudah pensiun). `R2_BUCKET` kosong = no-op.
 
@@ -884,9 +885,10 @@ src/palmgrade/
   workers/         # background threads + RuntimeState (capture / display / processing / capture_save / event_broadcast / outbox_retry / batch_upload)
                    # capture_save = penulis bukti (encode WebP + sidecar + outbox) di thread sendiri; deteksi cuma menyerahkan, tidak pernah menunggu disk
                    # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
+                   # konsol juga: timbangan_live (baca berat jembatan timbang dari register D PLC, aturan 39; tidak ada kalau SCALE_PLC_REGISTER kosong)
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
-  plc/             # PLC integration (MC Protocol ke CPU Mitsubishi; Modbus/ODOT dipertahankan via PLC_PROTOCOL), self-contained — mc_client.py + modbus_client.py isi lubang yang sama, build_plc_client memilih
+  plc/             # PLC integration (MC Protocol ke CPU Mitsubishi; Modbus/ODOT dipertahankan via PLC_PROTOCOL), self-contained — mc_client.py + modbus_client.py isi lubang yang sama, build_plc_client memilih; pembaca_timbangan.py = berat timbangan untuk konsol
   schemas/         # Pydantic request/response models
   license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
                    # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.

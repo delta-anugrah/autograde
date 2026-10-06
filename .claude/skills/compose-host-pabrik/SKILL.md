@@ -49,6 +49,12 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
   (`- INTERNAL_SECRET=${INTERNAL_SECRET:-}`) **dan** blok `console:` di
   `docker-compose.prod.yml`. Nilainya harus **sama persis** di keempat, kalau tidak line yang
   bedanya jadi menolak perintah konsol (kartunya menulis "kunci ditolak", bukan mati).
+- **`SCALE_PLC_*` timbangan live** (2026-10-06, aturan 39): rilisnya sendiri "No host-side
+  change required" (tanpa variabel ini kotak menulis Belum tersambung). Menyalakannya butuh
+  sembilan baris di blok `console:` compose host (`- PLC_HOST=${PLC_HOST:-}` plus delapan
+  `- SCALE_...` persis seperti `docker-compose.prod.yml` repo), nilainya di `.env`, port 1028
+  dibuka di PLC, lalu `autograde restart`. Cek: `docker exec palmgrade_console printenv
+  SCALE_PLC_REGISTER`.
 - **`AI_MATI_DETIK`** (batch 2.1, opsional): bawaan 30 jalan tanpa perubahan host, jadi rilisnya
   sendiri "No host-side change required". Tapi **menyetelnya** (misal `AI_MATI_DETIK=60` di
   `.env` untuk line yang lambat) tidak berpengaruh apa pun sampai tiga blok line

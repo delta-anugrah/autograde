@@ -643,10 +643,31 @@
   /* Data timbangan hari ini (neto + tiket), di kanan rasio. Angkanya seukuran persen rasio
      supaya dua angka ringkasan itu terbaca setara dari jauh. */
   #tally .timbang { display:flex; flex-direction:column; justify-content:center; gap:4px;
-                    padding:10px 16px; border-left:1px solid var(--line); min-width:10rem; }
+                    padding:10px 16px; border-left:1px solid var(--line);
+                    /* Fixed width (2026-10-06): the live state word changes every second
+                       (Stabil, Bergerak, Belum tersambung), and a box that follows its text
+                       would shove Last Sync back and forth across the strip. */
+                    flex:none; width:15.5rem; }
   #tally .timbang b { font-family:var(--mono); font-size:1.35rem; font-weight:700;
                       font-variant-numeric:tabular-nums; }
   #tally .timbang-sub { font-size:.8rem; color:var(--muted); }
+  /* Timbangan live (2026-10-06): the big number is the weight on the bridge NOW, read
+     from the PLC; today's total moved to the small line. Word next to the dot, as in
+     Last Sync: the screen is read over AnyDesk and not everybody tells colours apart. */
+  #tally .timbang-angka { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  #tally .timbang-sub .baris { display:block; }
+  #tally .timbang-sub #tot-neto { font-weight:700; color:var(--fg); }
+  #tally .timbang-keadaan { display:inline-flex; align-items:center; gap:6px;
+                            font-size:.8rem; font-weight:600; white-space:nowrap; color:var(--muted); }
+  #tally .timbang-keadaan .titik { width:.6rem; height:.6rem; border-radius:50%; background:var(--muted); }
+  #timbang[data-keadaan="stabil"] .timbang-keadaan { color:var(--acc); }
+  #timbang[data-keadaan="stabil"] .titik { background:var(--acc); }
+  #timbang[data-keadaan="bergerak"] .timbang-keadaan { color:var(--warn); }
+  #timbang[data-keadaan="bergerak"] .titik { background:var(--warn); }
+  #timbang[data-keadaan="putus"] .timbang-keadaan,
+  #timbang[data-keadaan="error"] .timbang-keadaan { color:var(--rej); }
+  #timbang[data-keadaan="putus"] .titik,
+  #timbang[data-keadaan="error"] .titik { background:var(--rej); }
   /* Last Sync: dua baris kecil, titik + nama + jam; keterangan putus di bawahnya.
      Lebar minimum = keterangan terpanjang, supaya strip tidak bergeser tiap kali
      status berganti. */
@@ -1801,15 +1822,19 @@
     <div class="bar"><span id="bar-acc"></span></div>
   </div>
   <!--
-    Timbangan hari kerja ini, di kanan rasio (permintaan 2026-09-25): neto adalah
-    angka yang dibayar, dan strip ini yang terbaca dari jauh sepanjang shift.
-    Dari tabel `weighings` yang sama dengan tab Timbangan, jadi begitu program
-    timbangan tersambung angkanya ikut tanpa perubahan layar.
+    Timbangan, di kanan rasio (permintaan 2026-09-25, live sejak 2026-10-06). Angka
+    besar = berat di jembatan timbang SEKARANG, dibaca konsol dari PLC tiap detik
+    (`/api/console/scale/live`); selama register PLC belum diisi di .env, tertulis
+    "Belum tersambung". Baris kecil = neto hari kerja ini dari tabel `weighings`,
+    sumber yang sama dengan tab Timbangan. Angka live tidak pernah mengisi tiket.
   -->
-  <div class="timbang">
+  <div class="timbang" id="timbang" data-keadaan="memeriksa">
     <span class="lb" data-t="labelNetoTimbangan">Data timbangan</span>
-    <b id="tot-neto">-</b>
-    <span class="timbang-sub" id="tot-tiket"></span>
+    <div class="timbang-angka">
+      <b id="timbang-kg">-</b>
+      <span class="timbang-keadaan"><i class="titik"></i><span id="timbang-keadaan" data-t="timbangMemeriksa">Memeriksa…</span></span>
+    </div>
+    <span class="timbang-sub"><span class="baris"><span data-t="timbangHariIni">Hari ini</span> <span id="tot-neto">-</span></span><span class="baris" id="tot-tiket"></span></span>
   </div>
   <!--
     Last Sync (permintaan 2026-09-27): satu bagian, dua baris. Titik = keadaan
@@ -3279,6 +3304,9 @@ const KAMUS = {
     sinkronTidakDipakai:"Tidak dipakai", sinkronMemeriksa:"Memeriksa", sinkronBelum:"Belum pernah",
     sinkronTakTerbaca:"tidak terbaca", sinkronTerakhir:"Sinkron terakhir",
     labelNetoTimbangan:"Data timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
+    timbangHariIni:"Hari ini", timbangTidakDipakai:"Belum tersambung", timbangMemeriksa:"Memeriksa…",
+    timbangPutus:"Timbangan putus", timbangError:"Timbangan error", timbangStabil:"Stabil",
+    timbangBergerak:"Bergerak", timbangTerbaca:"Live",
     timbangBelumAda:"Belum ada tiket",
     // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
     // maupun support menyebutnya persis begini saat bicara lewat telepon.
@@ -3825,6 +3853,9 @@ const KAMUS = {
     sinkronTidakDipakai:"Not used", sinkronMemeriksa:"Checking", sinkronBelum:"Never",
     sinkronTakTerbaca:"not readable", sinkronTerakhir:"Last synced",
     labelNetoTimbangan:"Weighing data", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
+    timbangHariIni:"Today", timbangTidakDipakai:"Not connected", timbangMemeriksa:"Checking…",
+    timbangPutus:"Scale offline", timbangError:"Scale error", timbangStabil:"Stable",
+    timbangBergerak:"Moving", timbangTerbaca:"Live",
     timbangBelumAda:"No tickets yet",
     clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
@@ -6069,6 +6100,40 @@ function isiTallyTimbangan(tb) {
   $("tot-neto").textContent = `${kg(tb.neto_kg)} kg`;
   $("tot-tiket").textContent = t("timbangTiket")
     .replace("{tiket}", tb.tiket).replace("{tara}", tb.menunggu_tara || 0);
+}
+
+// Timbangan live (2026-10-06): angka besar kotak timbangan. Keadaan dan kg dari server
+// (`domain/timbangan_live.py`); layar cuma memilih kata dan warna. Keadaan asing dari
+// server dibaca putus, jadi tidak pernah masuk ke atribut.
+const KATA_TIMBANG_LIVE = {
+  tidak_dipakai: "timbangTidakDipakai", memeriksa: "timbangMemeriksa", putus: "timbangPutus",
+  error: "timbangError", stabil: "timbangStabil", bergerak: "timbangBergerak", terbaca: "timbangTerbaca",
+};
+function gambarTimbanganLive(r) {
+  const keadaan = r && KATA_TIMBANG_LIVE[r.keadaan] ? r.keadaan : "putus";
+  $("timbang").dataset.keadaan = keadaan;
+  const kata = $("timbang-keadaan");
+  kata.dataset.t = KATA_TIMBANG_LIVE[keadaan];
+  kata.textContent = t(KATA_TIMBANG_LIVE[keadaan]);
+  $("timbang-kg").textContent = r && r.kg !== null && r.kg !== undefined ? `${kg(r.kg)} kg` : KOSONG;
+}
+
+// Tiap detik selama timbangan dipasang. Selama belum (`tidak_dipakai`) cukup tiap 30
+// detik: setelannya cuma berubah lewat .env + restart konsol. Konsol yang tidak menjawab
+// dibaca putus, bukan angka terakhir yang membeku.
+const JEDA_TIMBANG_MATI_MS = 30000;
+let timbangLive = { r: null, pada: 0 };
+async function muatTimbanganLive() {
+  const belumDipasang = timbangLive.r && timbangLive.r.keadaan === "tidak_dipakai";
+  if (!belumDipasang || Date.now() - timbangLive.pada >= JEDA_TIMBANG_MATI_MS) {
+    try {
+      timbangLive = { r: await api("/api/console/scale/live"), pada: Date.now() };
+    } catch (e) {
+      if (e.kode === "belum_masuk") return;
+      timbangLive = { r: { keadaan: "putus", kg: null }, pada: Date.now() };
+    }
+  }
+  gambarTimbanganLive(timbangLive.r);
 }
 
 // ── actions ────────────────────────────────────────────────────────────
@@ -10743,6 +10808,9 @@ $("plc-kartu").addEventListener("click", (ev) => {
   // Weighing is far sparser than grading (two payloads per truck), so 2 s would
   // only burn queries.
   setInterval(sekaliJalan(muatTimbangan), 15000);
+  // Timbangan live: berat di jembatan timbang sekarang (2026-10-06), di semua tab.
+  await muatTimbanganLive();
+  setInterval(sekaliJalan(muatTimbanganLive), 1000);
   // A remembered developer tab from a previous support sign-in on this shared PC:
   // cekSesi() above has already run aturTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.

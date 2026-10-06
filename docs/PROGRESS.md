@@ -18,6 +18,23 @@ Next:           ...
 
 ---
 
+## 2026-10-06 · console · Live weighbridge weight from the PLC, rule 39 (PR #248)
+Changed:        Data timbangan tile = live weight read by the console from a PLC word register
+                (MC Protocol, own port 1028), state word Stabil/Bergerak/putus/error/Belum
+                tersambung; today's net moved to the small line. SCALE_PLC_* env vars, route
+                GET /api/console/scale/live, McProtocolPlcClient.read_words/read_bits. Display
+                only, never fills a ticket.
+Validated:      pytest tests/unit → 5201 passed, 28 skipped; ruff → All checks passed;
+                browser suite (chromium + firefox) → 319 passed, 1 failed (grading_saring photo
+                click timeout, firefox), passed when rerun alone; test_browser_timbangan_live 4/4.
+Not validated:  no real PLC (register unknown); not tried in a container.
+Decisions:      every open question to Pak Ocit (sawit PERTANYAAN-TERBUKA X1) is an .env value,
+                so the factory turns it on without a release; 32 bit = low word first (DINT).
+Risks:          host compose console block needs 9 lines by hand to turn it on; word order to
+                confirm against GX Works2.
+Next:           fill SCALE_PLC_* when Pak Ocit answers; decide whether the live weight may fill
+                a ticket.
+
 ## 2026-10-06 · console · Scanner QR switch (PR #249)
 Changed:        Support turns on the four QR scan fields of the Timbangan tab with a new Settings
                 sub-tab Scanner QR (default off, so a PC without a scanner looks as before; plate

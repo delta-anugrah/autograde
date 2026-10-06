@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.21"
-tanggal: 5 Oktober 2026
+versi: "2.22"
+tanggal: 6 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -169,7 +169,13 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   (tidak perlu F5). Ia menunggu dulu kalau ada kotak dialog terbuka, tombol yang masih
   berputar, atau isian yang sedang diketik.
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
-  **Data timbangan** (neto hari ini dan jumlah tiket), dan **Last Sync**.
+  **Data timbangan**, dan **Last Sync**. Angka besar di **Data timbangan** adalah berat yang ada
+  di jembatan timbang **sekarang**, dibaca dari PLC tiap detik, dengan tulisan di sampingnya:
+  **Stabil** (hijau, angkanya sudah diam), **Bergerak** (kuning, tunggu dulu), **Timbangan
+  putus** atau **Timbangan error** (merah, angkanya diganti strip). **Belum tersambung** berarti
+  sambungan ke timbangan belum dipasang di PC ini. Di bawahnya: neto hari ini, jumlah tiket, dan
+  tiket yang menunggu tara. Angka live ini cuma untuk dilihat: berat tiket tetap diisi lewat tab
+  **Timbangan**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
   terakhir masuk ke sana; `-` berarti belum pernah ada yang masuk. Titik **hijau** = tersambung; titik **kuning** = terputus, dengan
   keterangan seperti "Terputus sejak 13.40 · 5 menunggu". Foto naik tiap jam, jadi jam Cloud
@@ -1029,6 +1035,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.22 | 6 Oktober 2026 | §3.2: angka besar **Data timbangan** di strip "Hari ini" jadi berat live di jembatan timbang (Stabil, Bergerak, Timbangan putus, Belum tersambung); neto hari ini pindah ke baris kecil di bawahnya. |
 | 2.21 | 6 Oktober 2026 | §3.2 dan §3.5: sub-tab Setelan baru **Scanner QR** (support, bawaan mati) memunculkan empat kolom scan QR di tab Timbangan; daftar plat tetap ada. |
 | 2.20 | 5 Oktober 2026 | §3.4 dan §3.5: sub-tab Setelan baru **Hari kerja**: support bisa menggeser awal hari kerja (jam apa saja, zona `FACTORY_TZ`; lewat 12:00 layar minta konfirmasi dengan contoh efeknya); tab Rekap menulis **(dipotong jam HH:MM Asia/Jakarta)** (zona `FACTORY_TZ`) kalau bukan tengah malam; judul tabel Rekap menulis satu hari sekali saja (**Hari kerja Sen, 5 Okt 2026**), tidak lagi "5 Okt s.d. 5 Okt". |
 | 2.19 | 5 Oktober 2026 | Tab Line, pilihan baru **Setelan Kamera** (support): nilai yang sedang dipakai kamera tiap line, baca saja. |

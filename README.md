@@ -122,6 +122,7 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
                                              └→ MasterDataWorker  ← supplier + truk dari AutoERP  (kalau ERP_URL diisi)
                                                 ErpOutboxWorker   → truk baru (§4.B) + kunjungan truk (§4.C)
                                                 VisitResendWorker → kunjungan kemarin, sekali sehari
+PLC register D (MC Protocol, port 1028) → TimbanganLiveWorker → kotak "Data timbangan" (kalau SCALE_PLC_REGISTER diisi)
 
 /console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
@@ -794,6 +795,7 @@ pytest tests/unit/ -rs
 | **Kunjungan truk** | `test_visit_message.py`, `test_erp_queue.py`, `test_visit_triggers.py`, `test_visit_resend.py` | Bentuk pesan §4.C; `stage` diturunkan dari keadaan kunjungan; bagian yang tidak ada tidak dikirim; grading ikut lewat tautan assignment yang ditulis saat truk dilepas; kirim ulang harian sekali sehari |
 | **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_visit`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu kunjungan (semua line) urut waktu; antrean manifest sendiri (`manifest_outbox.db`): R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
 | **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, timbangan jadi Weighbridge Ticket, grading mendarat di tiket saat truk dilepas dari line. Di-skip tanpa variabel `E2E_*` |
+| **Timbangan live** | `plc/test_pembaca_timbangan.py`, `test_timbangan_live_domain.py`, `test_console_timbangan_live_route.py`, `plc/test_plc_mc_client.py` (`read_words`), `tests/browser/test_browser_timbangan_live.py` | Berat live dari register PLC (aturan 39): 16/32-bit + desimal, angka disembunyikan saat putus/basi/error, balasan terpotong ditolak, layar menulis Belum tersambung tanpa register |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |

@@ -46,6 +46,7 @@ from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
 from ..services.slip_grading import SlipGrading
 from ..services.status_sinkron import StatusSinkron
+from ..services.timbangan_live import TimbanganLive
 from ..workers.master_data_worker import MasterDataWorker
 from ..workers.visit_manifest_worker import VisitManifestWorker
 
@@ -288,6 +289,13 @@ def get_pembaruan_service() -> PembaruanService:
     )
 
 
+
+@lru_cache
+def get_timbangan_live() -> TimbanganLive:
+    """The live scale reading (2026-10-06). Off until the lifespan builds its worker
+    (`build_timbangan_live` turns `dipakai` on), so a route test sees "not connected"."""
+    return TimbanganLive(dipakai=False)
+
 def hangatkan_singleton() -> None:
     """Build, before the first request, EVERY `lru_cache` singleton in this module.
 
@@ -314,6 +322,7 @@ def hangatkan_singleton() -> None:
     get_riwayat_service()
     get_impor_grading_service()
     get_pembaruan_service()
+    get_timbangan_live()
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]

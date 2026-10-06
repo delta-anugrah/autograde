@@ -1373,6 +1373,25 @@ end of this file.
     sampai Discord), tanpa notifikasi desktop (keputusan user 2026-10-02). Aturan murni:
     `domain/pembaruan.py`; kontrak berkas: `docs/backend-overview.md` § Update now.
 
+39. **Timbangan live: cuma tampilan, dibaca konsol dari PLC** (2026-10-06). Angka besar di kotak
+    **Data timbangan** (strip "Hari ini") adalah berat di jembatan timbang SEKARANG, dibaca
+    konsol dari register kata PLC lewat MC Protocol (`plc/pembaca_timbangan.py`, worker
+    `workers/timbangan_live_worker.py`, tiap `SCALE_POLL_MS`), di **sambungan sendiri**
+    (`SCALE_PLC_PORT`, bawaan 1028; 1025-1027 dipegang tiga line, satu port satu pemakai), bukan
+    lewat line. Angka ini **tidak pernah** mengisi tiket, `weighings`, atau AutoERP: berat yang
+    masuk buku tetap lewat tab Timbangan dengan `net_kg` dihitung (aturan 15); menyambungkannya
+    ke tiket itu keputusan tersendiri. Disimpan di memori saja, tidak ada tabel. Semua yang belum
+    dijawab tim PLC (register, 16/32-bit, desimal, bit stabil, bit error) adalah `SCALE_PLC_*`
+    di `.env`, jadi pabrik menyalakannya tanpa rilis; `SCALE_PLC_REGISTER` kosong atau tidak sah
+    = mati, kotak menulis **Belum tersambung**, tanpa socket. 32-bit = kata rendah di `Dn`, kata
+    tinggi di `Dn+1` (DINT Mitsubishi). Angka **tidak pernah ditampilkan** saat sambungan putus,
+    bacaan lebih tua dari 5 detik (`BASI_DETIK`), atau bit error menyala: strip, bukan angka
+    yang membeku dan dicatat operator. Balasan PLC yang terpotong ditolak seperti pembacaan bit
+    (`McProtocolPlcClient._terjaga`): socket mati terbaca kata nol, yaitu "jembatan kosong".
+    Putus dicatat sekali saat mulai dan sekali saat pulih (aturan 33). Aturan murni:
+    `domain/timbangan_live.py`; layar polling `GET /api/console/scale/live` tiap detik di semua
+    tab (tiap 30 detik selama `tidak_dipakai`).
+
 ---
 
 ## Conventions

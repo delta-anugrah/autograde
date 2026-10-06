@@ -41,6 +41,16 @@ services:
       - LOG_LEVEL=INFO
       # Batch 3.5: sengaja kosong. Demo tidak melapor ke kanal support pabrik.
       - DISCORD_WEBHOOK_URL=
+      # No PLC on the droplet: the scale tile says "Not connected". Empty = default.
+      - PLC_HOST=
+      - SCALE_PLC_HOST=
+      - SCALE_PLC_PORT=
+      - SCALE_PLC_REGISTER=
+      - SCALE_PLC_WORDS=
+      - SCALE_PLC_DECIMALS=
+      - SCALE_PLC_STABLE_BIT=
+      - SCALE_PLC_ERROR_BIT=
+      - SCALE_POLL_MS=
       # No camera lines, so no photos: R2 stays off.
       - R2_ACCOUNT_ID=
       - R2_ACCESS_KEY_ID=
