@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-06 · console · One scan field that records the truck's next step (PR #PRNUM)
+## 2026-10-06 · console · One scan field that records the truck's next step (PR #251)
 Changed:        The four QR fields on the Timbangan tab became one field `#scan-otomatis` that
                 keeps the focus. POST /api/console/scan/auto decides the step from the truck's
                 state (domain/gerbang.putuskan_langkah): open ticket = weigh-out (two = refused),
