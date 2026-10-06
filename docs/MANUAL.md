@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.23"
+versi: "2.24"
 tanggal: 6 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -284,8 +284,9 @@ datang = **Timbang isi**, sudah timbang isi = **Timbang kosong**, sudah timbang 
 dari timbangan kalau angkanya sudah **Stabil**; kalau timbangan belum tersambung atau angkanya
 masih bergerak, kotak Bruto (atau bar tara) terbuka untuk truk itu: ketik angkanya lalu Enter.
 Kalau truk yang sama di-scan lagi kurang dari 3 menit sesudah langkah sebelumnya, konsol
-bertanya dulu (**Catat** atau **Batal**): biasanya itu QR yang terbaca dua kali, jadi pilih
-**Batal**. Scan pertama selalu **Datang**; untuk menimbang, scan sekali lagi. Truk dengan dua
+bertanya dulu: biasanya itu QR yang terbaca dua kali, jadi pilih **Batal** (atau Esc). Kalau
+memang mau dicatat, **scan QR truk itu sekali lagi** (tunggu sekitar 2 detik sesudah
+pertanyaannya muncul), tidak perlu mouse. Scan QR truk lain juga membatalkan. Scan pertama selalu **Datang**; untuk menimbang, scan sekali lagi. Truk dengan dua
 tiket terbuka tidak ditebak: pilih di tabel. Truk yang belum terdaftar boleh dicatat datang,
 tapi harus didaftarkan di tab Truk sebelum ditimbang.
 
@@ -1051,6 +1052,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.24 | 6 Oktober 2026 | §3.3: pertanyaan "Catat?" sesudah scan ulang dijawab dengan scan QR yang sama sekali lagi (sesudah 2 detik), tanpa mouse. |
 | 2.23 | 6 Oktober 2026 | §3.2 dan §3.3: empat kolom scan diganti **satu kolom scan** yang selalu siap; konsol memilih langkahnya dari keadaan truk, menyimpan berat timbangan yang sudah stabil, membuka kotak berat kalau belum, dan bertanya dulu kalau truk yang sama di-scan lagi dalam 3 menit. Dropdown truk di kartu line ikut berganti saat truk dipasang otomatis. |
 | 2.22 | 6 Oktober 2026 | §3.2: angka besar **Data timbangan** di strip "Hari ini" jadi berat live di jembatan timbang (Stabil, Bergerak, Timbangan putus, Belum tersambung); neto hari ini pindah ke baris kecil di bawahnya. |
 | 2.21 | 6 Oktober 2026 | §3.2 dan §3.5: sub-tab Setelan baru **Scanner QR** (support, bawaan mati) memunculkan empat kolom scan QR di tab Timbangan; daftar plat tetap ada. |

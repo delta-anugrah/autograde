@@ -559,6 +559,19 @@ def test_scan_ulang_ditanya_lewat_dialog_bersama():
     assert badan.index("scanSibuk = false") < badan.index("await tanganiScan(h)")
 
 
+def test_pertanyaan_scan_dijawab_dengan_scan_ulang():
+    """User 2026-10-06: tanpa mouse di gerbang. QR yang sama lagi = Catat, tapi baru sesudah
+    2 detik (bacaan ganda tidak boleh menjawab pertanyaannya sendiri); QR lain = Batal. Tombol
+    scanner ditangkap sebelum sampai ke tombol Batal yang sedang fokus."""
+    blok = HTML.split("let scanUlang = null;", 1)[1].split("async function tanyaScanUlang", 1)[0]
+    assert 'document.addEventListener("keydown"' in blok and "}, true);" in blok
+    assert "Date.now() - scanUlang.dibuka >= JEDA_BACA_ULANG_MS" in blok
+    assert "jawabKonfirmasi(true)" in blok and "jawabKonfirmasi(false)" in blok
+    assert "ev.preventDefault()" in blok
+    badan = _badan("tanyaScanUlang", "async function tanganiScan")
+    assert "scanUlang = { qr, dibuka: Date.now()" in badan and "scanUlang = null" in badan
+
+
 def test_timbangan_belum_siap_membuka_kotak_berat_yang_lama():
     """Tanpa timbangan live (atau angkanya belum layak) layar membuka kotak yang sudah ada:
     bruto untuk timbang isi (plat terpilih, kursor di bruto), bar tara untuk timbang kosong."""

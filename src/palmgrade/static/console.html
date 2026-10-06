@@ -3461,7 +3461,7 @@ const KAMUS = {
     scanKetikTara:"Timbangan belum siap. Ketik tara {plat}, lalu Enter",
     scanLangkahDatang:"datang", scanLangkahIsi:"timbang isi", scanLangkahKosong:"timbang kosong",
     konfirmasiScanJudul:"Catat {langkah} {plat}?",
-    konfirmasiScan:"Langkah sebelumnya truk ini baru {menit} menit lalu. Kalau QR-nya cuma terbaca dua kali, pilih Batal.",
+    konfirmasiScan:"Langkah sebelumnya truk ini baru {menit} menit lalu. Scan QR-nya sekali lagi untuk Catat. Kalau QR-nya cuma terbaca dua kali, pilih Batal.",
     btnCatatScan:"Catat",
     // Empat langkah gerbang (2026-09-30): 1 datang dan 4 keluar cuma disimpan di PC ini.
     lbDatang:"1. Datang", lbPergi:"4. Keluar",
@@ -4008,7 +4008,7 @@ const KAMUS = {
     scanKetikTara:"Scale not ready. Type the tare of {plat}, then Enter",
     scanLangkahDatang:"arrival", scanLangkahIsi:"weigh-in", scanLangkahKosong:"weigh-out",
     konfirmasiScanJudul:"Record {langkah} for {plat}?",
-    konfirmasiScan:"This truck's previous step was only {menit} min ago. If the QR was just read twice, choose Cancel.",
+    konfirmasiScan:"This truck's previous step was only {menit} min ago. Scan its QR once more to record. If the QR was just read twice, choose Cancel.",
     btnCatatScan:"Record",
     lbDatang:"1. Arrive", lbPergi:"4. Leave",
     btnDatang:"Record arrival", btnPergi:"Leave",
@@ -6425,14 +6425,49 @@ async function kirimScanOtomatis(qr, konfirmasi = false) {
   else await tanganiScan(h);
 }
 
+// The "Catat?" question answered with the scanner (user 2026-10-06): no mouse at the gate.
+// While it is open, the scanner's keys are caught here instead of reaching the focused Batal
+// button (a space or Enter there would cancel). The same QR again = Catat, but only from
+// `JEDA_BACA_ULANG_MS` after the question opened: a double read lands within a few hundred ms
+// and must not answer its own question. Another QR = Batal. Esc still cancels.
+let scanUlang = null;
+
+function samaPlat(a, b) {
+  const rapi = (v) => String(v || "").replace(/\s+/g, "").toUpperCase();
+  return rapi(a) !== "" && rapi(a) === rapi(b);
+}
+
+document.addEventListener("keydown", (ev) => {
+  if (!scanUlang || !$("konfirmasi-modal").open || ev.key === "Escape") return;
+  if (ev.key === "Enter") {
+    const teks = scanUlang.ketik;
+    scanUlang.ketik = "";
+    if (!teks) return;  // Enter on its own is the operator's key: the focused button decides.
+    ev.preventDefault();
+    if (!samaPlat(teks, scanUlang.qr)) jawabKonfirmasi && jawabKonfirmasi(false);
+    else if (Date.now() - scanUlang.dibuka >= JEDA_BACA_ULANG_MS) jawabKonfirmasi && jawabKonfirmasi(true);
+    return;
+  }
+  if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    scanUlang.ketik += ev.key;
+  }
+}, true);
+
 async function tanyaScanUlang(qr, h) {
   const langkah = t(NAMA_LANGKAH[h.langkah] || "scanLangkahIsi");
-  const ya = await tanyaKonfirmasi({
-    judul: t("konfirmasiScanJudul").replace("{langkah}", langkah).replace("{plat}", h.plate_number || ""),
-    pesan: t("konfirmasiScan").replace("{menit}", h.menit),
-    ya: t("btnCatatScan"),
-    asal: () => $("scan-otomatis"),
-  });
+  scanUlang = { qr, dibuka: Date.now(), ketik: "" };
+  let ya = false;
+  try {
+    ya = await tanyaKonfirmasi({
+      judul: t("konfirmasiScanJudul").replace("{langkah}", langkah).replace("{plat}", h.plate_number || ""),
+      pesan: t("konfirmasiScan").replace("{menit}", h.menit),
+      ya: t("btnCatatScan"),
+      asal: () => $("scan-otomatis"),
+    });
+  } finally {
+    scanUlang = null;
+  }
   if (ya) await kirimScanOtomatis(qr, true);
   else pesanScan("");
 }

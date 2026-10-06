@@ -386,7 +386,9 @@ end of this file.
     (`JEDA_BACA_ULANG_MS`), dan server menjawab `perlu_konfirmasi` untuk datang, timbang isi,
     atau timbang kosong yang datang kurang dari 3 menit sesudah langkah sebelumnya truk itu
     (`JEDA_SCAN_ULANG`); layar bertanya lewat `tanyaKonfirmasi`, dan cuma "Catat" yang mengirim
-    ulang dengan `konfirmasi: true`. Tanpa itu satu QR yang terbaca dua kali mencatat timbang
+    ulang dengan `konfirmasi: true`. Operator menjawab tanpa mouse (user 2026-10-06): scan QR yang
+    sama sekali lagi = Catat, tapi baru 2 detik sesudah pertanyaan muncul (`scanUlang`, bacaan
+    ganda tidak boleh menjawab pertanyaannya sendiri); QR lain = Batal; Esc = Batal. Tanpa itu satu QR yang terbaca dua kali mencatat timbang
     isi dengan berat apa pun yang sedang di jembatan, atau timbang kosong dengan berat timbang
     isinya sendiri. Keluar tidak pernah ditanya: jam keluar yang terlalu cepat tidak merugikan.
     Kolomnya **memegang fokus** selama tab Timbangan terbuka (`jagaFokusScan`), tapi tidak

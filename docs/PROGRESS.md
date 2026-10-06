@@ -18,6 +18,18 @@ Next:           ...
 
 ---
 
+## 2026-10-06 · console · Answer the "Catat?" question by scanning again (PR #PRNUM)
+Changed:        While the repeat-scan question is open, a capture keydown listener takes the
+                scanner's keys: the same QR again answers Catat, from 2 s after the question
+                opened (a double read must not answer its own question); another QR answers
+                Batal; Esc still cancels. Text of the question says so. MANUAL 2.24, rule 20,
+                skills konsol-autograde and scanner-qr.
+Validated:      browser konfirmasi + scan_otomatis + scanner_qr + gerbang + tengah_malam, chromium
+                + firefox → 86 passed; tests/unit/test_console_html.py → passed; ruff → All
+                checks passed; MANUAL.pdf rebuilt (47 pages).
+Not validated:  with the real scanner (only typed by Playwright).
+Next:           Release with #251; test one visit at Lampung with the scanner only.
+
 ## 2026-10-06 · console · One scan field that records the truck's next step (PR #251)
 Changed:        The four QR fields on the Timbangan tab became one field `#scan-otomatis` that
                 keeps the focus. POST /api/console/scan/auto decides the step from the truck's
