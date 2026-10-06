@@ -62,7 +62,8 @@ The paper manual lists no suffix (Enter) and no keyboard-language setting.
   datang, timbang isi, timbang kosong, keluar. Weight comes from the live scale when fit
   (rule 39), otherwise the bruto or tara box opens for the operator to type.
 - Double reads: the screen drops the same QR within 2 s (`JEDA_BACA_ULANG_MS`), and a step
-  within 3 minutes of the truck's previous step asks "Catat?" first.
+  within 3 minutes of the truck's previous step asks "Catat?" first; scanning the same QR again
+  (from 2 s after the question opened) answers Catat, another QR answers Batal.
 - The QR holds the normalised plate and nothing else (rule 20). A test QR for any truck:
   `GET /api/console/trucks/{plate}/qr.png`, e.g. `http://127.0.0.1:8100/api/console/trucks/BE%206311%20TSA/qr.png`.
 

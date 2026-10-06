@@ -202,3 +202,67 @@ def test_a_card_picker_follows_an_automatic_assignment(halaman, konsol, lines, b
     _toast(halaman, "sukTara", "")
     _scan(halaman, nomor)
     _toast(halaman, "sukPergi", nomor)
+
+
+def _buka_pertanyaan(halaman, nomor: str) -> None:
+    """Datang, then a second scan of the same truck: the "Catat?" question opens."""
+    _scan(halaman, nomor)
+    _toast(halaman, "sukDatang", nomor)
+    _scan(halaman, nomor)
+    expect(halaman.locator("#konfirmasi-modal")).to_be_visible()
+
+
+def _scan_di_dialog(halaman, teks: str) -> None:
+    """The scanner types into whatever has the focus: the dialog's Batal button."""
+    halaman.keyboard.type(teks)
+    halaman.keyboard.press("Enter")
+
+
+def _batal_kedatangan(halaman, konsol, nomor: str) -> None:
+    for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["waiting"]:
+        if w["plate_number"] == nomor:
+            halaman.request.post(konsol.url + f"/api/console/arrivals/{w['id']}/cancel")
+
+
+def test_scanning_the_same_qr_again_answers_catat(halaman, konsol, browser_name):
+    nomor = plat(browser_name, 1405)
+    masuk(halaman, OPERATOR)
+    _daftar(halaman, nomor)
+    _buka_pertanyaan(halaman, nomor)
+    # The operator reads the question and scans again later than 2 s (the clock is moved, not slept).
+    halaman.evaluate("() => { scanUlang.dibuka -= 3000; }")
+    _scan_di_dialog(halaman, nomor.lower())
+    expect(halaman.locator("#konfirmasi-modal")).to_be_hidden()
+    expect(halaman.locator("#bruto")).to_be_focused()
+    expect(halaman.locator("#plat-timbang")).to_have_attribute("data-nilai", nomor)
+    halaman.fill("#bruto", "")
+    _batal_kedatangan(halaman, konsol, nomor)
+
+
+def test_a_double_read_inside_2_s_does_not_answer(halaman, konsol, browser_name):
+    nomor = plat(browser_name, 1406)
+    masuk(halaman, OPERATOR)
+    _daftar(halaman, nomor)
+    _buka_pertanyaan(halaman, nomor)
+    # The same QR read again at once: neither Catat nor Batal, the question stays.
+    _scan_di_dialog(halaman, nomor)
+    halaman.wait_for_timeout(JEDA_HALAMAN_MS)
+    expect(halaman.locator("#konfirmasi-modal")).to_be_visible()
+    expect(halaman.locator("#bruto")).not_to_be_focused()
+    halaman.keyboard.press("Escape")
+    expect(halaman.locator("#konfirmasi-modal")).to_be_hidden()
+    assert _tiket(halaman, konsol, nomor) == []
+    _batal_kedatangan(halaman, konsol, nomor)
+
+
+def test_another_truck_scanned_at_the_question_answers_batal(halaman, konsol, browser_name):
+    nomor = plat(browser_name, 1407)
+    masuk(halaman, OPERATOR)
+    _daftar(halaman, nomor)
+    _buka_pertanyaan(halaman, nomor)
+    halaman.evaluate("() => { scanUlang.dibuka -= 3000; }")
+    _scan_di_dialog(halaman, plat(browser_name, 1408))
+    expect(halaman.locator("#konfirmasi-modal")).to_be_hidden()
+    expect(halaman.locator("#scan-otomatis")).to_be_focused()
+    assert _tiket(halaman, konsol, nomor) == []
+    _batal_kedatangan(halaman, konsol, nomor)
