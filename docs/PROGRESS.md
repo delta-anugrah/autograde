@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-06 · console · Answer the "Catat?" question by scanning again (PR #PRNUM)
+## 2026-10-06 · console · Answer the "Catat?" question by scanning again (PR #252)
 Changed:        While the repeat-scan question is open, a capture keydown listener takes the
                 scanner's keys: the same QR again answers Catat, from 2 s after the question
                 opened (a double read must not answer its own question); another QR answers
