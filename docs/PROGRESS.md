@@ -18,6 +18,29 @@ Next:           ...
 
 ---
 
+## 2026-10-06 · console · One scan field that records the truck's next step (PR #251)
+Changed:        The four QR fields on the Timbangan tab became one field `#scan-otomatis` that
+                keeps the focus. POST /api/console/scan/auto decides the step from the truck's
+                state (domain/gerbang.putuskan_langkah): open ticket = weigh-out (two = refused),
+                tared and weighed out < 2 h ago = leave, waiting arrival = weigh-in, else arrival.
+                Weight from the live scale when fit (stable, or the same kg for 2 s between reads,
+                >= 1,000 kg), else the bruto box or tara bar opens. A scan < 3 min after the
+                truck's previous step asks first; the screen drops the same QR within 2 s. Toast
+                names step, plate, kg and supplier. Line card picker follows auto-assignment.
+                Rules 20, 37, 39, MANUAL 2.23 (PDF 47 pages), backend-overview, skills.
+Validated:      pytest tests/unit tests/e2e tests/integration → exit 0; ruff → All checks passed;
+                browser suite chromium + firefox → 2 failed of the full run, both outside this
+                change: slip (passed alone) and data_segar timer test, which also fails 2 of 3 on
+                origin/staging on this laptop (a 100 ms timing bound); the scan tests 70/70 in
+                both browsers.
+Not validated:  a real stable reading from the PLC (register still unknown, X1); the scanner on
+                the Linux factory PC; a real truck at Lampung.
+Decisions:      final review fixes: a late scan (> 2 h after weigh-out) is a new visit, not a
+                made-up Keluar on the old ticket (rule 37); the 2 s hold is measured between
+                reads, so one read and a stalled link is not "held"; English path `scan/auto` (B2).
+                Old routes /api/console/scan and /scan/keluar stay but the screen no longer uses them.
+Next:           Release, install at Lampung, scan one full visit; fill SCALE_PLC_* when Pak Ocit answers.
+
 ## 2026-10-06 · docs · Skill for the truck QR scanner (PR #250)
 Changed:        New skill `scanner-qr` (mirrored in `.agents/skills/`) from the user's notes on the
                 CASHCOW HC-4208DB: USB ids, connection modes, lights and beeps, manual-barcode

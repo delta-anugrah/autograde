@@ -12,8 +12,8 @@ from fastapi import APIRouter
 
 from ..domain.operator_error import InvalidInput, OperatorError
 from ..domain.pembaruan import PembaruanBerjalan
-from ..schemas.console_schema import ArrivalBody, DepartureBody, ScannerQrBody
-from .console_deps import Gate, Operator, Service, Support, _operator_error
+from ..schemas.console_schema import ArrivalBody, DepartureBody, ScannerQrBody, ScanOtomatisBody
+from .console_deps import Gate, Operator, ScanAuto, Service, Support, _operator_error
 
 gerbang_router = APIRouter(tags=["console"])
 antrean_bongkar_router = APIRouter(tags=["console"])
@@ -57,6 +57,21 @@ def console_departure(gate: Gate, operator: Operator, payload: DepartureBody) ->
         raise _operator_error(400, exc) from exc
 
 
+@gerbang_router.post("/api/console/scan/auto")
+async def console_scan_otomatis(scan: ScanAuto, operator: Operator, payload: ScanOtomatisBody) -> dict:
+    """The one scan field (2026-10-06): the next step of this truck's visit, decided from its state.
+
+    200 with `langkah` and `hasil` for every readable scan, like the other gate lanes: a weight
+    to type (`perlu_berat`), a question first (`perlu_konfirmasi`) or two open tickets (`ganda`)
+    are answers, not failures. 400 for a scan that is not a plate, a clock that cannot be read,
+    or a weight `record_weighing` refuses. `async` like `record_weighing`, which it awaits.
+    """
+    try:
+        return await scan.scan(payload.qr or "", payload.at, konfirmasi=bool(payload.konfirmasi))
+    except (OperatorError, ValueError) as exc:
+        raise _operator_error(400, exc) from exc
+
+
 @antrean_bongkar_router.post("/api/console/unloading-queue/{weighing_id}/assign")
 async def unloading_queue_assign(weighing_id: str, service: Service, operator: Operator) -> dict:
     """"Tugaskan sekarang" on the unloading queue: this truck onto the free lines now.
@@ -83,7 +98,7 @@ def unloading_queue_skip(weighing_id: str, service: Service, operator: Operator)
 
 @scanner_router.get("/api/console/dev/scanner-qr")
 def dev_scanner_baca(service: Service, operator: Support) -> dict:
-    """Scanner QR switch: whether the four QR fields show on the Timbangan tab."""
+    """Scanner QR switch: whether the scan field shows on the Timbangan tab."""
     return {"aktif": service.scanner_qr()}
 
 

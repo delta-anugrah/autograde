@@ -85,8 +85,8 @@ def _penugasan_manual(konsol: KonsolUji) -> None:
 
 @pytest.fixture
 def scanner_nyala(konsol: KonsolUji) -> Iterator[None]:
-    """The four QR fields shown through the switch, the way the mill turns them on; OFF again
-    after, the shipped state. Un-hiding a field by JS no longer works: the 2 s poll hides it
+    """The scan field shown through the switch, the way the mill turns it on; OFF again
+    after, the shipped state. Un-hiding it by JS no longer works: the 2 s poll hides it
     again while the switch is off."""
     from langkah import setel_scanner  # here, not at the top: langkah decides the Playwright skip
 

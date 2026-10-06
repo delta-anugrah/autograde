@@ -33,6 +33,7 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/arrivals"),
     ("POST", "/api/console/arrivals/{arrival_id}/cancel"),
     ("POST", "/api/console/departures"),
+    ("POST", "/api/console/scan/auto"),
     ("GET", "/api/console/trucks/{plate_number}/qr.png"),
     ("GET", "/api/console/weighings"),
     ("GET", "/api/console/recap"),

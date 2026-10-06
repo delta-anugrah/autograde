@@ -499,141 +499,114 @@ def test_label_cetak_qr_diterjemahkan():
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
 
 
-# ── kolom scan di timbang masuk ─────────────────────────────────────────────
+# ── satu kolom scan (2026-10-06) ─────────────────────────────────────────────
 
 
-def test_tab_timbangan_punya_kolom_scan():
+def _badan(nama: str, berikut: str) -> str:
+    """A function with nested blocks, cut at the next marker (`_fungsi` stops at the first `\n}`)."""
+    return HTML.split(f"function {nama}(", 1)[1].split(berikut, 1)[0]
+
+
+def test_tab_timbangan_punya_satu_kolom_scan():
     blok = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
-    assert 'id="scan-plat"' in blok
+    assert blok.count('class="plat"') == 1 and 'id="scan-otomatis"' in blok
+    for lama in ("scan-plat", "scan-keluar", "scan-datang", "scan-pergi"):
+        assert f'id="{lama}"' not in HTML, f"kolom scan lama #{lama} masih ada"
 
 
 def test_dropdown_plat_tetap_ada_sebagai_cadangan():
-    """Scanner rusak, layar HP retak, QR belum dicetak — tiga kejadian nyata di gerbang.
+    """Scanner rusak, layar HP retak, QR belum dicetak: tiga kejadian nyata di gerbang.
     Scan melengkapi cara lama, tidak menggantikannya."""
     blok = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
-    assert 'id="plat-timbang"' in blok
+    assert 'id="plat-timbang"' in blok and 'id="plat-datang"' in blok
 
 
-def test_scan_dikirim_saat_enter_bukan_butuh_tombol():
-    """Scanner barcode itu papan ketik: dia mengetik isi QR lalu menekan Enter sendiri.
-    Kalau butuh klik tombol, operator harus menyentuh layar tiap truk dan gunanya
-    scan hilang."""
-    # Enter ditangani di listener keydown pada kolom scan itu sendiri.
-    blok = HTML.split('$("scan-plat").addEventListener("keydown"', 1)
+def test_scan_dikirim_saat_enter_dan_kolomnya_dikosongkan():
+    """Scanner barcode itu papan ketik: dia mengetik isi QR lalu menekan Enter sendiri. Isi
+    yang tertinggal tersambung dengan scan berikutnya jadi teks yang tidak cocok plat apa pun."""
+    blok = HTML.split('$("scan-otomatis").addEventListener("keydown"', 1)
     assert len(blok) == 2, "kolom scan tidak menangani Enter"
-    assert '"Enter"' in blok[1][:200], "keydown-nya tidak memeriksa Enter"
-    assert "kirimScan()" in blok[1][:400], "Enter tidak mengirim scan"
+    awal = blok[1][:500]
+    assert '"Enter"' in awal and "preventDefault" in awal
+    assert 'scan-otomatis").value = ""' in awal and "kirimScanOtomatis(qr)" in awal
 
 
-def test_scan_memanggil_lane_scan_bukan_menebak_sendiri():
-    """Normalisasi plat dan penolakan QR sampah hidup di server (`domain/qr.py`).
-    Layar yang menebak sendiri akan punya aturan kedua yang bisa berbeda."""
-    assert "/api/console/scan" in _fungsi("kirimScan")
+def test_langkah_diputuskan_server_bukan_layar():
+    """L4: layar tidak menebak langkah. Ia mengirim QR dan menuliskan jawaban server."""
+    badan = _badan("kirimScanOtomatis", "async function tanyaScanUlang")
+    assert "/api/console/scan/auto" in badan
+    assert "konfirmasi" in badan and "new Date().toISOString()" in badan
+    for kata in ("tercatat", "timbang_isi", "keluar"):
+        assert f'=== "{kata}"' not in badan, "layar memilih langkah sendiri"
 
 
-def test_scan_yang_ketemu_mengisi_plat_lalu_pindah_ke_bruto():
-    """Yang menghemat waktu bukan scan-nya saja, tapi kursor yang sudah siap di kolom
-    berikutnya: operator menimbang sambil memegang HP supir."""
-    fn = _fungsi("kirimScan")
-    assert "pilihNilai" in fn and "plat-timbang" in fn
-    assert 'bruto").focus' in fn
+def test_bacaan_ganda_dibuang_dan_dikunci():
+    """Scanner kadang membaca satu QR dua kali dalam beberapa ratus milidetik: teks yang sama
+    dalam 2 detik dibuang, dan dua kiriman tidak pernah berjalan bersamaan."""
+    badan = _badan("kirimScanOtomatis", "async function tanyaScanUlang")
+    assert "scanSibuk" in badan and "JEDA_BACA_ULANG_MS" in badan
+    assert "const JEDA_BACA_ULANG_MS = 2000;" in HTML
 
 
-def test_scan_ganda_dalam_sekejap_diabaikan():
-    """Scanner kadang membaca satu QR dua kali dalam beberapa ratus milidetik. Tanpa
-    penjaga, kiriman kedua menimpa apa yang baru terisi."""
-    fn = _fungsi("kirimScan")
-    assert "scanSibuk" in fn
+def test_scan_ulang_ditanya_lewat_dialog_bersama():
+    """Server menjawab `perlu_konfirmasi` untuk langkah yang datang < 3 menit sesudah langkah
+    sebelumnya; layar bertanya lewat `tanyaKonfirmasi` (F12), ya = kirim lagi dengan konfirmasi."""
+    badan = _badan("tanyaScanUlang", "async function tanganiScan")
+    assert "tanyaKonfirmasi(" in badan and "kirimScanOtomatis(qr, true)" in badan
+    badan = _badan("kirimScanOtomatis", "async function tanyaScanUlang")
+    assert 'if (h.hasil === "perlu_konfirmasi") await tanyaScanUlang(qr, h);' in badan
+    # The lock is released before the table reload: a next scan is not dropped meanwhile.
+    assert badan.index("scanSibuk = false") < badan.index("await tanganiScan(h)")
 
 
-def test_truk_belum_terdaftar_diarahkan_ke_pendaftaran_manual():
-    """Truk pinjaman itu alasan fitur ini ada. Layar harus mengatakan apa yang bisa
-    dilakukan, bukan cuma "tidak ditemukan"."""
-    fn = _fungsi("kirimScan")
-    assert "ditemukan" in fn
-    for bahasa in ("id", "en"):
-        assert "scanBelumAda:" in _kamus(bahasa)
-
-
-def _badan_kirim_scan() -> str:
-    # `_fungsi` memotong di `\n}` pertama, dan `kirimScan` punya blok bersarang.
-    return HTML.split("async function kirimScan()", 1)[1].split('$("scan-plat").addEventListener', 1)[0]
-
-
-def test_truk_yang_belum_ada_di_daftar_layar_memuat_ulang_daftarnya_dulu():
-    """Ketemu tes browser 2026-10-01: daftar truk di layar dimuat ulang tiap 60 detik,
-    jadi truk yang baru turun dari AutoERP belum ada di pilihan. `pilihNilai` lalu diam
-    saja dan kolom plat tetap kosong. Daftarnya dimuat ulang sebelum plat dipilih."""
-    badan = _badan_kirim_scan()
-    assert "muatTrucks()" in badan, "scan tidak memuat ulang daftar truk"
+def test_timbangan_belum_siap_membuka_kotak_berat_yang_lama():
+    """Tanpa timbangan live (atau angkanya belum layak) layar membuka kotak yang sudah ada:
+    bruto untuk timbang isi (plat terpilih, kursor di bruto), bar tara untuk timbang kosong."""
+    badan = _badan("mintaBerat", '$("scan-otomatis").addEventListener')
+    assert "tanyaTara(h.weighing)" in badan
+    assert 'pilihNilai($("plat-timbang"), plat)' in badan and 'bruto").focus()' in badan
+    # Truck list on screen reloads every 60 s: a fresh truck is loaded before it is picked.
     assert badan.index("muatTrucks()") < badan.index('pilihNilai($("plat-timbang")')
 
 
-def test_scan_tidak_bilang_berhasil_kalau_plat_tidak_terisi():
-    """Toast "berhasil" dengan kolom plat kosong membuat operator menekan Timbang masuk
-    lalu ditolak "wajib diisi" tanpa tahu sebabnya. Berhasil hanya kalau platnya terisi."""
-    badan = _badan_kirim_scan()
-    assert "scanDaftarBelumMuat" in badan
-    assert badan.index('$("plat-timbang").dataset.nilai') < badan.index('t("sukScan")')
-    for bahasa in ("id", "en"):
-        assert "scanDaftarBelumMuat:" in _kamus(bahasa)
+def test_enter_di_bruto_menimbang_isi():
+    blok = HTML.split('$("bruto").addEventListener("keydown"', 1)[1][:300]
+    assert '"Enter"' in blok and '$("masuk").click()' in blok
 
 
-def test_truk_nonaktif_dikatakan_bukan_dicari_di_daftar():
-    """Server menandai truk nonaktif (`truck.status`, test_scan_plat) supaya layar bisa
-    mengatakan kenapa truknya tidak bisa dipakai. Daftar truk menyembunyikannya, jadi
-    memuat ulang daftar tidak pernah menemukannya dan pesan "belum termuat" akan bohong."""
-    badan = _badan_kirim_scan()
-    assert 'status === "inactive"' in badan
-    assert badan.index('status === "inactive"') < badan.index("muatTrucks()")
-    for bahasa in ("id", "en"):
-        assert "scanTrukNonaktif:" in _kamus(bahasa)
+def test_toast_sukses_menyebut_langkah_plat_dan_supplier():
+    fn = _fungsi("teksScan")
+    assert "h.plate_number" in fn and "h.supplier" in fn and "kg(h.kg)" in fn
+    badan = _badan("tanganiScan", "async function mintaBerat")
+    assert "toastSukses(teksScan(" in badan and "toastPeringatan(" in badan
 
 
-def test_kolom_scan_dikosongkan_setelah_dibaca():
-    """Isi yang tertinggal akan tersambung dengan scan berikutnya menjadi satu teks
-    panjang yang tidak cocok plat mana pun."""
-    assert 'scan-plat").value = ""' in _fungsi("kirimScan")
+def test_fokus_tidak_direbut_dari_kolom_lain_dialog_atau_daftar():
+    fn = _fungsi("bolehAmbilFokus")
+    assert 'dialog[open]' in fn and 'data-buka="1"' in fn and "input, select, textarea" in fn
+    assert "offsetParent" in fn, "fokus direbut walau tab Timbangan tidak terbuka"
+    assert 'document.addEventListener("focusout", jagaFokusScan)' in HTML
 
 
-def test_label_scan_diterjemahkan():
+def test_kamus_kolom_scan_ada_di_dua_bahasa():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
-        for kunci in ("phScan", "scanBelumAda"):
+        for kunci in ("lbScanOtomatis", "phScanOtomatis", "scanKetikBruto", "scanKetikTara",
+                      "konfirmasiScanJudul", "konfirmasiScan", "btnCatatScan", "scanBelumAda",
+                      "scanTrukNonaktif", "scanGanda", "scanLangkahDatang", "scanLangkahIsi",
+                      "scanLangkahKosong"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+        for lama in ("sukScan:", "phScan:", "phScanKeluar:", "phScanDatang:", "phScanPergi:"):
+            assert lama not in isi, f"KAMUS.{bahasa} masih punya {lama}"
 
 
 def test_pesan_hasil_scan_tidak_terhapus_polling_dua_detik():
-    """Ketemu di browser: pesan "truk belum terdaftar" hilang dalam 2 detik karena
-    `refresh()` selalu membersihkan banner saat berhasil. Operator gerbang yang sedang
-    memegang HP supir tidak akan pernah membacanya.
-
-    Pesan hasil scan punya tempatnya sendiri di dekat kolomnya, bukan banner global.
-    """
-    assert 'id="scan-pesan"' in HTML
-    # `_fungsi` memotong di `\n}` pertama, dan `kirimScan` punya blok bersarang — jadi
-    # yang diiris di sini seluruh badannya, dari namanya sampai listener berikutnya.
-    badan = HTML.split("async function kirimScan()", 1)[1].split('$("scan-plat").addEventListener', 1)[0]
-    assert "pesanScan(" in badan, "hasil scan masih memakai banner global"
+    """Ketemu di browser: pesan scan hilang dalam 2 detik karena `refresh()` membersihkan
+    banner global. Hasil scan punya tempatnya sendiri di bawah kolomnya."""
+    assert 'id="scan-otomatis-pesan"' in HTML
+    badan = _badan("tanganiScan", "async function mintaBerat")
+    assert "pesanScan(" in badan
     assert "pesan(" not in badan.replace("pesanScan(", ""), "masih ada jalur ke banner global"
-
-
-# ── scan di gerbang keluar ──────────────────────────────────────────────────
-
-
-def test_scan_keluar_memanggil_lane_keluar_bukan_lane_masuk():
-    """Dua scan, dua jawaban berbeda: yang masuk mencari truk, yang keluar mencari
-    tiket yang menunggu tara."""
-    assert "/api/console/scan/keluar" in _fungsi("kirimScanKeluar")
-
-
-def test_dua_tiket_terbuka_diminta_dipilih_bukan_ditebak():
-    """Keputusan operator 2026-09-15. Menebak bisa memasangkan tara ke kunjungan yang
-    salah dan mencampur tonase dua kunjungan."""
-    fn = _fungsi("kirimScanKeluar")
-    assert "ganda" in fn
-    for bahasa in ("id", "en"):
-        assert "scanGanda:" in _kamus(bahasa)
 
 
 def test_tombol_timbang_keluar_per_baris_tetap_ada():
@@ -642,35 +615,15 @@ def test_tombol_timbang_keluar_per_baris_tetap_ada():
     assert 'data-aksi="keluar"' in HTML
 
 
-def test_label_scan_keluar_diterjemahkan():
-    for bahasa in ("id", "en"):
-        isi = _kamus(bahasa)
-        for kunci in ("phScanKeluar", "scanTakAdaTiket"):
-            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
-
-
-# ── dua kolom scan harus bisa dibedakan di layar ────────────────────────────
-
-
-def test_setiap_kolom_scan_punya_label_sendiri():
-    """Ketemu dari screenshot operator: dua kolom bertulisan "Scan QR truk" yang sama,
-    satu di atas satu di bawah, tanpa penanda mana yang mana. Yang atas MEMBUAT tiket,
-    yang bawah MENUTUP tiket — ketukar berarti tiket dobel.
-    """
-    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
-    assert 'for="scan-plat"' in blok, "kolom scan masuk tanpa label"
-    assert 'for="scan-keluar"' in blok, "kolom scan keluar tanpa label"
-
-
-def test_placeholder_dua_kolom_scan_tidak_sama():
-    """Kalau placeholder-nya sama, label pun tidak menolong saat operator melihat
-    cepat: yang dibaca pertama itu isi kolomnya."""
-    assert _kamus("id").count('phScan:"Scan QR truk"') <= 1
-    for bahasa in ("id", "en"):
-        isi = _kamus(bahasa)
-        masuk = re.search(r'phScan:"([^"]+)"', isi).group(1)
-        keluar = re.search(r'phScanKeluar:"([^"]+)"', isi).group(1)
-        assert masuk != keluar, f"KAMUS.{bahasa}: placeholder dua kolom scan sama"
+def test_kartu_line_mengikuti_penugasan_tanpa_merebut_pilihan():
+    """Penugasan otomatis memasang truk ke line, tapi dropdown kartu tetap menunjukkan
+    pilihan lama sampai kartunya dibangun ulang (user 2026-10-06). Diikuti hanya saat truk
+    yang ditugaskan berubah dan daftarnya tertutup."""
+    assert "ikutiPenugasan(c," in _fungsi("perbaruiKartu")
+    fn = _fungsi("ikutiPenugasan")
+    assert "c.dataset.trukTugas === truckId" in fn and 'buka !== "1"' in fn
+    # A truck missing from the list is tried again on the next poll, not marked done.
+    assert fn.index("aturPilih(pilih, truckId)") < fn.index("c.dataset.trukTugas = truckId")
 
 
 def test_label_arah_gerbang_diterjemahkan():
@@ -1034,7 +987,7 @@ def test_toast_dibatasi_jumlahnya_di_layar():
 
 def test_kunci_toast_diterjemahkan_di_kedua_bahasa():
     kunci_toast = ("toastTutup", "sukTugaskan", "sukLepas", "sukReject",
-                   "sukDaftar", "sukMasuk", "sukTara", "sukScan")
+                   "sukDaftar", "sukMasuk", "sukTara", "sukDatang", "sukPergi")
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
         hilang = [k for k in kunci_toast if f"{k}:" not in isi]
@@ -1084,17 +1037,13 @@ def test_pilih_truk_dropdown_tidak_memicu_toast():
     assert "toast(" not in fn and "toastSukses(" not in fn
 
 
-def test_scan_masuk_dan_keluar_tetap_punya_pesan_sendiri():
-    """The two gate scan lanes keep their own `#scan-pesan`/`#scan-keluar-pesan`
-    areas (built for the exact same refresh()-wipes-the-banner reason toasts
-    exist for) rather than being replaced by toasts - the operator is looking
-    at the gate field, not the corner, when these fire."""
-    assert 'id="scan-pesan"' in HTML
+def test_scan_dan_tara_tetap_punya_pesan_sendiri():
+    """The scan field and the tara bar keep their own message areas (built for the same
+    refresh()-wipes-the-banner reason toasts exist for): the operator is looking at the
+    field, not the corner, when these fire."""
+    assert 'id="scan-otomatis-pesan"' in HTML
     assert 'id="scan-keluar-pesan"' in HTML
-    fn_scan = _fungsi("kirimScan")
-    assert "pesanScan(" in fn_scan
-    fn_keluar = _fungsi("kirimScanKeluar")
-    assert "pesanScanKeluar(" in fn_keluar
+    assert "pesanScanKeluar(" in _fungsi("simpanTara")
 
 
 # ---------------------------------------------- layar setelan (2026-09-18)
@@ -1182,36 +1131,12 @@ def test_label_mode_dev_ada_di_dua_bahasa():
 # ---------------------------------------------- kolom QR disembunyikan (2026-09-20)
 
 
-def _baris_input(elemen_id: str) -> str:
-    """Tag `<input>` beserta atribut lanjutannya, sebagai satu string."""
-    mulai = HTML.index(f'<input id="{elemen_id}"')
-    return HTML[mulai : HTML.index(">", mulai) + 1]
-
-
 def test_kolom_qr_dikirim_hidden_dan_dimunculkan_saklar_scanner():
-    """The markup ships the QR fields hidden; the Scanner QR switch (support, Setelan)
-    shows them through `tampilkanKolomScan`. A PC without a scanner never sees them."""
-    for elemen_id in ("scan-plat", "scan-keluar"):
-        assert " hidden" in _baris_input(elemen_id), (
-            f"#{elemen_id} must ship hidden: the Scanner QR switch shows it, not the markup"
-        )
-
-
-def test_jalur_scan_tidak_ikut_dihapus():
-    """Markup-nya `hidden` dan dimunculkan saklar Scanner QR, bukan dibuang.
-
-    Kalau jalur ini ikut terhapus, menghidupkan gerbang QR nanti berarti menulis
-    ulang endpoint, penangan, dan penjaga bacaan-ganda dari nol — padahal ketiga
-    keputusan di dalamnya sudah dibayar dengan sesi lapangan (§20).
-    """
-    for jejak in (
-        "/api/console/scan",          # gerbang masuk
-        "/api/console/scan/keluar",   # gerbang keluar
-        "kirimScan(",                 # penangan masuk
-        "kirimScanKeluar(",           # penangan keluar
-        "scanSibuk",                  # penjaga bacaan ganda scanner
-    ):
-        assert jejak in HTML, f"jalur scan hilang: {jejak}"
+    """The markup ships the scan field hidden; the Scanner QR switch (support, Setelan)
+    shows it through `tampilkanKolomScan`. A PC without a scanner never sees it."""
+    mulai = HTML.index('<div id="scan-otomatis-grup"')
+    assert " hidden>" in HTML[mulai : HTML.index(">", mulai) + 1]
+    assert "grup.hidden = !aktif" in _fungsi("tampilkanKolomScan")
 
 
 def test_ada_jalan_lain_ke_setiap_gerbang_tanpa_scan():

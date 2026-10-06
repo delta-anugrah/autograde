@@ -1,10 +1,9 @@
 """The four gate steps on the Timbangan tab (user's decision 2026-09-30): 1 Datang, 2 Timbang
-isi, 3 Timbang kosong, 4 Keluar, each its own labelled side, because the console never guesses
-which step a scan is (scan 1 may be skipped).
+isi, 3 Timbang kosong, 4 Keluar, each its own labelled side (scan 1 may be skipped).
 
-Without a scanner (the four QR fields ship `hidden`), step 1 is the truck picker plus "Catat
-datang" and step 4 is the Keluar button on the ticket row. The scan tests turn the Scanner QR
-switch on (`scanner_nyala`), as `test_browser_scan.py` does.
+Without a scanner (the scan field ships `hidden`), step 1 is the truck picker plus "Catat
+datang" and step 4 is the Keluar button on the ticket row. Scanning, where the console picks
+the step from the truck's state (2026-10-06), is `test_browser_scan_otomatis.py`.
 
 The console lives for the whole session, so every truck weighed in here is weighed out and
 leaves, and every arrival is claimed by a weigh-in: an open ticket stays in the table and in
@@ -22,9 +21,7 @@ from playwright.sync_api import expect
 # Cells of a ticket row (`barisTimbangan` in console.html); Status is the first since 2026-10-02.
 _STATUS, _ANTRE, _TOTAL = 0, 3, 5
 _SALAH = re.compile(r"\bsalah\b")
-_BUKAN_PLAT = "https://promo.example/qr"
 _LANGKAH = ("lbDatang", "lbGerbangMasuk", "lbGerbangKeluar", "lbPergi")
-_KOLOM_SCAN = ("#scan-datang", "#scan-plat", "#scan-keluar", "#scan-pergi")
 _WARNA = "(el) => [getComputedStyle(el).color, getComputedStyle(el).backgroundColor]"
 # The theme's own warning pair, resolved by the browser the same way as the tag's.
 _WARNA_PERINGATAN = """() => {
@@ -81,19 +78,12 @@ def _pergi(halaman, nomor: str) -> None:
     expect(baris.locator("button[data-aksi]")).to_have_count(0)
 
 
-def _scan(halaman, kolom: str, teks: str) -> None:
-    expect(halaman.locator(kolom)).to_be_visible()
-    halaman.fill(kolom, teks)
-    halaman.press(kolom, "Enter")
-
-
 def test_four_labelled_steps_and_two_new_columns(halaman, scanner_mati):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
     for kunci in _LANGKAH:
         expect(halaman.locator(f'#sec-timbangan [data-t="{kunci}"]')).to_have_text(kamus(halaman, kunci))
-    for kolom in _KOLOM_SCAN:
-        expect(halaman.locator(kolom)).to_be_hidden()
+    expect(halaman.locator("#scan-otomatis")).to_be_hidden()
     # The Timbangan table itself, not the cancelled arrivals table under it (round 4).
     kepala = halaman.locator("#sec-timbangan > .tabel thead th")
     expect(kepala).to_have_count(12)
@@ -151,62 +141,6 @@ def test_weigh_out_then_leave_fills_the_total(halaman, browser_name, penugasan_b
     _pergi(halaman, nomor)
     expect(sel.nth(_TOTAL)).to_have_text(re.compile(r"^\d+ mnt$"))
     expect(sel.nth(_TOTAL)).to_have_attribute("title", re.compile("^" + re.escape(kamus(halaman, "jamPergi"))))
-
-
-def test_leaving_before_weigh_out_is_refused_and_nothing_is_written(
-    halaman, konsol, browser_name, penugasan_bersih, scanner_nyala
-):
-    nomor = plat(browser_name, 1203)
-    masuk(halaman, OPERATOR)
-    _daftar(halaman, nomor)
-    _isi(halaman, nomor)
-
-    _scan(halaman, "#scan-pergi", nomor)
-    pesan = halaman.locator("#scan-pergi-pesan")
-    expect(pesan).to_contain_text(kamus(halaman, "pergiBelumKosong"))
-    expect(pesan).to_have_class(_SALAH)
-    tiket = [w for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["items"]
-             if w["plate_number"] == nomor]
-    assert len(tiket) == 1 and tiket[0]["left_at"] is None, tiket
-    expect(_baris(halaman, nomor).locator('button[data-aksi="keluar"]')).to_have_count(1)
-
-    _kosong(halaman, nomor)
-    _pergi(halaman, nomor)
-    # A fresh scan 4 after the truck left is a warning, not a second leave.
-    _scan(halaman, "#scan-pergi", nomor)
-    expect(pesan).to_contain_text(kamus(halaman, "pergiSudah"))
-
-
-def test_arrival_scanned_twice_then_while_inside(halaman, browser_name, penugasan_bersih, scanner_nyala):
-    nomor = plat(browser_name, 1204)
-    masuk(halaman, OPERATOR)
-    _daftar(halaman, nomor)
-    pesan = halaman.locator("#scan-datang-pesan")
-
-    _scan(halaman, "#scan-datang", nomor)
-    expect(halaman.locator("#toasts")).to_contain_text(f"{kamus(halaman, 'sukDatang')} {nomor}")
-    expect(pesan).to_have_text("")
-    _scan(halaman, "#scan-datang", nomor)
-    expect(pesan).to_contain_text(kamus(halaman, "datangSudah").split("{jam}")[0].strip())
-    expect(pesan).to_have_class(_SALAH)
-
-    _isi(halaman, nomor)
-    _scan(halaman, "#scan-datang", nomor)
-    expect(pesan).to_contain_text(kamus(halaman, "datangMasihDiDalam"))
-    expect(_baris(halaman, nomor).locator("td").nth(_ANTRE)).to_have_text(halaman.evaluate("() => teksMenit(0)"))
-
-    _kosong(halaman, nomor)
-    _pergi(halaman, nomor)
-
-
-def test_not_a_plate_is_refused_on_both_gate_fields(halaman, scanner_nyala):
-    masuk(halaman, OPERATOR)
-    buka_tab(halaman, "timbangan")
-    for kolom, pesan in (("#scan-datang", "#scan-datang-pesan"), ("#scan-pergi", "#scan-pergi-pesan")):
-        _scan(halaman, kolom, _BUKAN_PLAT)
-        expect(halaman.locator(pesan)).to_have_text(kamus(halaman, "err_bukan_plat"))
-        expect(halaman.locator(pesan)).to_have_class(_SALAH)
-        expect(halaman.locator(kolom)).to_have_value("")
 
 
 def _tiket_terbuka(halaman, konsol, nomor: str) -> dict:

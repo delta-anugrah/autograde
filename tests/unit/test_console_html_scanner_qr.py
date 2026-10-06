@@ -1,5 +1,5 @@
-"""Scanner QR switch on the screen (2026-10-05): the four QR fields ship `hidden`, the
-2 s poll shows them when support turned the switch on."""
+"""Scanner QR switch on the screen (2026-10-05): the scan field (one since 2026-10-06)
+ships `hidden`, the 2 s poll shows it when support turned the switch on."""
 from __future__ import annotations
 
 import re
@@ -8,7 +8,6 @@ from pathlib import Path
 HTML = (Path(__file__).resolve().parents[2] / "src/palmgrade/static/console.html").read_text(
     encoding="utf-8"
 )
-EMPAT = ("scan-datang", "scan-plat", "scan-keluar", "scan-pergi")
 
 
 def _fungsi(nama: str) -> str:
@@ -16,10 +15,9 @@ def _fungsi(nama: str) -> str:
     return HTML[mulai : HTML.index("\n}\n", mulai)]
 
 
-def test_daftar_kolom_scan_berisi_keempatnya():
-    daftar = re.search(r"const KOLOM_SCAN = \[([^\]]*)\]", HTML)
-    assert daftar, "KOLOM_SCAN hilang"
-    assert re.findall(r'"([^"]+)"', daftar.group(1)) == list(EMPAT)
+def test_saklar_memunculkan_grup_kolom_scan():
+    assert '$("scan-otomatis-grup")' in _fungsi("tampilkanKolomScan")
+    assert "KOLOM_SCAN" not in HTML
 
 
 def test_polling_menampilkan_kolom_dan_server_lama_berarti_mati():
@@ -29,7 +27,7 @@ def test_polling_menampilkan_kolom_dan_server_lama_berarti_mati():
 
 def test_hidden_cuma_ditulis_kalau_berubah():
     # F9: writing the same value every 2 s is noise, and a re-hide mid-scan loses the input.
-    assert "if (el.hidden !== !aktif)" in _fungsi("tampilkanKolomScan")
+    assert "if (grup.hidden === !aktif) return;" in _fungsi("tampilkanKolomScan")
 
 
 def test_setelan_punya_saklar_dan_tombol_simpan_sendiri():

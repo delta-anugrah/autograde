@@ -1,5 +1,5 @@
-"""Scanner QR switch on the real screen: support turns it on in Setelan, the four QR fields
-appear on the Timbangan tab, and a scan works in the field without un-hiding it by hand.
+"""Scanner QR switch on the real screen: support turns it on in Setelan, the scan field
+appears on the Timbangan tab, and a scan works in it without un-hiding it by hand.
 
 The console lives for the whole session, so every test runs inside `scanner_mati`
 (switch OFF before and after, from `conftest.py`): the other scan tests turn it on
@@ -13,7 +13,7 @@ from __future__ import annotations
 from langkah import OPERATOR, SUPPORT, buka_setelan, buka_tab, kamus, masuk, plat, setel_scanner
 from playwright.sync_api import expect
 
-_KOLOM = ("#scan-datang", "#scan-plat", "#scan-keluar", "#scan-pergi")
+_KOLOM = ("#scan-otomatis",)
 
 
 def _simpan(halaman, nyala: bool) -> None:
@@ -51,20 +51,23 @@ def test_an_operator_scans_into_the_shown_field(halaman, konsol, scanner_mati, b
     daftar = halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": nomor})
     assert daftar.status == 201, daftar.text()
     buka_tab(halaman, "timbangan")
-    # Shown by the poll, not by the test.
-    expect(halaman.locator("#scan-plat")).to_be_visible()
-    halaman.fill("#scan-plat", nomor)
-    halaman.press("#scan-plat", "Enter")
-    expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukScan"))
-    expect(halaman.locator("#plat-timbang")).to_have_attribute("data-nilai", nomor)
+    # Shown by the poll, not by the test, and focused: the scanner types without a click.
+    expect(halaman.locator("#scan-otomatis")).to_be_focused()
+    halaman.keyboard.type(nomor)
+    halaman.keyboard.press("Enter")
+    expect(halaman.locator("#toasts")).to_contain_text(f"{kamus(halaman, 'sukDatang')} {nomor}")
+    # The arrival is not left waiting for the tests after this one.
+    for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["waiting"]:
+        if w["plate_number"] == nomor:
+            halaman.request.post(konsol.url + f"/api/console/arrivals/{w['id']}/cancel")
 
 
 def test_another_open_screen_follows_without_a_reload(halaman, konsol, scanner_mati):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
-    expect(halaman.locator("#scan-datang")).to_be_hidden()
+    expect(halaman.locator("#scan-otomatis")).to_be_hidden()
     setel_scanner(konsol.url, True)
     # The 2 s state poll un-hides it on a screen nobody touched.
-    expect(halaman.locator("#scan-datang")).to_be_visible(timeout=10_000)
+    expect(halaman.locator("#scan-otomatis")).to_be_visible(timeout=10_000)
     setel_scanner(konsol.url, False)
-    expect(halaman.locator("#scan-datang")).to_be_hidden(timeout=10_000)
+    expect(halaman.locator("#scan-otomatis")).to_be_hidden(timeout=10_000)

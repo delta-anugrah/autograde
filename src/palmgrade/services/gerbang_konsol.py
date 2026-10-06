@@ -53,7 +53,7 @@ class GerbangKonsol:
         return datetime.now(UTC)
 
     def scanner_qr(self) -> bool:
-        """Whether the four QR fields show on the Timbangan tab. Off until support turns it on."""
+        """Whether the scan field shows on the Timbangan tab. Off until support turns it on."""
         return self.store.get_state(KUNCI_SCANNER_QR) == "1"
 
     def simpan_scanner_qr(self, aktif: bool, *, diubah_oleh: str) -> dict[str, bool]:

@@ -50,6 +50,15 @@ class DepartureBody(_Body):
     at: str | None = None
 
 
+class ScanOtomatisBody(_Body):
+    """The one scan field (2026-10-06). `konfirmasi` is the operator's yes to a scan that came
+    within 3 minutes of the truck's previous step (a double read otherwise)."""
+
+    qr: str | None = None
+    at: str | None = None
+    konfirmasi: bool | None = None
+
+
 class WeighingBody(_Body):
     """The manual lane of the scale program's shape (`record_weighing`)."""
 
