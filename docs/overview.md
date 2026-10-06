@@ -42,7 +42,7 @@ strict boundary; the coding rules that go with it are in `docs/coding-standard.m
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di PC dev). Satu-satunya thread yang menyentuh socket ke PLC (MC Protocol ke CPU Mitsubishi; Modbus ke coupler ODOT kalau `PLC_PROTOCOL=modbus`): kuras antrean keputusan → pulse bit OK/NG, kedipkan heartbeat, baca blok input, tulis bit ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya**. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
 | `EventBroadcastWorker` | asyncio task | drain `event_queue` → push to `/ws/results` WebSocket clients |
 | `_watchdog` | asyncio task | every **10s**, restart any dead worker thread |
-| `TimbanganLiveWorker` | asyncio task, **console only** | reads the weighbridge weight from a PLC word register on its own MC connection every `SCALE_POLL_MS`; result held in memory, no SQLite, never fills a ticket (rule 39). Absent while `SCALE_PLC_REGISTER` is empty |
+| `TimbanganLiveWorker` | asyncio task, **console only** | reads the weighbridge weight from a PLC word register on its own MC connection every `SCALE_POLL_MS`; result held in memory, no SQLite; only the one scan field may save it as a ticket weight, and only when fit (rule 39). Absent while `SCALE_PLC_REGISTER` is empty |
 
 `UploadScheduler` (APScheduler) menjalankan `BatchUploadWorker.run_batch_once` tiap jam (menit `UPLOAD_MINUTE`): scan `artifacts/results/` → manifest SQLite → upload gambar ke R2 → POST teks ke `UPLOAD_API_URL` **kalau diisi** (kosong di pabrik: penerimanya, palmgrade-api, sudah pensiun). `R2_BUCKET` kosong = no-op.
 

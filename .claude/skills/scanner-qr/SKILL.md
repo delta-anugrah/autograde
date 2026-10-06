@@ -5,8 +5,9 @@ description: The truck QR scanner the mill bought (CASHCOW HC-4208DB, a rebrande
 
 # QR scanner: CASHCOW HC-4208DB
 
-Bought 2026-10-05 for the four gate scans on the Timbangan tab (rules 20 and 37). The console
-shows the QR fields only when support turns on **Settings > Scanner QR** (PR #249, default off).
+Bought 2026-10-05 for the four gate steps on the Timbangan tab (rules 20 and 37). Since
+2026-10-06 the console has **one** scan field that records the truck's next step; it shows
+only when support turns on **Settings > Scanner QR** (PR #249, default off).
 
 ## Device
 
@@ -52,15 +53,16 @@ The paper manual lists no suffix (Enter) and no keyboard-language setting.
 
 ## How the console receives a scan
 
-- The scanner types into whatever element has focus, so the operator clicks the QR field of
-  the right step first (MANUAL §3.2). Four fields: `#scan-datang`, `#scan-plat`,
-  `#scan-keluar`, `#scan-pergi` (skill `konsol-autograde`).
-- Each field submits **only on Enter** (`keydown` listeners in `console.html`, e.g. the one on
-  `#scan-plat`). ⚠️ Whether this scanner sends Enter after a scan is **not verified yet**. Check
-  in a text editor: after a scan the cursor must move to a new line. If it does not, the
-  console needs a change (submit after a short idle, or a fast-typing buffer), because the
-  manual offers no suffix setting.
-- `scanSibuk` drops a second read of the same QR within a few hundred ms.
+- The scanner types into whatever element has focus. The one field `#scan-otomatis` keeps the
+  focus while the Timbangan tab is open (`jagaFokusScan`), except while the operator types in
+  another box, a picker list is open, or a dialog is up; so no click is needed before a scan.
+- It submits **only on Enter** (`keydown` on `#scan-otomatis`). This scanner **does send Enter**
+  after a scan: verified 2026-10-06 over Bluetooth on a Mac (all four steps worked).
+- The server picks the step from the truck's state (`POST /api/console/scan/auto`, rule 20):
+  datang, timbang isi, timbang kosong, keluar. Weight comes from the live scale when fit
+  (rule 39), otherwise the bruto or tara box opens for the operator to type.
+- Double reads: the screen drops the same QR within 2 s (`JEDA_BACA_ULANG_MS`), and a step
+  within 3 minutes of the truck's previous step asks "Catat?" first.
 - The QR holds the normalised plate and nothing else (rule 20). A test QR for any truck:
   `GET /api/console/trucks/{plate}/qr.png`, e.g. `http://127.0.0.1:8100/api/console/trucks/BE%206311%20TSA/qr.png`.
 
@@ -71,5 +73,5 @@ The paper manual lists no suffix (Enter) and no keyboard-language setting.
 | Beep, but nothing typed | Normal Scan Mode, not Storage Mode. On macOS: dongle does not type, switch to Bluetooth |
 | 3 beeps | Wireless link lost: move closer, or pair again (Pair with dongle / Pair with Bluetooth) |
 | Nothing at all, light off | Charge it (red light), press the trigger to wake it (sleep is 30 min by default) |
-| Text arrives but the console does nothing | No Enter after the scan (see above), or the focus is not in a QR field, or Settings > Scanner QR is off |
+| Text arrives but the console does nothing | Settings > Scanner QR is off, or the Timbangan tab is not open, or the focus is in another box (bruto, tara, search) |
 | Wrong or lowercase letters | Scan "All Capital"; the console normalises the plate anyway |
