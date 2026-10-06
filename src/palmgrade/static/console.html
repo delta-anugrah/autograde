@@ -455,10 +455,14 @@
   .langkah-ruas .scan-pesan { min-height:0; font-size:.85rem; line-height:1.3; }
   .langkah-ruas .scan-pesan:empty { display:none; }
   .langkah-ruas .scan-pesan:not(:empty) + .langkah-di { display:none; }
-  /* Kolom QR langkah 3 dan 4, `hidden` sampai saklar Scanner QR nyala: begitu dimunculkan ia mengisi
-     lebar ruasnya. `flex:none`: `.tools input.plat` memberi basis 13rem, dan di kolom flex basis
-     itu menjadi TINGGI. */
-  .timbang-alat .langkah-ruas input.plat { flex:none; width:100%; max-width:none; margin-top:4px; }
+  /* Satu kolom scan (2026-10-06): selebar kotak alat, di atas strip langkah, huruf besar supaya
+     plat yang baru terbaca kelihatan dari jauh. Baris pesannya selalu setinggi satu baris
+     (`.scan-pesan` min-height), jadi strip di bawahnya tidak bergeser saat pesan datang. */
+  .scan-otomatis { display:grid; grid-template-columns:auto minmax(0, 1fr); align-items:center;
+                   gap:6px 12px; margin-bottom:12px; }
+  .scan-otomatis[hidden] { display:none; }
+  .timbang-alat .scan-otomatis input.plat { width:100%; max-width:none; font-size:1.25rem; }
+  .scan-otomatis .scan-pesan { grid-column:1 / -1; }
   /* 2 x 2 dari 600 px, empat sejajar dari 960 px dengan panah di celahnya: di bawah itu pita
      "3. Timbang kosong" tidak muat satu baris di ruas seperempat lebar. */
   @media (min-width:600px) {
@@ -501,9 +505,6 @@
   .timbang-kaki { margin:0; min-width:0; font-size:.85rem; line-height:1.3; }
   .timbang-kaki.scan-pesan { min-height:0; }
   .timbang-kaki.scan-pesan:empty { display:none; }
-  .kaki-isi .scan-pesan { min-height:0; }
-  .kaki-isi .scan-pesan:empty { display:none; }
-  .kaki-isi .scan-pesan:not(:empty) + span { display:none; }
   /* Berdampingan: dua form di baris 1, kakinya di baris 2 di bawah form masing-masing. Di
      bawah 1100 px urutannya urutan dokumen: form 1, pesannya, form 2, kakinya. */
   @media (min-width:1100px) {
@@ -2031,10 +2032,22 @@
   -->
   <div class="tools timbang-alat">
     <!--
+      Satu kolom scan (user 2026-10-06), `hidden` sampai saklar Scanner QR nyala
+      (`tampilkanKolomScan`). Operator tidak memilih kolom: server membaca keadaan truk dan
+      mencatat langkah berikutnya (`/api/console/scan/otomatis`). Kolom ini memegang fokus
+      selama tab Timbangan terbuka dan tidak ada kolom lain yang sedang diisi (`jagaFokusScan`),
+      jadi scanner bisa langsung dipakai tanpa klik.
+    -->
+    <div id="scan-otomatis-grup" class="scan-otomatis" hidden>
+      <label class="lb" for="scan-otomatis" data-t="lbScanOtomatis">Scan QR truk</label>
+      <input id="scan-otomatis" class="plat" data-t-ph="phScanOtomatis" placeholder="Arahkan scanner ke QR truk"
+             autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <span id="scan-otomatis-pesan" class="scan-pesan" role="status"></span>
+    </div>
+    <!--
       Strip empat langkah (user 2026-10-03): tiap ruas = pita tahap + di mana langkah itu
       dikerjakan. Langkah 3 dan 4 tidak punya kontrol sendiri (tombolnya di baris tabel),
-      jadi tidak diberi kartu berisi kotak kosong. Label tetap `for` kolom QR-nya: kolom itu
-      `hidden` sampai saklar Scanner QR nyala (`tampilkanKolomScan`), lalu muncul di form (1, 2) atau di ruasnya (3, 4).
+      jadi tidak diberi kartu berisi kotak kosong.
       Scan 1 dan 4 (2026-09-30): jam datang dan jam keluar gerbang, cuma disimpan di PC ini.
       Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
     -->
@@ -2042,7 +2055,7 @@
       <li class="langkah-ruas ruas-datang">
         <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 4v2h-8"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></span>
         <span class="langkah-kepala">
-          <label class="lb langkah tahap-datang" id="lb-langkah-datang" for="scan-datang" data-t="lbDatang">1. Datang</label>
+          <label class="lb langkah tahap-datang" id="lb-langkah-datang" data-t="lbDatang">1. Datang</label>
           <!-- Jumlah truk yang menunggu timbang isi; platnya di `title` dan sebagai baris
                DATANG di tabel. Disembunyikan kalau nol. -->
           <span id="antre" class="langkah-hitung" hidden></span>
@@ -2052,30 +2065,25 @@
       <li class="langkah-ruas ruas-bongkar">
         <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M8 8l4 4 4-4"/><path d="M3 16h18v4H3z"/></svg></span>
         <span class="langkah-kepala">
-          <label class="lb langkah tahap-bongkar" id="lb-langkah-isi" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
+          <label class="lb langkah tahap-bongkar" id="lb-langkah-isi" data-t="lbGerbangMasuk">2. Timbang isi</label>
         </span>
         <span class="langkah-di" data-t="hintTimbangIsi">Pilih truk, isi Bruto, lalu Timbang isi</span>
       </li>
       <li class="langkah-ruas ruas-kosong" id="ruas-kosong">
         <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12V3"/><path d="M8 7l4-4 4 4"/><path d="M3 16h18v4H3z"/></svg></span>
         <span class="langkah-kepala">
-          <label class="lb langkah tahap-kosong" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
+          <label class="lb langkah tahap-kosong" data-t="lbGerbangKeluar">3. Timbang kosong</label>
         </span>
         <span id="petunjuk-keluar" class="langkah-di" data-t="hintGerbangKeluar">Tekan Timbang kosong di baris truknya</span>
-        <!-- Hasil scan ini membuka bar tara di bawah; pesannya di bar itu (`#scan-keluar-pesan`). -->
-        <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR timbang kosong"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
       </li>
       <li class="langkah-ruas ruas-selesai">
         <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg></span>
         <span class="langkah-kepala">
-          <label class="lb langkah tahap-selesai" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
+          <label class="lb langkah tahap-selesai" data-t="lbPergi">4. Keluar</label>
         </span>
         <!-- Pesan sebelum petunjuknya: selama ada, ia menggantikan petunjuk di tempat yang sama. -->
         <span id="scan-pergi-pesan" class="scan-pesan" role="status"></span>
         <span id="petunjuk-pergi" class="langkah-di" data-t="hintPergi">Tekan Keluar di baris truknya</span>
-        <input id="scan-pergi" class="plat" data-t-ph="phScanPergi" placeholder="QR keluar"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
       </li>
     </ol>
     <!--
@@ -2088,8 +2096,6 @@
     <div class="timbang-aksi">
       <div class="timbang-form ruas-datang" role="group" aria-labelledby="lb-langkah-datang">
         <div class="timbang-kontrol">
-          <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
-                 autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
           <div class="pilih" id="plat-datang" data-nilai="">
             <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
             <div class="pilih-panel" role="listbox" hidden></div>
@@ -2100,8 +2106,6 @@
       <span id="scan-datang-pesan" class="scan-pesan timbang-kaki kaki-datang" role="status"></span>
       <div class="timbang-form ruas-bongkar timbang-isi" role="group" aria-labelledby="lb-langkah-isi">
         <div class="timbang-kontrol">
-          <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR timbang isi"
-                 autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
           <div class="pilih" id="plat-timbang" data-nilai="">
             <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
             <div class="pilih-panel" role="listbox" hidden></div>
@@ -2112,8 +2116,7 @@
           <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang isi</button>
         </div>
       </div>
-      <!-- Pesan scan langkah 2 sebelum petunjuknya: selama ada, ia menggantikan petunjuk. -->
-      <p class="catatan timbang-kaki kaki-isi"><span id="scan-pesan" class="scan-pesan" role="status"></span><span
+      <p class="catatan timbang-kaki kaki-isi"><span
          id="bruto-petunjuk" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span></p>
     </div>
     <!--
@@ -3393,7 +3396,6 @@ const KAMUS = {
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
     sukPistonBuka:"Perintah buka piston dikirim ke {line}", sukPistonTutup:"Perintah tutup piston dikirim ke {line}",
     sukMasuk:"Timbang isi tercatat", sukTara:"Timbang kosong tercatat",
-    sukScan:"Truk ditemukan",
     gross_kg:"Bruto", tare_kg:"Tara",
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
     err_bukan_plat:"Yang di-scan bukan nomor polisi",
@@ -3451,12 +3453,18 @@ const KAMUS = {
     btnSimpanTara:"Simpan", btnBatal:"Batal",
     phTara:"Tara (kg)",
     taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
-    phScan:"QR timbang isi", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
-    scanDaftarBelumMuat:"Truk ditemukan, tapi daftar truk di layar belum termuat. Scan sekali lagi.",
+    scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
     scanTrukNonaktif:"Truk ini sudah dinonaktifkan, tidak bisa ditimbang:",
-    phScanKeluar:"QR timbang kosong", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
-    // Empat scan gerbang (2026-09-30): 1 datang dan 4 keluar cuma disimpan di PC ini.
-    lbDatang:"1. Datang", lbPergi:"4. Keluar", phScanDatang:"QR datang", phScanPergi:"QR keluar",
+    // Satu kolom scan (2026-10-06): server memilih langkahnya dari keadaan truk.
+    lbScanOtomatis:"Scan QR truk", phScanOtomatis:"Arahkan scanner ke QR truk",
+    scanKetikBruto:"Timbangan belum siap. Ketik bruto {plat}, lalu Enter",
+    scanKetikTara:"Timbangan belum siap. Ketik tara {plat}, lalu Enter",
+    scanLangkahDatang:"datang", scanLangkahIsi:"timbang isi", scanLangkahKosong:"timbang kosong",
+    konfirmasiScanJudul:"Catat {langkah} {plat}?",
+    konfirmasiScan:"Langkah sebelumnya truk ini baru {menit} menit lalu. Kalau QR-nya cuma terbaca dua kali, pilih Batal.",
+    btnCatatScan:"Catat",
+    // Empat langkah gerbang (2026-09-30): 1 datang dan 4 keluar cuma disimpan di PC ini.
+    lbDatang:"1. Datang", lbPergi:"4. Keluar",
     btnDatang:"Catat datang", btnPergi:"Keluar",
     hintPergi:"Tekan Keluar di baris truknya",
     hintDatang:"Pilih truk, lalu Catat datang", hintTimbangIsi:"Pilih truk, isi Bruto, lalu Timbang isi",
@@ -3940,7 +3948,6 @@ const KAMUS = {
     sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
     sukPistonBuka:"Open piston command sent to {line}", sukPistonTutup:"Close piston command sent to {line}",
     sukMasuk:"Weigh-in recorded", sukTara:"Weigh-out recorded",
-    sukScan:"Truck found",
     gross_kg:"Gross", tare_kg:"Tare",
     err_plat_kosong:"Plate number cannot be empty",
     err_bukan_plat:"What was scanned is not a plate number",
@@ -3994,11 +4001,16 @@ const KAMUS = {
     btnSimpanTara:"Save", btnBatal:"Cancel",
     phTara:"Tare (kg)",
     taraMinimum:"Tare must be at least 1,000 kg, check the figure",
-    phScan:"Weigh-in QR", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
-    scanDaftarBelumMuat:"Truck found, but the truck list on screen has not loaded. Scan once more.",
+    scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
     scanTrukNonaktif:"This truck is deactivated and cannot be weighed:",
-    phScanKeluar:"Weigh-out QR", scanTakAdaTiket:"No open ticket today for",
-    lbDatang:"1. Arrive", lbPergi:"4. Leave", phScanDatang:"Arrival QR", phScanPergi:"Leave QR",
+    lbScanOtomatis:"Scan truck QR", phScanOtomatis:"Point the scanner at the truck QR",
+    scanKetikBruto:"Scale not ready. Type the gross weight of {plat}, then Enter",
+    scanKetikTara:"Scale not ready. Type the tare of {plat}, then Enter",
+    scanLangkahDatang:"arrival", scanLangkahIsi:"weigh-in", scanLangkahKosong:"weigh-out",
+    konfirmasiScanJudul:"Record {langkah} for {plat}?",
+    konfirmasiScan:"This truck's previous step was only {menit} min ago. If the QR was just read twice, choose Cancel.",
+    btnCatatScan:"Record",
+    lbDatang:"1. Arrive", lbPergi:"4. Leave",
     btnDatang:"Record arrival", btnPergi:"Leave",
     hintPergi:"Press Leave on the truck's row",
     hintDatang:"Pick the truck, then Record arrival", hintTimbangIsi:"Pick the truck, enter Gross, then Weigh in",
@@ -4589,6 +4601,7 @@ function terapkanTab() {
     const panel = $("sec-" + b.dataset.tab);
     if (panel) panel.hidden = !aktif;
   });
+  jagaFokusScan();
 }
 
 // Support-only tabs are not part of the 2 s poll (the stores run their own
@@ -6315,130 +6328,51 @@ $("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
 // Weigh-in: bruto now, tara hours later. The time comes from the browser clock
 // - on the mill PC that is the same clock the operator reads, and the server
 // derives the working day from it (§6.1).
-// ── scan QR at the weighbridge gate ─────────────────────────────────────
-// The scanner sends the QR content then Enter. The `/api/console/scan` lane
-// normalises the plate and rejects anything that is not a plate - the screen
-// does not guess on its own, so there is no second rule that could disagree
-// with the server's.
-// Scanner QR switch (support, 2026-10-05): the four QR fields ship `hidden` and follow the
-// 2 s poll, so turning it on reaches every open screen without a reload. Writes only on a
-// change (F9): the same value every poll is noise, and a field re-hidden mid-scan loses
-// what the scanner was typing.
-const KOLOM_SCAN = ["scan-datang", "scan-plat", "scan-keluar", "scan-pergi"];
+// ── one scan field (user 2026-10-06) ──────────────────────────────────────
+// The scanner types the QR then presses Enter. The operator no longer picks a field: the
+// server reads the truck's state and records the next step (`/api/console/scan/otomatis`),
+// and the screen only words its answer (L4). The plate dropdowns, Catat datang and the row
+// buttons stay as the fallback (rule 20: broken scanner, cracked phone screen, no card).
+// Scanner QR switch (support, 2026-10-05): the field ships `hidden` and follows the 2 s
+// poll, so turning it on reaches every open screen without a reload. Writes only on a
+// change (F9): re-hiding it every poll would lose what the scanner was typing.
 function tampilkanKolomScan(aktif) {
-  for (const id of KOLOM_SCAN) {
-    const el = $(id);
-    if (el.hidden !== !aktif) el.hidden = !aktif;
-  }
+  const grup = $("scan-otomatis-grup");
+  if (grup.hidden === !aktif) return;
+  grup.hidden = !aktif;
+  if (aktif) jagaFokusScan();
 }
 
 let scanSibuk = false;
 
-// A scan result does not go through the global banner: `refresh()` clears it
-// on every successful poll, so the message would vanish within 2 seconds.
-// Here it stays until the next scan.
+// The field keeps the focus while the Timbangan tab is open, so the scanner works without a
+// click. Never taken from another text field (bruto, tara, search), an open picker or a
+// dialog: the operator is typing there. A button keeps nothing worth keeping: the scanner's
+// Enter on a focused button would press it.
+function bolehAmbilFokus() {
+  const grup = $("scan-otomatis-grup");
+  if (grup.hidden || !grup.offsetParent) return false;
+  if (document.querySelector("dialog[open]") || document.querySelector('.pilih[data-buka="1"]')) return false;
+  const el = document.activeElement;
+  return !(el && el !== $("scan-otomatis") && el.matches("input, select, textarea, [contenteditable]"));
+}
+
+function jagaFokusScan() {
+  setTimeout(() => {
+    if (bolehAmbilFokus() && document.activeElement !== $("scan-otomatis")) {
+      $("scan-otomatis").focus({ preventScroll: true });
+    }
+  }, 0);
+}
+document.addEventListener("focusout", jagaFokusScan);
+document.addEventListener("click", jagaFokusScan);
+
+// A result stays next to the field until the next scan; the global banner is cleared by
+// every poll and would lose it within 2 seconds.
 function pesanScan(teks, salah = false) {
-  const el = $("scan-pesan");
+  const el = $("scan-otomatis-pesan");
   el.textContent = teks || "";
   el.classList.toggle("salah", Boolean(teks) && salah);
-}
-
-async function kirimScan() {
-  const teks = $("scan-plat").value.trim();
-  // The scanner sometimes reads one QR twice within a few hundred ms; without
-  // this guard the second submission would overwrite what was just filled in.
-  if (!teks || scanSibuk) return;
-  scanSibuk = true;
-  try {
-    const hasil = await api("/api/console/scan", {
-      method: "POST", body: JSON.stringify({ qr: teks }),
-    });
-    // Cleared regardless of the outcome: leftover content would run into the
-    // next scan and form one long string matching no plate at all.
-    $("scan-plat").value = "";
-    if (!hasil.ditemukan) {
-      // A borrowed truck. Say what can be done, not just "not found". Yellow,
-      // not red: `scan/` answers 200 for this on purpose (§20) - it is not an
-      // error, it is a truck that needs registering first.
-      pesanScan(`${t("scanBelumAda")} ${hasil.plate_number}`, true);
-      toastPeringatan(`${t("scanBelumAda")} ${hasil.plate_number}`);
-      return;
-    }
-    const plat = hasil.truck.plate_number;
-    // The server marks a retired truck instead of hiding it (the driver does not
-    // know), and the truck list leaves it out, so reloading the list below would
-    // never find it. Say why it cannot be used. Yellow, like an unregistered truck.
-    if (hasil.truck.status === "inactive") {
-      pesanScan(`${t("scanTrukNonaktif")} ${plat}`, true);
-      toastPeringatan(`${t("scanTrukNonaktif")} ${plat}`);
-      return;
-    }
-    pesanScan("");
-    // The truck list on screen reloads every 60 s, so a truck that reached the
-    // server since (synced from AutoERP, registered on another screen) is not
-    // an option yet, and `pilihNilai` would leave the form empty without a word.
-    if (!$("plat-timbang").querySelector(`[role="option"][data-nilai="${CSS.escape(plat)}"]`)) {
-      await muatTrucks();
-    }
-    pilihNilai($("plat-timbang"), plat);
-    // Never "scanned" over an empty plate field: the operator would press
-    // weigh-in and be told to fill in a field they believe is filled.
-    if ($("plat-timbang").dataset.nilai !== plat) {
-      pesanScan(t("scanDaftarBelumMuat"), true);
-      toastPeringatan(t("scanDaftarBelumMuat"));
-      return;
-    }
-    // Cursor straight to the next field: the operator is weighing while
-    // holding the driver's phone, and that one saved screen touch is the
-    // whole point of scanning.
-    $("bruto").focus();
-    segarkanTombol();
-    toastSukses(t("sukScan"));
-  } catch (e) {
-    $("scan-plat").value = "";
-    pesanScan(alasan(e), true);
-    toastGagal(alasan(e));
-  } finally {
-    scanSibuk = false;
-  }
-}
-
-// Exit gate. The tare is still written by `record_weighing` through the same
-// path as the per-row button - the scan only finds the ticket.
-async function kirimScanKeluar() {
-  const teks = $("scan-keluar").value.trim();
-  if (!teks || scanSibuk) return;
-  scanSibuk = true;
-  try {
-    const hasil = await api("/api/console/scan/keluar", {
-      method: "POST", body: JSON.stringify({ qr: teks }),
-    });
-    $("scan-keluar").value = "";
-    if (hasil.ganda) {
-      // Two open tickets: the operator picks. Guessing here can attach the
-      // tare to the wrong visit and mix two visits' tonnage. Yellow: this is
-      // a refusal on purpose (§20), not a failure.
-      pesanScanKeluar(`${t("scanGanda")} ${hasil.plate_number}`, true);
-      toastPeringatan(`${t("scanGanda")} ${hasil.plate_number}`);
-      return;
-    }
-    if (!hasil.ditemukan) {
-      pesanScanKeluar(`${t("scanTakAdaTiket")} ${hasil.plate_number}`, true);
-      toastPeringatan(`${t("scanTakAdaTiket")} ${hasil.plate_number}`);
-      return;
-    }
-    pesanScanKeluar("");
-    // No success toast here: this scan only opens the tare box below (Ganda
-    // check above requires it exists) - `simpanTara()` is the actual weigh-out
-    // and already toasts its own success once the number is saved.
-    tanyaTara(hasil.weighing);
-  } catch (e) {
-    $("scan-keluar").value = "";
-    pesanScanKeluar(alasan(e), true);
-    toastGagal(alasan(e));
-  } finally {
-    scanSibuk = false;
-  }
 }
 
 function pesanScanKeluar(teks, salah = false) {
@@ -6447,18 +6381,118 @@ function pesanScanKeluar(teks, salah = false) {
   el.classList.toggle("salah", Boolean(teks) && salah);
 }
 
-$("scan-keluar").addEventListener("keydown", (ev) => {
+// A scanner sometimes reads one QR twice within a few hundred ms. The same text again this
+// soon is dropped here; the server asks before recording a step 3 minutes after the last.
+const JEDA_BACA_ULANG_MS = 2000;
+let scanTerakhir = { qr: "", pada: 0 };
+
+const SUKSES_SCAN = { datang: "sukDatang", timbang_isi: "sukMasuk", timbang_kosong: "sukTara", keluar: "sukPergi" };
+const NAMA_LANGKAH = { datang: "scanLangkahDatang", timbang_isi: "scanLangkahIsi", timbang_kosong: "scanLangkahKosong" };
+const PERINGATAN_SCAN = {
+  sudah_tercatat: "datangSudah", masih_di_dalam: "datangMasihDiDalam", belum_timbang_kosong: "pergiBelumKosong",
+  sudah_keluar: "pergiSudah", tidak_ada_tiket: "pergiTakAdaTiket", ganda: "scanGanda",
+  belum_terdaftar: "scanBelumAda", nonaktif: "scanTrukNonaktif",
+};
+
+// "Timbang isi tercatat BE 1234 TEST · 14.820 kg · PT X": what was recorded, for whom.
+function teksScan(kunci, h) {
+  return [`${t(kunci)} ${h.plate_number || ""}`.trim(),
+          h.kg !== null && h.kg !== undefined ? `${kg(h.kg)} kg` : "",
+          h.supplier || ""].filter(Boolean).join(" · ");
+}
+
+async function kirimScanOtomatis(qr, konfirmasi = false) {
+  if (!qr || scanSibuk) return;
+  if (!konfirmasi && qr === scanTerakhir.qr && Date.now() - scanTerakhir.pada < JEDA_BACA_ULANG_MS) return;
+  scanSibuk = true;
+  let h = null;
+  try {
+    h = await api("/api/console/scan/otomatis", {
+      method: "POST", body: JSON.stringify({ qr, at: new Date().toISOString(), konfirmasi }),
+    });
+  } catch (e) {
+    pesanScan(alasan(e), true);
+    toastGagal(alasan(e));
+  } finally {
+    // Released as soon as the server answered: the next truck's scan must not be lost while
+    // this one's table reload runs.
+    scanTerakhir = { qr, pada: Date.now() };
+    scanSibuk = false;
+  }
+  if (!h) return;
+  // The dialog waits for a person, and its yes sends again.
+  if (h.hasil === "perlu_konfirmasi") await tanyaScanUlang(qr, h);
+  else await tanganiScan(h);
+}
+
+async function tanyaScanUlang(qr, h) {
+  const langkah = t(NAMA_LANGKAH[h.langkah] || "scanLangkahIsi");
+  const ya = await tanyaKonfirmasi({
+    judul: t("konfirmasiScanJudul").replace("{langkah}", langkah).replace("{plat}", h.plate_number || ""),
+    pesan: t("konfirmasiScan").replace("{menit}", h.menit),
+    ya: t("btnCatatScan"),
+    asal: () => $("scan-otomatis"),
+  });
+  if (ya) await kirimScanOtomatis(qr, true);
+  else pesanScan("");
+}
+
+async function tanganiScan(h) {
+  if (h.hasil === "perlu_berat") { await mintaBerat(h); return; }
+  const peringatan = PERINGATAN_SCAN[h.hasil];
+  if (peringatan) {
+    const kalimat = h.arrived_at ? t(peringatan).replace("{jam}", waktu(h.arrived_at)) : t(peringatan);
+    const teks = `${kalimat} ${h.plate_number || ""}`.trim();
+    pesanScan(teks, true);
+    toastPeringatan(teks);
+  } else {
+    pesanScan("");
+    toastSukses(teksScan(SUKSES_SCAN[h.langkah] || "sukDatang", h));
+    umumkanPasang(h.dipasang);
+  }
+  await muatTimbangan();
+  // A weight just freed or filled the lines: the cards and the unloading queue follow now.
+  if (h.langkah === "timbang_isi" || h.langkah === "timbang_kosong") await refresh();
+}
+
+// The scale is not connected or not fit to save: the box the operator always had opens,
+// filled and focused for this truck. Typing the number and Enter saves it.
+async function mintaBerat(h) {
+  if (h.langkah === "timbang_kosong" && h.weighing) {
+    tanyaTara(h.weighing);
+    pesanScan(t("scanKetikTara").replace("{plat}", h.plate_number || ""), true);
+    return;
+  }
+  const plat = h.plate_number;
+  if (!$("plat-timbang").querySelector(`[role="option"][data-nilai="${CSS.escape(plat)}"]`)) await muatTrucks();
+  pilihNilai($("plat-timbang"), plat);
+  if ($("plat-timbang").dataset.nilai !== plat) {
+    pesanScan(`${t("scanBelumAda")} ${plat}`, true);
+    toastPeringatan(`${t("scanBelumAda")} ${plat}`);
+    return;
+  }
+  pesanScan(t("scanKetikBruto").replace("{plat}", plat), true);
+  $("bruto").focus();
+  segarkanTombol();
+}
+
+$("scan-otomatis").addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter") return;
+  // Enter comes from the scanner: it must not submit anything else.
   ev.preventDefault();
-  kirimScanKeluar();
+  const qr = $("scan-otomatis").value.trim();
+  // Cleared at once: leftover text would run into the next scan and match no plate.
+  $("scan-otomatis").value = "";
+  kirimScanOtomatis(qr);
 });
 
-$("scan-plat").addEventListener("keydown", (ev) => {
+// Enter in the bruto box is Timbang isi, as Enter in the tara box is Simpan: the operator's
+// hands stay on the keypad after a scan asked for the weight.
+$("bruto").addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter") return;
-  // Enter comes from the scanner, not a person: do not let it submit
-  // anything other than this.
   ev.preventDefault();
-  kirimScan();
+  segarkanTombol();
+  if (!$("masuk").disabled) $("masuk").click();
 });
 
 $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
@@ -6470,6 +6504,8 @@ $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async
     const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
       { plate_number, gross_kg, entered_at: new Date().toISOString() }) });
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
+    $("bruto").blur();
+    pesanScan("");
     await muatTimbangan();
     pesan("");
     toastSukses(t("sukMasuk"));
@@ -6528,6 +6564,9 @@ function tutupTara() {
   $("tara-plat").textContent = "";
   $("ruas-kosong").classList.remove("aktif");
   taraUntuk = null;
+  // The tara box held the focus; the scan field takes it back for the next truck.
+  pesanScan("");
+  jagaFokusScan();
 }
 
 async function simpanTara() {
@@ -6587,7 +6626,8 @@ $("tara-nilai").addEventListener("keydown", (ev) => {
 // Cuma disimpan di PC ini, tidak naik ke AutoERP. Hasil yang bukan "tercatat" dijawab
 // 200 dengan `hasil`: toast-nya peringatan kuning, bukan gagal merah, karena gerbangnya
 // bekerja; pesan di sebelah kolomnya tetap merah (`.salah`), seperti scan masuk. Layar
-// tidak menebak tahap (D6): kolom datang selalu scan 1, kolom keluar selalu scan 4.
+// tidak menebak tahap: tombol Catat datang selalu langkah 1, tombol Keluar di baris selalu
+// langkah 4. Kolom scan tunggal (2026-10-06) memakai keputusan server, bukan tebakan layar.
 function pesanGerbang(id, teks, salah = false) {
   const el = $(id);
   el.textContent = teks || "";
@@ -6651,7 +6691,7 @@ async function batalDatang(tombol) {
   });
 }
 
-// `isi` = { qr } dari scanner, atau { weighing_id } dari tombol Keluar di baris tiket.
+// `isi` = { weighing_id } dari tombol Keluar di baris tiket.
 async function kirimPergi(isi) {
   if (scanSibuk) return;
   scanSibuk = true;
@@ -6682,26 +6722,10 @@ async function kirimPergi(isi) {
   }
 }
 
-$("scan-datang").addEventListener("keydown", (ev) => {
-  if (ev.key !== "Enter") return;
-  ev.preventDefault();
-  const qr = $("scan-datang").value.trim();
-  $("scan-datang").value = "";
-  kirimDatang(qr);
-});
-
 $("datang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   if (await kirimDatang($("plat-datang").dataset.nilai)) pilihNilai($("plat-datang"), "");
   segarkanTombol();
 }));
-
-$("scan-pergi").addEventListener("keydown", (ev) => {
-  if (ev.key !== "Enter") return;
-  ev.preventDefault();
-  const qr = $("scan-pergi").value.trim();
-  $("scan-pergi").value = "";
-  if (qr) kirimPergi({ qr });
-});
 
 // ── camera status ──────────────────────────────────────────────────────
 // ponytail: "connected" is guessed by the browser, not reported by the line:
@@ -7439,12 +7463,25 @@ function sekaliJalan(kerja) {
 function perbaruiKartu(c, l) {
   if (!c) return;
   tulisKalauBeda(c.querySelector(".truk"), isiTruk(l.assignment));
+  ikutiPenugasan(c, l.assignment ? l.assignment.truck_id : "");
   // Lepas, or Lepas paksa while the line does not answer and holds a truck.
   tulisKalauBeda(c.querySelector(".slot-lepas"), tombolLepas(l));
   // The piston button and ribbon follow what the PLC just confirmed, every poll.
   tulisKalauBeda(c.querySelector(".slot-piston"), tombolPiston(l));
   tulisKalauBeda(c.querySelector(".slot-pita-piston"), pitaPiston(l));
   perbaruiAi(c, l);
+}
+
+// The card's truck picker follows a truck put on the line elsewhere (automatic assignment, a
+// weigh-in scan, another screen): it used to keep showing the old pick until the cards were
+// rebuilt. Only when the assigned truck changed since the last poll and the list is closed,
+// so an operator's open list or fresh pick is never yanked away; a release changes nothing.
+function ikutiPenugasan(c, truckId) {
+  if (c.dataset.trukTugas === truckId) return;
+  c.dataset.trukTugas = truckId;
+  const pilih = c.querySelector(".assign .pilih");
+  if (!truckId || !pilih || pilih.dataset.buka === "1") return;
+  if (aturPilih(pilih, truckId)) segarkanTombol();
 }
 
 function daftarSama(a, b) {
