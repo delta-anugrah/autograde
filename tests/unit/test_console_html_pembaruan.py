@@ -6,7 +6,7 @@ import pytest
 from konsol_js import HTML, NODE, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
-FUNGSI = ["teksBadgePembaruan", "pitaPembaruan", "teksHasilPembaruan", "tombolPasang", "htmlPembaruan", "namaLineDari"]
+FUNGSI = ["teksBadgePembaruan", "pitaPembaruan", "teksHasilPembaruan", "tombolPasang", "htmlPembaruan", "namaLineDari", "teksTrukDilepas"]
 IKON = "const IKON_UNDUH = '<svg></svg>';"
 
 
@@ -28,7 +28,7 @@ def test_tombol_membawa_versi_yang_dilihat_operator():
     html = _j("htmlPembaruan({terpasang:true, siap:'v1.22.1', berjalan:false, hasil:null}, false)")
     assert 'class="pembaruan-pasang utama" data-target="v1.22.1"' in html
     assert "<svg" in html
-    assert "Lepas semua truk dulu" in html
+    assert "Lepas semua truk dulu" not in html
 
 
 @butuh_node
@@ -92,7 +92,7 @@ def test_tombol_pasang_lewat_densibuk_dan_tanpa_https():
     badan = HTML[awal : HTML.index("\n}", awal)]
     assert "denganSibuk(" in badan
     assert "/api/console/update/install" in badan
-    assert "namaLineDari(" in badan
+    assert "teksGagalPasang(" in badan
     assert "https://" not in HTML
 
 
@@ -156,3 +156,157 @@ def test_versi_lama_kosong_tidak_meninggalkan_lubang():
         teks = _j(f"teksHasilPembaruan({{state:'{state}', target:'v1.22.1', installed:''}})")
         assert " ." not in teks and "ke ." not in teks and "di ." not in teks, teks
         assert "versi sebelumnya" in teks, teks
+
+
+PETA = "{'line-1':'Line 1', 'line-2':'Line 2', 'line-3':'Line 3'}"
+TIGA = (
+    "[{line_code:'line-1', assignment:{plate_number:'B 1995 SME'}},"
+    " {line_code:'line-2', assignment:{plate_number:'B 1995 SME'}},"
+    " {line_code:'line-3', assignment:null}]"
+)
+
+
+@butuh_node
+def test_konfirmasi_menyebut_plat_sekali_dengan_semua_line_nya():
+    teks = _j(f"teksTrukDilepas({TIGA}, {PETA})")
+    assert teks.count("B 1995 SME") == 1
+    assert "B 1995 SME di Line 1, Line 2" in teks and "Line 3" not in teks
+    assert "dilepas dulu dan rekap gradingnya dikirim ke AutoERP" in teks
+    assert teks.endswith("Konsol dan ketiga line restart \u00b12 menit.")
+
+
+@butuh_node
+def test_konfirmasi_dua_plat_dua_kelompok():
+    banyak = (
+        "[{line_code:'line-1', assignment:{plate_number:'B 1 AA'}},"
+        " {line_code:'line-2', assignment:{plate_number:'B 2 BB'}}]"
+    )
+    teks = _j(f"teksTrukDilepas({banyak}, {PETA})")
+    assert "B 1 AA di Line 1" in teks and "B 2 BB di Line 2" in teks
+
+
+@butuh_node
+def test_konfirmasi_tanpa_truk_cuma_kalimat_restart():
+    kosong = "[{line_code:'line-1', assignment:null}, {line_code:'line-2', assignment:null}]"
+    assert _j(f"teksTrukDilepas({kosong}, {PETA})") == "Konsol dan ketiga line restart \u00b12 menit."
+    assert _j(f"teksTrukDilepas([], {PETA})") == "Konsol dan ketiga line restart \u00b12 menit."
+
+
+@butuh_node
+def test_kunci_pasang_ada_di_dua_bahasa():
+    for bahasa in ("id", "en"):
+        for kunci in (
+            "konfirmasiPasangJudul",
+            "konfirmasiPasangTruk",
+            "konfirmasiPasangLepas",
+            "konfirmasiPasangRestart",
+            "tiraiPasang",
+            "pembaruanBerhasil",
+            "err_pembaruan_lepas_gagal",
+        ):
+            teks = _j(f"t('{kunci}')", bahasa)
+            assert teks and teks != kunci, (bahasa, kunci)
+    assert "Lepas semua truk dulu" not in _j("t('pembaruanSyarat')")
+    assert "Release every truck first" not in _j("t('pembaruanSyarat')", "en")
+
+
+def test_tirai_bukan_dialog_dan_menahan_aksi():
+    assert 'id="tirai-pembaruan" role="alertdialog" aria-modal="true" aria-busy="true"' in HTML
+    assert "<dialog id=\"tirai-pembaruan\"" not in HTML
+    for nama in ("tampilkanTirai", "tutupTirai", "cekHasilTirai"):
+        assert f"function {nama}(" in HTML, nama
+    assert "autograde.pasang" in HTML
+
+
+def _tirai(ekspresi: str):
+    stub = (
+        "const KUNCI_PASANG = 'autograde.pasang'; const BATAS_PENANDA_MS = 25*60*1000; let penandaMemori = null;"
+        " const sessionStorage = {getItem(){ throw new Error('x'); }, setItem(){ throw new Error('x'); },"
+        " removeItem(){ throw new Error('x'); }};"
+    )
+    nama = ["penandaPasang", "penandaBasi", "bacaPenandaPasang", "tulisPenandaPasang", "hapusPenandaPasang", "putusanTirai"]
+    return jalankan(nama, ekspresi, tambahan=stub)
+
+
+PENANDA = "{target:'v1.22.1', pada: Date.now()}"
+
+
+def _putusan(versi: str, hasil: str, versi_halaman: str = "v1.22.1") -> str:
+    return _tirai(f"putusanTirai({PENANDA}, {{versi:'{versi}', pembaruan:{{hasil:{hasil}}}}}, '{versi_halaman}')")
+
+
+@butuh_node
+def test_putusan_versi_cocok_tanpa_vonis_masih_menunggu():
+    """The new image answers for up to 90 s before a rollback: the version alone is not success."""
+    assert _putusan("v1.22.1", "null") == "tunggu"
+    assert _putusan("v1.22.1", "{state:'ok', target:'v1.22.0'}") == "tunggu"
+
+
+@butuh_node
+def test_putusan_ok_berhasil_hanya_di_halaman_versi_baru():
+    ok = "{state:'ok', target:'v1.22.1'}"
+    assert _putusan("v1.22.1", ok) == "berhasil"
+    assert _putusan("v1.22.1", ok, versi_halaman="v1.22.0") == "tunggu"
+    assert _putusan("v1.22.0", ok) == "tunggu"
+
+
+@butuh_node
+def test_putusan_gagal_untuk_vonis_gagal():
+    for state in ("rolled_back", "failed", "timeout", "nothing"):
+        assert _putusan("v1.22.0", f"{{state:'{state}', target:'v1.22.1'}}") == "gagal", state
+
+
+@butuh_node
+def test_penanda_bertahan_di_memori_saat_storage_error():
+    assert _tirai("(tulisPenandaPasang('v1.22.1'), bacaPenandaPasang().target)") == "v1.22.1"
+    assert _tirai("(tulisPenandaPasang('v1.22.1'), hapusPenandaPasang(), bacaPenandaPasang())") is None
+
+
+@butuh_node
+def test_penanda_pada_bukan_angka_dianggap_basi():
+    assert _tirai("(penandaMemori = {target:'v1', pada:'abc'}, bacaPenandaPasang())") is None
+    assert _tirai("(penandaMemori = {target:'v1', pada: Date.now() - 26*60*1000}, bacaPenandaPasang())") is None
+    assert _tirai("(penandaMemori = {target:'v1', pada: Date.now()}, bacaPenandaPasang().target)") == "v1"
+
+
+GAGAL = ["kodeDikenal", "saranUmum", "alasan", "gagalKarena", "namaLineDari", "teksGagalPasang"]
+
+
+def _gagal(e: str, bahasa: str = "id"):
+    return jalankan(GAGAL, f"teksGagalPasang({e}, {{'line-1':'Line A','line-2':'Line B','line-3':'Line C'}})",
+                    bahasa=bahasa)
+
+
+@butuh_node
+def test_lepas_gagal_menyebut_line_yang_sudah_dilepas():
+    teks = _gagal("{kode:'pembaruan_lepas_gagal', params:{line:'line-2', dilepas:'line-1, line-3'}}")
+    assert "Line B tidak menjawab" in teks
+    assert teks.endswith("Truk di Line A, Line C sudah dilepas: tugaskan lagi kalau belum selesai bongkar.")
+    en = _gagal("{kode:'pembaruan_lepas_gagal', params:{line:'line-2', dilepas:'line-1'}}", "en")
+    assert "Line B is not answering" in en and "Line A" in en.split("again.")[-1]
+
+
+@butuh_node
+def test_lepas_gagal_tanpa_yang_dilepas_tidak_menambah_kalimat():
+    teks = _gagal("{kode:'pembaruan_lepas_gagal', params:{line:'line-2, line-3'}}")
+    assert "Line B, Line C tidak menjawab" in teks
+    assert "sudah dilepas" not in teks
+    ada_truk = _gagal("{kode:'pembaruan_ada_truk', params:{line:'line-1'}}")
+    assert "Lepas dulu truk di Line A" in ada_truk
+
+
+@butuh_node
+def test_batas_tirai_tanpa_penanda_menyebut_versi_yang_ditampilkan():
+    """Marker gone (storage cleared) while the curtain is up: the timeout toast still names the
+    version the curtain showed, never an empty one."""
+    stub = (
+        "const KUNCI_PASANG = 'autograde.pasang'; const BATAS_PENANDA_MS = 25*60*1000; let penandaMemori = null;"
+        " const sessionStorage = {getItem(){ return null; }, setItem(){}, removeItem(){}};"
+        " let tiraiTarget = ''; const akhir = [];"
+        " const akhiriTirai = (p, putusan) => akhir.push([p.target, putusan]);"
+        " const el = {'tirai-pembaruan': {hidden: true}, 'tirai-teks': {textContent: ''}};"
+        " const $ = (id) => el[id]; const document = {activeElement: null};"
+    )
+    nama = ["penandaPasang", "penandaBasi", "bacaPenandaPasang", "tampilkanTirai", "periksaBatasTirai"]
+    hasil = jalankan(nama, "(tampilkanTirai('v1.22.1'), periksaBatasTirai(), akhir)", tambahan=stub)
+    assert hasil == [["v1.22.1", "gagal"]]

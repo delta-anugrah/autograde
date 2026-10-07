@@ -149,3 +149,38 @@ def test_bukan_plat_ditolak(pabrik):
     scan, *_ = pabrik
     with pytest.raises(OperatorError):
         _scan(scan, "2026-10-06T01:00:00+00:00", qr="https://promo.example/qr")
+
+
+def test_dummy_nyala_timbang_isi_30000_tanpa_timbangan_live(pabrik):
+    scan, live, service, store = pabrik
+    service.simpan_timbangan_dummy(True, diubah_oleh="sp@pks.test")
+    _scan(scan, "2026-10-06T01:00:00+00:00")
+    h = _scan(scan, "2026-10-06T01:20:00+00:00")
+    assert (h["langkah"], h["hasil"], h["kg"], h["dummy"]) == ("timbang_isi", "tersimpan", 30000.0, True)
+    assert store.weighing(h["weighing_id"])["gross_kg"] == 30000.0
+
+
+def test_dummy_nyala_timbang_kosong_10000(pabrik):
+    scan, live, service, store = pabrik
+    service.simpan_timbangan_dummy(True, diubah_oleh="sp@pks.test")
+    _scan(scan, "2026-10-06T01:00:00+00:00")
+    _scan(scan, "2026-10-06T01:20:00+00:00")
+    h = _scan(scan, "2026-10-06T02:00:00+00:00")
+    assert (h["langkah"], h["hasil"], h["kg"], h["dummy"]) == ("timbang_kosong", "tersimpan", 10000.0, True)
+    tiket = store.weighing(h["weighing_id"])
+    assert (tiket["gross_kg"], tiket["tare_kg"], tiket["net_kg"]) == (30000.0, 10000.0, 20000.0)
+
+
+def test_dummy_mati_tetap_minta_berat(pabrik):
+    scan, *_ = pabrik
+    _scan(scan, "2026-10-06T01:00:00+00:00")
+    h = _scan(scan, "2026-10-06T01:20:00+00:00")
+    assert h["hasil"] == "perlu_berat" and "dummy" not in h
+
+
+def test_dummy_mati_timbangan_live_ditandai_bukan_dummy(pabrik):
+    scan, live, *_ = pabrik
+    live.kg = 14820
+    _scan(scan, "2026-10-06T01:00:00+00:00")
+    h = _scan(scan, "2026-10-06T01:20:00+00:00")
+    assert (h["kg"], h["dummy"]) == (14820, False)

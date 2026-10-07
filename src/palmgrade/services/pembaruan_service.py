@@ -129,6 +129,10 @@ class PembaruanService:
         """Lines whose assign is still waiting for the line to answer."""
         return sorted(self._ditugaskan)
 
+    def periksa(self, target: str) -> None:
+        """Every refusal except trucks, BEFORE any truck is released for this install."""
+        boleh_pasang(self.keadaan(), target, [])
+
     def pasang(self, target: str, bertruk: list[str], oleh: str) -> dict:
         with self._tulis:
             boleh_pasang(self.keadaan(), target, bertruk)

@@ -86,3 +86,32 @@ def test_bentuk_salah_400(client):
     r = _masuk(client).post(RUTE, json={"qr": PLAT, "konfirmasi": "mungkin"})
     assert r.status_code == 400
     assert r.json()["detail"]["code"] == "input_tidak_sah"
+
+
+DUMMY = "/api/console/dev/timbangan-dummy"
+
+
+def test_timbangan_dummy_support_saja_lalu_scan_penuh_30000_10000(client, tmp_path):
+    store = ConsoleStore(tmp_path / "console.db")
+    store.upsert_operator_manual(
+        {"email": "sp@pks.test", "full_name": "sp", "password_hash": hash_password(SANDI), "role": "support"}
+    )
+    # An operator may not flip it.
+    op = _masuk(client)
+    assert op.post(DUMMY, json={"aktif": True}).status_code == 403
+    assert op.get(DUMMY).status_code == 403
+    op.post("/api/console/logout")
+
+    r = client.post("/api/console/login", json={"email": "sp@pks.test", "sandi": SANDI})
+    assert r.status_code == 200, r.text
+    assert client.get(DUMMY).json() == {"aktif": False}
+    assert client.post(DUMMY, json={"aktif": True}).status_code == 200
+    assert client.get(DUMMY).json() == {"aktif": True}
+
+    assert client.post(RUTE, json={"qr": PLAT, "at": "2026-10-06T01:00:00+00:00"}).json()["langkah"] == "datang"
+    isi = client.post(RUTE, json={"qr": PLAT, "at": "2026-10-06T01:20:00+00:00"}).json()
+    assert (isi["hasil"], isi["kg"], isi["dummy"]) == ("tersimpan", 30000.0, True)
+    kosong = client.post(RUTE, json={"qr": PLAT, "at": "2026-10-06T02:00:00+00:00"}).json()
+    assert (kosong["langkah"], kosong["kg"], kosong["dummy"]) == ("timbang_kosong", 10000.0, True)
+    tiket = store.weighing(isi["weighing_id"])
+    assert (tiket["gross_kg"], tiket["tare_kg"]) == (30000.0, 10000.0)

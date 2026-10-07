@@ -361,6 +361,7 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
     from palmgrade.domain.setelan_grading import KUNCI_SETELAN
     from palmgrade.domain.setelan_rekam import KUNCI_SETELAN_REKAM
     from palmgrade.domain.slip_grading import KUNCI_SLIP
+    from palmgrade.domain.timbangan_dummy import KUNCI_TIMBANGAN_DUMMY
     from palmgrade.services.hari_kerja import KUNCI_CUTOFF
     from palmgrade.services.status_sinkron import KUNCI_SINKRON
     from palmgrade.workers.master_data_worker import (
@@ -379,9 +380,11 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
     assert pemanggil == {
         "KUNCI_PENUGASAN", "KUNCI_SETELAN", "KUNCI_SETELAN_REKAM", "KUNCI_SINKRON", "RESEND_DAY_KEY",
         "resource.cursor_key", "KUNCI_LEPAS_PAKSA", "KUNCI_SLIP", "KUNCI_CUTOFF", "KUNCI_SCANNER_QR",
+        "KUNCI_TIMBANGAN_DUMMY",
     }, pemanggil
     for kunci in (
         KUNCI_SETELAN, KUNCI_SETELAN_REKAM, KUNCI_PENUGASAN, KUNCI_SLIP, KUNCI_CUTOFF, KUNCI_SCANNER_QR,
+        KUNCI_TIMBANGAN_DUMMY,
     ):
         assert not kunci_state_dihapus(kunci, MODE_SEMUA), kunci
     for kunci in (SUPPLIER_CURSOR_KEY, TRUCK_CURSOR_KEY, OPERATOR_CURSOR_KEY):

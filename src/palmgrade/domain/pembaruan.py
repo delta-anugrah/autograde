@@ -18,6 +18,7 @@ from .operator_error import (
     PEMBARUAN_ADA_TRUK,
     PEMBARUAN_BELUM_TERPASANG,
     PEMBARUAN_BERJALAN,
+    PEMBARUAN_LEPAS_GAGAL,
     PEMBARUAN_TIDAK_ADA,
     OperatorError,
 )
@@ -74,6 +75,19 @@ class PembaruanAdaTruk(OperatorError):
 
     def __init__(self, bertruk: list[str]) -> None:
         super().__init__(PEMBARUAN_ADA_TRUK, "Masih ada truk di-assign", line=", ".join(bertruk))
+
+
+class PembaruanLepasGagal(OperatorError):
+    """Update now could not release the truck on this line (the line did not answer): the
+    install stops, because installing with a truck still on the line loses its bunches.
+    `dilepas` names the lines released before the failure: their trucks stay released, and
+    the operator assigns one again if it has not finished unloading."""
+
+    def __init__(self, line_code: str, dilepas: list[str] | tuple[str, ...] = ()) -> None:
+        params = {"line": line_code}
+        if dilepas:
+            params["dilepas"] = ", ".join(dilepas)
+        super().__init__(PEMBARUAN_LEPAS_GAGAL, "Truk di line tidak bisa dilepas", **params)
 
 
 class PembaruanTidakAda(OperatorError):
@@ -213,6 +227,13 @@ def keadaan_pembaruan(
 def line_bertruk(assignments: dict[str, dict]) -> list[str]:
     """Lines with a truck on them. A released line keeps its row with an empty truck_id."""
     return sorted(kode for kode, baris in assignments.items() if (baris or {}).get("truck_id"))
+
+
+def line_tak_terbaca(bertruk: list[str], status_line: dict[str, dict]) -> list[str]:
+    """Lines holding a truck that the last status poll could not read (`reachable` False, any
+    cause: no answer, key refused, not a line, line error). Releasing goes through the same
+    line endpoint, so it would fail there too. A line not polled yet is not known to be down."""
+    return [kode for kode in bertruk if (status_line.get(kode) or {}).get("reachable") is False]
 
 
 def boleh_pasang(keadaan: KeadaanPembaruan, target: str, bertruk: list[str]) -> None:
