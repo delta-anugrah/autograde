@@ -23,7 +23,8 @@ def test_kotak_kamera_mengikuti_bentuk_gambar(halaman):
     kotak = feed.bounding_box()
     gambar = feed.locator("img").bounding_box()
     assert abs(kotak["width"] / kotak["height"] - 1.2) < 0.012, kotak
-    assert gambar == kotak, "the picture must fill the box it sits in, edge to edge"
+    # Within one pixel: layout rounds sub-pixel positions differently for the two boxes (CI).
+    assert all(abs(gambar[k] - kotak[k]) <= 1 for k in ("x", "y", "width", "height")), (gambar, kotak)
 
 
 def test_bentuk_kotak_bertahan_saat_kartu_digambar_ulang(halaman):
