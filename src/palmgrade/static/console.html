@@ -6304,6 +6304,43 @@ $("lines").addEventListener("click", async (ev) => {
   }
 });
 
+// A scan from any tab but Timbangan (that tab keeps its focused field). A HID scanner types a
+// character every 5-20 ms and a person at best every ~80 ms, so 50 ms tells them apart. Keys are
+// never swallowed, only collected; a burst ending in Enter is the QR. `ledakanScan()` lets the
+// Space+N and P+N shortcuts stay quiet while one is typed (the plate `B 1995 SME` holds " 1").
+// Held keys (`ev.repeat`) never count: holding Space is a person.
+const JEDA_KETIK_SCANNER_MS = 50;
+const penangkapScan = { teks: "", pada: 0, cepat: false };
+let scannerQrAktif = false;
+
+function ledakanScan() {
+  return penangkapScan.cepat && penangkapScan.teks.length >= 2;
+}
+
+function tangkapScan(ev) {
+  const bersih = () => { penangkapScan.teks = ""; penangkapScan.cepat = false; };
+  const el = ev.target;
+  if (ev.key === "Shift") return;  // a scanner presses it inside a burst for capitals
+  if (!scannerQrAktif || ev.repeat || ev.ctrlKey || ev.altKey || ev.metaKey) return bersih();
+  if (!$("gerbang").hidden || !$("tirai-pembaruan").hidden || document.querySelector("dialog[open]")) return bersih();
+  if (el && el.closest && el.closest("input, textarea, select, [contenteditable], .pilih")) return bersih();
+  const sekarang = Date.now();
+  const cepat = sekarang - penangkapScan.pada <= JEDA_KETIK_SCANNER_MS;
+  if (ev.key === "Enter") {
+    const teks = penangkapScan.teks.trim();
+    const dikirim = cepat && penangkapScan.cepat && teks.length >= 3;
+    bersih();
+    if (dikirim) { ev.preventDefault(); kirimScanOtomatis(teks); }
+    return;
+  }
+  if (ev.key.length !== 1) return bersih();
+  if (!cepat) penangkapScan.teks = "";
+  penangkapScan.teks += ev.key;
+  penangkapScan.cepat = cepat;
+  penangkapScan.pada = sekarang;
+}
+document.addEventListener("keydown", tangkapScan, true);
+
 // Space + 1..3 = manual reject on the 1st..3rd camera panel, counted the way
 // they sit on screen (the operator reorders them). The digits match the hint
 // printed on the button. Space is not a real modifier, so the held state is
@@ -6321,7 +6358,8 @@ document.addEventListener("keydown", (ev) => {
   // Typing a plate, and picking from a listbox, both own the space bar.
   if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
   if (ev.code === "Space") { spasi = true; ev.preventDefault(); return; }
-  if (!spasi || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  // Not while a scanner types a plate such as `B 1995 SME` (" 1" is not Space+1).
+  if (!spasi || ledakanScan() || ev.ctrlKey || ev.altKey || ev.metaKey) return;
   const n = Number(ev.key);
   if (!(n >= 1 && n <= 9)) return;
   const line = urutan[n - 1];
@@ -6346,7 +6384,8 @@ document.addEventListener("keyup", (ev) => { if (ev.code === "KeyP") pTahan = fa
 document.addEventListener("keydown", (ev) => {
   if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
   if (ev.code === "KeyP") { pTahan = true; return; }
-  if (!pTahan || spasi || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  // Not while a scanner types a plate such as `B 1995 SME` (a plate with P then a digit).
+  if (!pTahan || spasi || ledakanScan() || ev.ctrlKey || ev.altKey || ev.metaKey) return;
   const n = Number(ev.key);
   if (!(n >= 0 && n <= 9)) return;
   ev.preventDefault();
@@ -6410,6 +6449,7 @@ function gambarPitaDummy(aktif) {
 }
 
 function tampilkanKolomScan(aktif) {
+  scannerQrAktif = aktif;
   const grup = $("scan-otomatis-grup");
   if (grup.hidden === !aktif) return;
   grup.hidden = !aktif;
