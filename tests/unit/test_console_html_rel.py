@@ -3,13 +3,9 @@ browser, a header with the view title and status pills, ribbons under the header
 cameras hidden (never removed) off Grading."""
 from __future__ import annotations
 
-import json
 import re
 
-import pytest
-from konsol_js import HTML, NODE, jalankan
-
-butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
+from konsol_js import HTML
 
 
 def test_tab_jadi_rel_kiri_dengan_ikon():
@@ -24,7 +20,7 @@ def test_tab_jadi_rel_kiri_dengan_ikon():
 def test_tombol_sembunyikan_menu_di_kepala():
     kepala = re.search(r'<header id="topbar">(.*?)</header>', HTML, re.S).group(1)
     assert 'id="menu-samping"' in kepala and 'aria-controls="tabs"' in kepala
-    for id_ in ("judul-tampilan", "hari-kerja", "perusahaan", "pil-plc", "sinkron-erp", "sinkron-cloud", "info-sistem"):
+    for id_ in ("judul-tampilan", "hari-kerja", "perusahaan", "sinkron-erp", "sinkron-cloud", "info-sistem"):
         assert f'id="{id_}"' in kepala, id_
 
 
@@ -42,18 +38,7 @@ def test_menu_samping_diingat_per_browser():
     assert 'baca("menuSamping"' in HTML and 'simpan("menuSamping"' in HTML
 
 
-def _plc(reachable, terpasang):
-    return {"plc": {"reachable": reachable, "piston_requested": False if terpasang else None}}
-
-
-@butuh_node
-@pytest.mark.parametrize(("lines", "keadaan", "teks"), [
-    ([_plc(True, True)] * 3, "tersambung", "3/3"),
-    ([_plc(True, True), _plc(False, True), _plc(True, True)], "terputus", "2/3"),
-    ([_plc(True, False)] * 3, "tidak_dipakai", None),
-])
-def test_ringkas_plc(lines, keadaan, teks):
-    r = jalankan(["ringkasPlc"], f"ringkasPlc({json.dumps(lines)})")
-    assert r["keadaan"] == keadaan
-    if teks:
-        assert r["teks"] == teks
+def test_tanpa_pil_plc_sampai_line_mengirim_sambungan_plc():
+    # Review 2026-10-07: the line status carries piston_requested only, never whether the PLC
+    # socket is up, so a "PLC 3/3" pill stayed green with the cable out. No pill until it does.
+    assert 'id="pil-plc"' not in HTML and "ringkasPlc" not in HTML

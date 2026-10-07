@@ -209,8 +209,11 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - `terapkanTab` menulis `body[data-tab]` dan judul `#judul-tampilan`. `#tally` dan `#lines`
   cuma tampil di Grading (`display:none`, tidak dibuang: Spasi+n dan P+n tetap jalan).
 - Kepala: `#hari-kerja`, `#perusahaan` (`lisensi.perusahaan`), pil `#sinkron-erp` /
-  `#sinkron-cloud` (kelas `sinkron-baris pil <keadaan>`), `#pil-plc` dari `ringkasPlc(lines)`,
-  jam, `.tata` (Grading saja). Pita di bawah kepala.
+  `#sinkron-cloud` (kelas `sinkron-baris pil <keadaan>`), jam, `.tata` (Grading saja). Pita di
+  bawah kepala. TIDAK ada pil PLC: `/internal/status` cuma membawa `piston.requested`, bukan
+  sambungan PLC (`connected` hanya di `/health/detail`), jadi pil akan hijau walau kabel putus.
+- Strip foto cuma diambil saat `tab === "grading"` dan tab browser terlihat; Lepas di kartu
+  truk dijaga `lepasTrukBerjalan` (tekan kedua ditolak walau kartunya digambar ulang).
 - `#tally` = tiga `.ringkas`: hari (`#tot-all`, `#tot-rate`, `#bar-kelas` dari `htmlBarKelas`),
   `#timbang` (gelap di dua tema, `#timbang-jejak` 24 bacaan `catatJejak`/`htmlJejak`,
   `#timbang-saran` dari `SARAN_TIMBANG[keadaan]`), dan truk (`#truk-di-line` dari

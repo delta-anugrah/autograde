@@ -132,15 +132,16 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   akun support juga Log, Status, Akun, Line, Setelan di bawah garis **Support**). Tombol
   berikon panel di kiri atas **menyembunyikan menu** supaya kamera dapat ruang lebih; ketuk lagi
   untuk memunculkannya. Pilihannya diingat browser itu. Di kepala layar: nama layar yang
-  terbuka, tanggal hari kerja dan nama perusahaan, pil **AutoERP**, **Cloud Photo**, dan
-  **PLC** (berapa line yang PLC-nya menjawab, misalnya `3/3`), jam, lalu tombol Segarkan,
+  terbuka, tanggal hari kerja dan nama perusahaan, pil **AutoERP** dan **Cloud Photo**, jam,
+  lalu tombol Segarkan,
   bahasa, tema, dan Keluar. Tema bawaan terang (untuk layar di bawah matahari); **Gelap** satu
   ketukan.
 - **Layar Grading muat satu layar tanpa scroll** di layar lebar: tiga kartu ringkasan (Janjang
   hari ini, Timbangan sekarang, truk di line dan antrean bongkar), lalu tiga kartu line. Tabel
   **Hasil grading hari ini** ada di bawahnya (scroll). Kartu kamera dan ringkasan cuma ada di
   layar Grading; di layar lain tidak tampil, tapi **Spasi + angka** dan **P + angka** tetap
-  bekerja dari layar mana pun.
+  bekerja dari layar mana pun, selama kursor tidak sedang di kolom isian (misalnya kolom scan
+  di layar Timbangan saat Scanner QR nyala).
 - **Di bawah nama layar** (semua akun): versi dan sampai kapan lisensi PC ini berlaku,
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
@@ -1077,7 +1078,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.26 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi nama layar, tanggal, perusahaan, pil AutoERP / Cloud Photo / PLC, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |
+| 2.26 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi nama layar, tanggal, perusahaan, pil AutoERP / Cloud Photo, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |
 | 2.25 | 7 Oktober 2026 | §3.2 dan §3.5: gambar kamera di kartu line utuh dengan bentuk asli kamera (tidak dipotong, tidak gepeng); angka garis capture dan kotak area deteksi dibaca sebagai skala 1280 x 720 yang direntangkan ke seluruh gambar, bukan piksel video. Angka yang sudah tersimpan tidak berubah artinya. |
 | 2.24 | 6 Oktober 2026 | §3.3: pertanyaan "Catat?" sesudah scan ulang dijawab dengan scan QR yang sama sekali lagi (sesudah 2 detik), tanpa mouse. |
 | 2.23 | 6 Oktober 2026 | §3.2 dan §3.3: empat kolom scan diganti **satu kolom scan** yang selalu siap; konsol memilih langkahnya dari keadaan truk, menyimpan berat timbangan yang sudah stabil, membuka kotak berat kalau belum, dan bertanya dulu kalau truk yang sama di-scan lagi dalam 3 menit. Dropdown truk di kartu line ikut berganti saat truk dipasang otomatis. |

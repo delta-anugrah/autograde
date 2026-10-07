@@ -135,9 +135,6 @@
   .sub-judul { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; font-size:.85rem; color:var(--muted); }
   .sub-judul > span:empty { display:none; }
   .pil-baris { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-left:auto; }
-  #pil-plc[data-keadaan="tersambung"] .titik { background:var(--acc); }
-  #pil-plc[data-keadaan="terputus"] .titik { background:var(--warn); }
-  #pil-plc .jam { font-family:var(--angka); color:var(--muted); font-weight:600; }
   /* Grid, not a wrapping flex row: a wrapping row is as wide as all its items in one line. */
   .jam.pil { display:inline-grid; grid-template-columns:auto auto; align-items:baseline; gap:0 6px; padding:4px 14px; }
   .jam.pil #segar { grid-column:1 / -1; line-height:1.2; }
@@ -1899,7 +1896,6 @@
       <span class="jam">-</span>
       <small class="ket" hidden></small>
     </div>
-    <span class="pil" id="pil-plc" data-keadaan="memeriksa"><span class="titik" aria-hidden="true"></span><b>PLC</b><span class="jam">-</span></span>
   </span>
   <span class="jam pil"><b id="jam">-</b> <span id="tz" class="lb"></span>
     <span id="segar" role="status" hidden></span></span>
@@ -4507,26 +4503,14 @@ $("menu-samping").addEventListener("click", () => {
   terapkanMenuSamping();
 });
 
-// The PLC pill in the header: how many lines have a PLC that answers, from each line's status
-// as the server sends it. No coil configured on any live line = no PLC on this PC.
-function ringkasPlc(lines) {
-  const dipasang = (l) => l.plc && l.plc.piston_requested !== null && l.plc.piston_requested !== undefined;
-  const jalan = lines.filter((l) => l.plc && l.plc.reachable && dipasang(l)).length;
-  if (!jalan && lines.length && lines.every((l) => l.plc && l.plc.reachable && !dipasang(l))) {
-    return { keadaan: "tidak_dipakai", teks: t("sinkronTidakDipakai") };
-  }
-  return { keadaan: jalan === lines.length ? "tersambung" : "terputus", teks: `${jalan}/${lines.length}` };
-}
-
-// Under the view title: the work date and the company on the licence; then the PLC pill.
+// Under the view title: the work date and the company on the licence. No PLC pill (review
+// 2026-10-07): the line status says whether a piston was asked for, not whether the PLC
+// answers, so a pill could only stay green with the cable out. Diagnostik shows the PLC.
 function tulisKepala(s) {
   const tgl = hariKerja ? new Date(`${hariKerja}T00:00:00`) : null;
   $("hari-kerja").textContent = tgl && !Number.isNaN(tgl.getTime())
     ? tgl.toLocaleDateString(lokal(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
   $("perusahaan").textContent = (s.lisensi && s.lisensi.perusahaan) || "";
-  const plc = ringkasPlc(s.lines || []);
-  $("pil-plc").dataset.keadaan = plc.keadaan;
-  $("pil-plc").querySelector(".jam").textContent = plc.teks;
 }
 
 // ── dropdown ───────────────────────────────────────────────────────────
@@ -4948,7 +4932,7 @@ window.addEventListener("resize", aturTinggiKamera);
 
 function terapkanKolom() {
   $("lines").style.gridTemplateColumns =
-    kolom === "auto" ? "repeat(auto-fit,minmax(360px,1fr))" : `repeat(${kolom},1fr)`;
+    kolom === "auto" ? "repeat(auto-fit,minmax(min(320px,100%),1fr))" : `repeat(${kolom},1fr)`;
 }
 
 $("kolom").addEventListener("pilih", () => {
@@ -7781,10 +7765,23 @@ function htmlTrukDiLine(lines) {
 // Lepas on the truck card = the plain Lepas on every line holding that truck, one after the
 // other, through the same endpoint as the line card's Lepas. A line that refuses gets its own
 // failure toast; Lepas paksa stays in that line card's menu.
+// Trucks with a release in flight: the poll redraws the card as soon as one line lets go, and
+// the redrawn button must still refuse a second tap (as `lepasPaksaBerjalan`).
+const lepasTrukBerjalan = new Set();
 async function lepasTruk(tombol) {
   const grup = tombol.closest(".truk-grup");
+  const truk = grup.dataset.truk;
+  if (lepasTrukBerjalan.has(truk)) return;
+  lepasTrukBerjalan.add(truk);
   const plat = grup.querySelector(".plat").textContent;
   const kode = grup.dataset.lines.split(",").filter(Boolean);
+  try {
+    await lepasTrukSemuaLine(tombol, plat, kode);
+  } finally {
+    lepasTrukBerjalan.delete(truk);
+  }
+}
+async function lepasTrukSemuaLine(tombol, plat, kode) {
   await denganSibuk(tombol, async () => {
     const dilepas = [];
     let dipasang = [];
@@ -8099,7 +8096,8 @@ async function refresh() {
     // /history, which is also the only source once the operator asks for more than 20.
     if (gradingOffset === 0) await muatGrading();
     // Each card's photo strip asks for that line's newest four, whatever the table shows.
-    gambarStrip(await ambilStrip(s.lines.map((l) => l.line_code)));
+    // Only while the strips can be seen: three requests every 2 s for nothing otherwise.
+    if (tab === "grading" && !document.hidden) gambarStrip(await ambilStrip(s.lines.map((l) => l.line_code)));
     aturTinggiKamera();
     segarkanTombol();
     pesan("");

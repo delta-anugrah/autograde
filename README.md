@@ -395,12 +395,12 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 Layar di **`/console`**: port 8100 di PC pabrik (image produksi) dan `make console`, 8000 lewat `make up` / `make up-console` dari source. Satu berkas HTML statis: vanilla JS, **tanpa
 build step, tanpa Node, tanpa CDN**, harus tetap kebuka saat internet mati (dua font, Plus Jakarta
 Sans dan Barlow Condensed, tertanam di berkasnya sebagai woff2 lewat `scripts/tanam_font.py`).
-Menu di kiri (bisa disembunyikan), kepala dengan pil **Last Sync** (AutoERP dan Cloud Photo) dan
-PLC, ringkasan hari kerja (janjang, timbangan live, truk di line dan antrean bongkar), kartu
+Menu di kiri (bisa disembunyikan), kepala dengan pil **Last Sync** (AutoERP dan Cloud Photo),
+ringkasan hari kerja (janjang, timbangan live, truk di line dan antrean bongkar), kartu
 kamera per line (foto terakhir, reject manual, piston, menu ⋯ untuk assign/lepas truk),
-dan 5 tab operator: Grading, Truk, Timbangan, Rekap, **Riwayat** (grading hari-hari sebelumnya,
-maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 10 tab tambahan (Log sampai
-Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di
+dan 4 tab operator: Grading, Truk, Timbangan, **Rekap** (hari ini dan hari-hari sebelumnya,
+maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 5 tab tambahan (Log, Status,
+Akun, Line, Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di
 `localStorage`.
 
 - **Login (Fase 4).** Layar tertutup gerbang sampai ada yang masuk: operator mengetik **email

@@ -97,3 +97,20 @@ def test_jam_strip_tanpa_tanggal_dan_titik_kelas_berwarna():
     assert 'waktu(daftar[0].timestamp).split(" ").pop()' in fungsi("gambarStrip")
     for kelas, warna in (("acc", "ripe"), ("rej", "unripe"), ("jk", "jk"), ("tp", "tp")):
         assert re.search(rf"\.counts > span\.{kelas} \.lb::before\s*\{{\s*background:var\(--{warna}\)", HTML), kelas
+
+
+def test_strip_cuma_diambil_saat_grading_terlihat():
+    # Review 2026-10-07: three history requests every 2 s are only worth it while the strips
+    # can be seen.
+    assert ('if (tab === "grading" && !document.hidden) gambarStrip(await ambilStrip(s.lines.map((l) => l.line_code)));'
+            in fungsi("refresh"))
+
+
+def test_kolom_otomatis_muat_di_hp_375():
+    assert "repeat(auto-fit,minmax(min(320px,100%),1fr))" in fungsi("terapkanKolom")
+
+
+def test_lepas_truk_menolak_tekan_kedua():
+    # The poll redraws the truck card mid-release; the busy mark lives in a set, not on the button.
+    lepas = fungsi("lepasTruk")
+    assert "lepasTrukBerjalan.has(" in lepas and "lepasTrukBerjalan.delete(" in lepas
