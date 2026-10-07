@@ -7729,8 +7729,12 @@ function feedMemuat(img) {
   kartu.classList.remove("putus");
   selesaikanRestart(kartu, img);
 }
-$("lines").addEventListener("load", (ev) => feedMemuat(ev.target), true);
-$("lines").addEventListener("error", (ev) => ev.target.closest(".card").classList.add("putus"), true);
+// The camera picture only: since 2026-10-07 a card also holds its photo strip, and a square
+// thumbnail must not set the camera's shape, nor a missing one say the camera is cut.
+$("lines").addEventListener("load", (ev) => { if (ev.target.closest(".feed")) feedMemuat(ev.target); }, true);
+$("lines").addEventListener("error", (ev) => {
+  if (ev.target.closest(".feed")) ev.target.closest(".card").classList.add("putus");
+}, true);
 
 // The t query forces the browser to actually re-request: same URL = the dead
 // connection's last frame stays on screen.
