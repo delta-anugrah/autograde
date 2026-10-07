@@ -138,7 +138,7 @@ const clearTimeout = (id) => { jam = jam.filter((x) => x.id !== id); };
 const maju = (ms) => { sekarang += ms; for (const x of jam.filter((j) => j.pada <= sekarang)) { jam = jam.filter((j) => j !== x); x.f(); } };
 let timerPopupScan = null;
 const kolom = { value: "", blur() {} };
-let popupBerat = { plat: "B 1995 SME", langkah: "timbang_isi", ketik: "", pada: 0, awal: "", cepat: false, rusak: false, menyimpan: false };
+let popupBerat = { plat: "B 1995 SME", langkah: "timbang_isi", ketik: "", pada: 0, awal: "", cepat: false, rusak: false, rusakPada: 0, menyimpan: false };
 const $ = () => kolom;
 const galat = [], disimpan = [], terkirim = [], ditutup = [];
 const galatPopupScan = (m) => galat.push(m);
@@ -191,6 +191,21 @@ def test_scan_macet_tidak_menyentuh_berat_yang_sudah_diketik_orang():
     h = _kunci('ketik("30000", 200); sekarang += 600; ketik("BE 12", 10); sekarang += 600;'
                ' ketik("34", 10); tekan("Enter");', _KELUAR)
     assert h["nilai"] == "30000" and h["disimpan"] == [] and h["galat"] == ["Scan tidak terbaca, ulangi scan"]
+
+
+@butuh_node
+def test_angka_ketikan_cepat_di_keypad_tidak_pernah_dibatalkan_sendiri():
+    # "300" at 90 ms gaps is as fast as a scanner, but digits only: a pause, then "00" + Enter saves.
+    h = _kunci('ketik("300", 90); sekarang += 700; ketik("00", 90); tekan("Enter");', _KELUAR)
+    assert h == {"nilai": "30000", "galat": [], "disimpan": ["30000"], "terkirim": []}
+
+
+@butuh_node
+def test_tombol_saat_rusak_tidak_memperpanjang_rusak():
+    # Rolled back at the "3"; a key 1.1 s later is accepted although "3" and "4" were typed in between.
+    h = _kunci('ketik("BE 12", 10); sekarang += 600; tekan("3"); sekarang += 500; tekan("4");'
+               ' sekarang += 600; tekan("5"); tekan("0"); tekan("Enter");', _KELUAR)
+    assert h["disimpan"] == ["50"] and h["galat"] == []
 
 
 @butuh_node
