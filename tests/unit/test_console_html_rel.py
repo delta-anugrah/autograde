@@ -42,3 +42,15 @@ def test_tanpa_pil_plc_sampai_line_mengirim_sambungan_plc():
     # Review 2026-10-07: the line status carries piston_requested only, never whether the PLC
     # socket is up, so a "PLC 3/3" pill stayed green with the cable out. No pill until it does.
     assert 'id="pil-plc"' not in HTML and "ringkasPlc" not in HTML
+
+
+def test_judul_autograde_tanpa_logo_biru():
+    # Owner 2026-10-07: the header title is the product, not the view; no blue logo tile.
+    kepala = re.search(r'<header id="topbar">(.*?)</header>', HTML, re.S).group(1)
+    assert re.search(r'<h1 id="judul-tampilan">AutoGrade</h1>', kepala)
+    assert "logo-rel" not in HTML and "logo-kecil" not in HTML
+    assert '$("judul-tampilan").textContent' not in HTML
+
+
+def test_jumlah_kelas_hari_ini_bagi_rata_selebar_kartu():
+    assert re.search(r"\.kelas-baris\s*\{[^}]*display:grid;[^}]*grid-template-columns:repeat\(4, minmax\(0, 1fr\)\)", HTML)

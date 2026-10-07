@@ -96,7 +96,7 @@ def test_jam_strip_tanpa_tanggal_dan_titik_kelas_berwarna():
     # must win over the grey default (same specificity, later rule loses otherwise).
     assert 'waktu(daftar[0].timestamp).split(" ").pop()' in fungsi("gambarStrip")
     for kelas, warna in (("acc", "ripe"), ("rej", "unripe"), ("jk", "jk"), ("tp", "tp")):
-        assert re.search(rf"\.counts > span\.{kelas} \.lb::before\s*\{{\s*background:var\(--{warna}\)", HTML), kelas
+        assert re.search(rf"\.counts > span\.{kelas} \.lb::before\s*\{{\s*background:var\(--{warna}-isi\)", HTML), kelas
 
 
 def test_strip_cuma_diambil_saat_grading_terlihat():

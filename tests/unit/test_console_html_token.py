@@ -69,3 +69,20 @@ def test_komponen_dasar_memakai_token_baru():
     assert re.search(r"dialog\.modal\s*\{[^}]*border-radius:var\(--r-kartu\)", HTML)
     assert re.search(r"\.panel\s*\{[^}]*border-radius:var\(--r-kartu\)", HTML)
     assert re.search(r"\.pil\s*\{[^}]*border-radius:999px", HTML)
+
+
+def test_isi_bar_kelas_terang_dan_jelas_di_tema_terang():
+    # Owner 2026-10-07: the class bars read dull in light. Bars and dots use their own fill
+    # tokens (mockup colours); text keeps the dark 6:1 colours.
+    for kelas in ("ripe", "unripe", "jk", "tp"):
+        assert f"{kelas}-isi" in TERANG and f"{kelas}-isi" in GELAP, kelas
+        assert _lum(TERANG[f"{kelas}-isi"]) > _lum(TERANG[kelas]), kelas
+    assert re.search(r"\.bar-kelas \.ripe\s*\{\s*background:var\(--ripe-isi\)", HTML)
+
+
+def test_kartu_timbangan_ikut_tema():
+    # Owner 2026-10-07: light and dark used to be the same dark card.
+    assert _lum(TERANG["timbang-bg"]) > 0.8 and _lum(GELAP["timbang-bg"]) < 0.05
+    assert kontras(TERANG["timbang-fg"], TERANG["timbang-bg"]) >= 6.0
+    assert kontras(GELAP["timbang-fg"], GELAP["timbang-bg"]) >= 6.0
+    assert re.search(r"#timbang\s*\{[^}]*background:var\(--timbang-bg\)", HTML)

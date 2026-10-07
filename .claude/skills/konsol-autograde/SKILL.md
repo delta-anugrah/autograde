@@ -206,7 +206,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Rel kiri = `#tabs` (`position:fixed`, `--rel` 96px), ikon + `span[data-t]` (data-t di span,
   bukan di tombol, supaya ikon tidak terhapus). Garis `.rel-pisah` ber-`data-dev="1"` ikut
   dibuang untuk operator. `#menu-samping` menyembunyikan rel (`body.menu-tutup`, `localStorage.menuSamping`).
-- `terapkanTab` menulis `body[data-tab]` dan judul `#judul-tampilan`. `#tally` dan `#lines`
+- `terapkanTab` menulis `body[data-tab]`; judul `#judul-tampilan` tetap "AutoGrade" (pemilik 2026-10-07, tanpa logo biru). `#tally` dan `#lines`
   cuma tampil di Grading (`display:none`, tidak dibuang: Spasi+n dan P+n tetap jalan).
 - Kepala: `#hari-kerja`, `#perusahaan` (`lisensi.perusahaan`), pil `#sinkron-erp` /
   `#sinkron-cloud` (kelas `sinkron-baris pil <keadaan>`), jam, `.tata` (Grading saja). Pita di
@@ -215,7 +215,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Strip foto cuma diambil saat `tab === "grading"` dan tab browser terlihat; Lepas di kartu
   truk dijaga `lepasTrukBerjalan` (tekan kedua ditolak walau kartunya digambar ulang).
 - `#tally` = tiga `.ringkas`: hari (`#tot-all`, `#tot-rate`, `#bar-kelas` dari `htmlBarKelas`),
-  `#timbang` (gelap di dua tema, `#timbang-jejak` 24 bacaan `catatJejak`/`htmlJejak`,
+  `#timbang` (ikut tema lewat `--timbang-bg/fg/garis/jejak*`, isi bar dan titik kelas pakai `--ripe-isi` dkk, `#timbang-jejak` 24 bacaan `catatJejak`/`htmlJejak`,
   `#timbang-saran` dari `SARAN_TIMBANG[keadaan]`), dan truk (`#truk-di-line` dari
   `htmlTrukDiLine`, Lepas = `lepasTruk` = `release-truck` per line berurutan; `#antrean-bongkar`
   tampil selama penugasan otomatis nyala, kosong pun). `#tot-neto`/`#tot-tiket` di `#sec-timbangan`.

@@ -71,6 +71,12 @@
           /* Blue for the "Timbang kosong" stage only (badge + step 3 header). */
           --info:#025BB0; --info-bg:rgba(2,91,176,.10);
           --ripe:#04613a; --unripe:#a72119; --jk:#5B3CC4; --tp:#7a4b00;
+          /* Fills (bars, dots, photo frames): the mockup's brighter class colours. Text keeps
+             the darker ones above, which hold 6:1 in sunlight. */
+          --ripe-isi:#0E9A62; --unripe-isi:#E0475E; --jk-isi:#7B5CE6; --tp-isi:#D99A0B;
+          /* The live scale card, light: a pale display with dark figures. */
+          --timbang-bg:#F2F7FD; --timbang-fg:#0A1220; --timbang-garis:#C9DCF2;
+          --timbang-jejak:rgba(2,91,176,.32); --timbang-jejak-stabil:rgba(14,154,98,.6); --timbang-jejak-kini:#025BB0;
           --plat-bg:#0B0F14; --plat-fg:#F4F6F8;
           --input:#ffffff; --hover:#46566B;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
@@ -98,6 +104,9 @@
           --warn:#FFC54D; --warn-bg:rgba(255,197,77,.12);
           --info:#3AA0FF; --info-bg:rgba(58,160,255,.14);
           --ripe:#3DDC97; --unripe:#FF6B7D; --jk:#B49CFF; --tp:#FFC54D;
+          --ripe-isi:#3DDC97; --unripe-isi:#FF6B7D; --jk-isi:#B49CFF; --tp-isi:#FFC54D;
+          --timbang-bg:#05090F; --timbang-fg:#EAF2FC; --timbang-garis:#1C2838;
+          --timbang-jejak:rgba(58,160,255,.5); --timbang-jejak-stabil:rgba(61,220,151,.72); --timbang-jejak-kini:rgba(234,242,252,.95);
           --plat-bg:#0B0F14; --plat-fg:#F4F6F8;
           --input:#152033; --hover:#A6B3C6;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
@@ -130,8 +139,6 @@
   #topbar { position:relative; z-index:30; display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px;
             padding:14px var(--pad) 12px; }
   #menu-samping { flex:none; width:44px; min-width:44px; padding:0; color:var(--muted); background:var(--card); border-color:var(--line); }
-  .logo-kecil { display:none; flex:none; }
-  body.menu-tutup .logo-kecil { display:block; }
   .sub-judul { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; font-size:.85rem; color:var(--muted); }
   .sub-judul > span:empty { display:none; }
   .pil-baris { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-left:auto; }
@@ -634,16 +641,16 @@
   .angka-besar.ripe { color:var(--ripe); }
   .bar-kelas { display:flex; gap:4px; height:8px; }
   .bar-kelas span { border-radius:999px; transition:width .6s ease; }
-  .bar-kelas .ripe { background:var(--ripe); }
-  .bar-kelas .unripe { background:var(--unripe); }
-  .bar-kelas .jk { background:var(--jk); }
-  .kelas-baris { display:flex; flex-wrap:wrap; gap:4px 18px; font-size:.85rem; font-weight:600; color:var(--muted); }
+  .bar-kelas .ripe { background:var(--ripe-isi); }
+  .bar-kelas .unripe { background:var(--unripe-isi); }
+  .bar-kelas .jk { background:var(--jk-isi); }
+  .kelas-baris { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px 12px; font-size:.85rem; font-weight:600; color:var(--muted); }
   .kelas { display:inline-flex; align-items:center; gap:7px; }
   .kelas i { width:9px; height:9px; border-radius:3px; }
-  .kelas.ripe i { background:var(--ripe); }
-  .kelas.unripe i { background:var(--unripe); }
-  .kelas.jk i { background:var(--jk); }
-  .kelas.tp i { background:var(--tp); }
+  .kelas.ripe i { background:var(--ripe-isi); }
+  .kelas.unripe i { background:var(--unripe-isi); }
+  .kelas.jk i { background:var(--jk-isi); }
+  .kelas.tp i { background:var(--tp-isi); }
   .kelas b { font:600 1.2rem/1 var(--angka); color:var(--fg); }
   /* Odometer angka tally (user 2026-10-03, gaya NumberFlow, dibangun tangan tanpa npm): tiap
      digit yang berubah adalah pita 0 sampai 9 dua putaran (`::before`, 20 baris) yang
@@ -671,32 +678,32 @@
   @keyframes odo-masuk { from { transform:translateY(calc(var(--ke) * -5% + var(--arah) * 5%)); opacity:0; } }
   @keyframes odo-keluar { from { opacity:1; }
                           to { transform:translateY(calc(var(--ke) * -5% - var(--arah) * 5%)); opacity:0; } }
-  /* The scale card is dark in both themes (a display, like the scale head itself), so it
-     carries its own light-on-dark status colours. */
-  #timbang { flex:1.2 1 290px; gap:6px; background:var(--inset); border-color:var(--line);
-             color:#EAF2FC; --acc:#3DDC97; --warn:#FFC54D; --rej:#FF6B7D; --muted:rgba(234,242,252,.72); }
+  /* The scale card follows the theme (owner 2026-10-07): a pale display in light, a dark one in
+     dark, its status colours from the theme tokens. */
+  #timbang { flex:1.2 1 290px; gap:6px; background:var(--timbang-bg); border-color:var(--timbang-garis);
+             color:var(--timbang-fg); }
   .timbang-atas { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   #timbang .lb { color:var(--muted); }
   .timbang-angka { display:flex; align-items:flex-end; gap:14px; min-width:0; }
   #timbang-kg { flex:none; font:600 3.25rem/1 var(--angka); }
   .odo-berat .redup { opacity:.16; }
   .odo-pisah::before, .odo-satuan::before { content:attr(data-c); }
-  .odo-satuan { margin-left:6px; font-size:.4em; color:rgba(234,242,252,.6); align-self:flex-end; }
+  .odo-satuan { margin-left:6px; font-size:.4em; color:var(--muted); align-self:flex-end; }
   .timbang-jejak { flex:1 1 auto; min-width:60px; display:flex; align-items:flex-end; gap:2px; height:40px; }
-  .timbang-jejak span { flex:1 1 0; min-height:2px; border-radius:3px 3px 0 0; background:rgba(58,160,255,.5);
+  .timbang-jejak span { flex:1 1 0; min-height:2px; border-radius:3px 3px 0 0; background:var(--timbang-jejak);
                         transition:height .45s ease, background .45s ease; }
-  .timbang-jejak .stabil { background:rgba(61,220,151,.72); }
-  .timbang-jejak .kini { background:rgba(234,242,252,.95); }
+  .timbang-jejak .stabil { background:var(--timbang-jejak-stabil); }
+  .timbang-jejak .kini { background:var(--timbang-jejak-kini); }
   .timbang-saran { font-size:.82rem; font-weight:700; color:var(--muted); }
   #timbang[data-keadaan="stabil"] .timbang-saran { color:var(--acc); }
   /* State word next to a dot, as in Last Sync: read over AnyDesk, not everyone tells colours apart. */
   .timbang-keadaan { display:inline-flex; align-items:center; gap:7px; padding:4px 10px; border-radius:999px;
-                     background:rgba(234,242,252,.1); color:var(--muted); font-size:.8rem; font-weight:800; white-space:nowrap; }
+                     background:var(--zebra); border:1px solid var(--line); color:var(--muted); font-size:.8rem; font-weight:800; white-space:nowrap; }
   .timbang-keadaan .titik { width:7px; height:7px; border-radius:50%; background:currentColor; }
-  #timbang[data-keadaan="stabil"] .timbang-keadaan { background:rgba(61,220,151,.14); color:var(--acc); }
+  #timbang[data-keadaan="stabil"] .timbang-keadaan { background:var(--acc-bg); border-color:transparent; color:var(--acc); }
   #timbang[data-keadaan="stabil"] .titik { animation:titik-hidup 1.8s ease-out infinite; }
-  #timbang:is([data-keadaan="bergerak"], [data-keadaan="terbaca"]) .timbang-keadaan { background:rgba(255,197,77,.15); color:var(--warn); }
-  #timbang:is([data-keadaan="putus"], [data-keadaan="error"]) .timbang-keadaan { background:rgba(255,107,125,.15); color:var(--rej); }
+  #timbang:is([data-keadaan="bergerak"], [data-keadaan="terbaca"]) .timbang-keadaan { background:var(--warn-bg); border-color:transparent; color:var(--warn); }
+  #timbang:is([data-keadaan="putus"], [data-keadaan="error"]) .timbang-keadaan { background:var(--rej-bg); border-color:transparent; color:var(--rej); }
   @keyframes titik-hidup { 0% { box-shadow:0 0 0 0 rgba(61,220,151,.55); } 70% { box-shadow:0 0 0 7px rgba(61,220,151,0); }
                            100% { box-shadow:0 0 0 0 rgba(61,220,151,0); } }
   /* Truck card: the truck on the lines, and the queue beside it while assignment is automatic. */
@@ -997,9 +1004,9 @@
   .strip-foto .muted { font-size:.8rem; }
   .strip-item { flex:none; height:48px; aspect-ratio:6/5; padding:0; min-height:0; border-radius:9px; overflow:hidden;
                 border:2px solid var(--line-kuat); background:var(--inset); cursor:zoom-in; }
-  .strip-item[data-kelas="ripe"] { border-color:var(--ripe); }
-  .strip-item[data-kelas="unripe"] { border-color:var(--unripe); }
-  .strip-item[data-kelas="jk"] { border-color:var(--jk); }
+  .strip-item[data-kelas="ripe"] { border-color:var(--ripe-isi); }
+  .strip-item[data-kelas="unripe"] { border-color:var(--unripe-isi); }
+  .strip-item[data-kelas="jk"] { border-color:var(--jk-isi); }
   .strip-foto img { width:100%; height:100%; display:block; object-fit:contain; border:0; border-radius:0; }
   .strip-item.baru { animation:strip-masuk .7s cubic-bezier(.2,.8,.2,1); }
   @keyframes strip-masuk { from { transform:translateX(-16px) scale(.7); opacity:0; } }
@@ -1013,10 +1020,10 @@
   .counts > span { display:flex; flex-direction:column; gap:1px; min-width:0; }
   .counts .lb { display:flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; }
   .counts > span:not(.total) .lb::before { content:""; flex:none; width:8px; height:8px; border-radius:3px; background:var(--muted); }
-  .counts > span.acc .lb::before { background:var(--ripe); }
-  .counts > span.rej .lb::before { background:var(--unripe); }
-  .counts > span.jk .lb::before { background:var(--jk); }
-  .counts > span.tp .lb::before { background:var(--tp); }
+  .counts > span.acc .lb::before { background:var(--ripe-isi); }
+  .counts > span.rej .lb::before { background:var(--unripe-isi); }
+  .counts > span.jk .lb::before { background:var(--jk-isi); }
+  .counts > span.tp .lb::before { background:var(--tp-isi); }
   .counts .total { align-items:flex-end; }
   .counts b { display:block; font-family:var(--angka); font-weight:600; line-height:1.05;
               font-size:clamp(1.5rem, 2.2vw, 2.5rem); }
@@ -1321,7 +1328,6 @@
           background:var(--card); border-right:1px solid var(--line);
           transition:width .28s ease, padding .28s ease; }
   body.menu-tutup #tabs { padding-inline:0; border-right-color:transparent; }
-  #tabs .logo-rel { align-self:center; flex:none; margin:2px 0 12px; }
   #tabs button { display:flex; flex-direction:column; align-items:center; gap:5px; min-height:0;
                  padding:10px 4px; border:0; border-radius:14px; background:none; color:var(--muted);
                  font-size:.75rem; font-weight:700; letter-spacing:0; }
@@ -1338,7 +1344,7 @@
     body { padding-left:0; display:flex; flex-direction:column; }
     #tabs { position:sticky; top:0; order:-1; width:auto; flex-direction:row; overflow-x:auto;
             padding:6px; border-right:0; border-bottom:1px solid var(--line); }
-    #tabs .logo-rel, #tabs .rel-pisah { display:none; }
+    #tabs .rel-pisah { display:none; }
     #tabs button { flex:none; min-width:76px; }
     body.menu-tutup #tabs { display:none; }
   }
@@ -1874,9 +1880,8 @@
        the title; a click opens the detail box. Filled by every `/api/console/state` poll. -->
   <button type="button" id="menu-samping" class="tombol-ikon" aria-controls="tabs" aria-expanded="true"
           data-t-lb="menuSembunyikan" data-t-tip="tipMenuSamping"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg></button>
-  <svg class="logo-kecil" width="30" height="30" viewBox="0 0 54 54" aria-hidden="true"><path d="M38.57 0H15.43C6.91 0 0 6.91 0 15.43v23.14C0 47.09 6.91 54 15.43 54h23.14C47.09 54 54 47.09 54 38.57V15.43C54 6.91 47.09 0 38.57 0Z" fill="#0289F7"/><path d="M27 22c-2.8-5-2.5-10 0-13.5 2.5 3.5 2.8 8.5 0 13.5Zm0 0c3-6.5 8.5-10 15.5-8.5C38 17.5 32 20.2 27 22Zm0 0c-3-6.5-8.5-10-15.5-8.5C16 17.5 22 20.2 27 22Zm0 0c6-2 12.5-.5 17 5-5.5-1.4-11.5-2.8-17-5Zm0 0c-6-2-12.5-.5-17 5 5.5-1.4 11.5-2.8 17-5Z" fill="#fff"/><path d="M24.6 43c0-6.5.6-12.5 1.4-18h2c.8 5.5 1.4 11.5 1.4 18Z" fill="#fff"/><circle cx="27" cy="22" r="3.2" fill="#fff"/></svg>
   <div class="merek">
-    <h1 id="judul-tampilan" data-t="judulGrading">Grading</h1>
+    <h1 id="judul-tampilan">AutoGrade</h1>
     <span class="sub-judul"><span id="hari-kerja"></span><span id="perusahaan"></span>
       <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button></span>
   </div>
@@ -2019,7 +2024,6 @@
 <div id="lines"></div>
 
 <nav id="tabs">
-  <svg class="logo-rel" width="42" height="42" viewBox="0 0 54 54" aria-hidden="true"><path d="M38.57 0H15.43C6.91 0 0 6.91 0 15.43v23.14C0 47.09 6.91 54 15.43 54h23.14C47.09 54 54 47.09 54 38.57V15.43C54 6.91 47.09 0 38.57 0Z" fill="#0289F7"/><path d="M27 22c-2.8-5-2.5-10 0-13.5 2.5 3.5 2.8 8.5 0 13.5Zm0 0c3-6.5 8.5-10 15.5-8.5C38 17.5 32 20.2 27 22Zm0 0c-3-6.5-8.5-10-15.5-8.5C16 17.5 22 20.2 27 22Zm0 0c6-2 12.5-.5 17 5-5.5-1.4-11.5-2.8-17-5Zm0 0c-6-2-12.5-.5-17 5 5.5-1.4 11.5-2.8 17-5Z" fill="#fff"/><path d="M24.6 43c0-6.5.6-12.5 1.4-18h2c.8 5.5 1.4 11.5 1.4 18Z" fill="#fff"/><circle cx="27" cy="22" r="3.2" fill="#fff"/></svg>
   <button data-tab="grading"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8V6a3 3 0 0 1 3-3h2"/><path d="M16 3h2a3 3 0 0 1 3 3v2"/><path d="M21 16v2a3 3 0 0 1-3 3h-2"/><path d="M8 21H6a3 3 0 0 1-3-3v-2"/><circle cx="12" cy="12" r="4"/></svg><span data-t="judulGrading">Grading</span></button>
   <button data-tab="truk"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 4v2h-8"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg><span data-t="judulTruk">Truk</span></button>
   <button data-tab="timbangan"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><path d="M3 21h18"/></svg><span data-t="judulTimbangan">Timbangan</span></button>
@@ -4781,12 +4785,6 @@ function terapkanTab() {
     b.setAttribute("aria-selected", String(aktif));
     const panel = $("sec-" + b.dataset.tab);
     if (panel) panel.hidden = !aktif;
-    // The view title in the header names the open view (spec §5.1).
-    const kata = b.querySelector("[data-t]");
-    if (aktif && kata) {
-      $("judul-tampilan").dataset.t = kata.dataset.t;
-      $("judul-tampilan").textContent = t(kata.dataset.t);
-    }
   });
   document.body.dataset.tab = tab;
   jagaFokusScan();

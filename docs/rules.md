@@ -592,7 +592,7 @@ end of this file.
     mereka: layar akan diam persis di saat penjelasan paling dibutuhkan. Yang ikut ke
     operator cuma tingkat keparahan, tanggal, dan nama perusahaan; nomor token tetap support-only, dan
     ada test yang menjaganya.
-    Data yang sama ditulis **di kepala layar, di bawah judul tampilan, untuk semua akun** (2026-09-28,
+    Data yang sama ditulis **di kepala layar, di bawah tulisan AutoGrade, untuk semua akun** (2026-09-28,
     `teksInfoSistem`): versi + "Lisensi s/d …", warnanya dari `severity` server, bukan
     dihitung ulang. Klik membuka kotak detail (`barisInfoSistem`), yang berbagi
     `barisLisensi` dengan tab Status (bagian Versi). Fitur lisensi mati = versi saja, supaya kata "mati"

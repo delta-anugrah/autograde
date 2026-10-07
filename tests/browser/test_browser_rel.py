@@ -13,7 +13,6 @@ def test_hiding_the_side_menu_survives_a_reload(halaman):
     halaman.click("#menu-samping")
     expect(halaman.locator("body")).to_have_class("menu-tutup")
     expect(halaman.locator("#menu-samping")).to_have_attribute("aria-expanded", "false")
-    expect(halaman.locator(".logo-kecil")).to_be_visible()
     halaman.reload()
     expect(halaman.locator("body")).to_have_class("menu-tutup")
     halaman.click("#menu-samping")
@@ -24,11 +23,12 @@ def test_hiding_the_side_menu_survives_a_reload(halaman):
 def test_cameras_only_on_the_grading_view(halaman):
     masuk(halaman, OPERATOR)
     expect(halaman.locator("#lines")).to_be_visible()
-    expect(halaman.locator("#judul-tampilan")).to_have_text(kamus(halaman, "judulGrading"))
+    expect(halaman.locator("#judul-tampilan")).to_have_text("AutoGrade")
+    expect(halaman.locator('#tabs [data-tab="grading"]')).to_have_class("aktif")
     buka_tab(halaman, "truk")
     expect(halaman.locator("#lines")).to_be_hidden()
     expect(halaman.locator("#lines .card")).not_to_have_count(0)
-    expect(halaman.locator("#judul-tampilan")).to_have_text(kamus(halaman, "judulTruk"))
+    expect(halaman.locator('#tabs [data-tab="truk"]')).to_have_class("aktif")
 
 
 def test_space_and_line_number_rejects_from_the_truck_view(halaman, lines, browser_name, penugasan_bersih):
