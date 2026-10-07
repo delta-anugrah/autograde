@@ -89,7 +89,7 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 17. Recap: grading and weighing are two sources, only placed side by side.
 18. Truck visit: one message, rebuilt every time, never patched (contract §4.C).
 19. Console login: email + password, two account sources, verified offline; the session slides 12 h from the last touch, polls never renew it.
-20. A QR scan carries the plate number and nothing else.
+20. A QR scan carries the plate number and nothing else; one scan field records the truck's next step, decided on the server from its state, and shows only when support turns on the Scanner QR switch (default off).
 21. Developer lane: the backend guards, the screen only tidies.
 22. Licence: the factory verifies, AutoERP issues.
 23. Developer video recording never slows grading.
@@ -108,6 +108,7 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 36. Automatic line assignment: one truck on the lines until weighed out; the next waits in the unloading queue; on by default on every line since 2026-10-05, support can turn it off.
 37. Gate times (scan 1 arrive, scan 4 leave) stay on the factory PC and never go to AutoERP; scan 1 may be skipped; scan 4 before the weigh-out is refused; a cancelled arrival is kept as history; a weighed-out ticket with no scan 4 counts as finished after 24 h or when the truck returns, nothing written.
 38. Update now: the console never touches Docker, it only writes a marker in `UPDATE_DIR` for the host watcher; refused while any truck is assigned.
+39. Live scale: the console reads the weighbridge weight from a PLC word register on its own port and shows it; only the one scan field may save it as a ticket weight, and only when fit (stable, or the same kg for 2 s, at least 1,000 kg); a cut, stale or faulted reading shows a dash.
 
 Conventions (full text in `docs/rules.md` § Conventions): process env vars beat `.env`
 (`override=False`); three image sources (`CAMERA_TYPE` = `hikrobot` / `opencv` / `photo`,
@@ -162,6 +163,7 @@ never a "Co-Authored-By: Claude" or other AI mention.
 | A new env var, mount, port that the factory PC must receive | skill `compose-host-pabrik` |
 | PLC, MC Protocol, coils, commissioning | `docs/plc-integration.md`, `docs/plc-mc-handoff.md`, skill `plc-mc-protocol` |
 | Camera tuning (MVS), camera spec | skill `mvs-camera`, `docs/camera-spec.md` |
+| The truck QR scanner (connecting, beeps, settings, Enter after a scan) | skill `scanner-qr` |
 | Swapping or evaluating a detection model | skill `model-swap-eval`, `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | Image source per line (video/photo) | `docs/runbooks/2026-09-21-sumber-kamera-per-line.md` |
 | From-zero factory setup (NVIDIA, MVS, camera IP) | `docs/SETUP.md`; PC capacity: skill `spek-pc-pabrik` |

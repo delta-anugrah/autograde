@@ -365,26 +365,43 @@ end of this file.
     setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
-    **Kolom scan di tab Timbangan** (disembunyikan dengan `hidden` sampai scanner dibeli;
-    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang kosong** di baris
-    tiket) mengisi plat lalu memindahkan kursor ke Bruto,
-    itu satu sentuhan layar yang dihemat per truk, dan itulah gunanya scan. Enter
-    datang dari scanner sendiri (scanner = papan ketik), jadi tidak ada tombol; kolomnya
-    juga menerima ketikan tangan.
-    `scanSibuk` menolak bacaan kedua dalam sekejap: scanner kadang membaca satu QR dua
-    kali dalam beberapa ratus milidetik. **Hasil scan punya `#scan-pesan` sendiri, bukan
-    banner global**: `refresh()` membersihkan banner tiap kali berhasil, jadi pesan
-    scan hilang dalam 2 detik dan operator yang sedang memegang HP supir tidak pernah
-    membacanya (ketemu di browser). **`BUKAN_PLAT` kode tersendiri, bukan `PLAT_KOSONG`**:
-    layar menerjemahkan per kode, dan QR berisi URL yang dijawab "tidak boleh kosong"
-    adalah pesan salah di depan operator gerbang.
-    **Scan tidak pernah bilang berhasil di atas kolom plat yang kosong** (ketemu tes
-    browser 2026-10-01): daftar truk di layar dimuat ulang tiap 60 detik, jadi truk yang
-    baru turun dari AutoERP belum jadi pilihan dan `pilihNilai` diam saja. Plat yang
-    belum ada di daftar membuat layar memuat ulang daftarnya dulu; kalau tetap tidak ada,
-    `scanDaftarBelumMuat` (kuning), bukan `sukScan`. Truk yang dinonaktifkan tetap terbaca
-    dan ditandai server (`truck.status`), dan layar mengatakannya (`scanTrukNonaktif`)
-    sebelum mencari di daftar yang memang menyembunyikannya.
+    **Satu kolom scan di tab Timbangan** (user 2026-10-06, menggantikan empat kolom per
+    langkah). Markup-nya `hidden`; saklar **Scanner QR** di tab Setelan (support saja, bawaan
+    mati, kunci `setelan_scanner_qr` di `sync_state`, 2026-10-05) memunculkannya di semua layar
+    lewat polling 2 detik. Daftar plat, **Catat datang**, dan tombol di baris tiket tetap ada.
+    Operator tidak memilih kolom: `POST /api/console/scan/auto {qr, at, konfirmasi?}`
+    (`services/scan_otomatis.py`) membaca keadaan truk dan mencatat langkah berikutnya
+    (`domain/gerbang.putuskan_langkah`): tiket tanpa tara dalam jendela 12 jam = timbang kosong
+    (dua tiket = `ganda`, operator memilih di tabel, tidak ditebak); tiket bertara yang belum
+    keluar, belum selesai "tanpa scan 4", dan timbang kosongnya kurang dari 2 jam lalu
+    (`JENDELA_SCAN_KELUAR`) = keluar (lebih lama = truknya kembali untuk kunjungan baru, jadi
+    datang, dan tiket lama selesai tanpa scan 4 tanpa jam keluar karangan); kedatangan yang menunggu = timbang isi;
+    selain itu = datang. Ini **bukan** menebak: langkahnya diturunkan dari data yang sudah ada,
+    dan QR tetap cuma membawa plat. Datang dan keluar tetap ditulis `GateService`, berat tetap
+    ditulis `record_weighing` (aturan 15). Berat diambil dari timbangan live kalau layak
+    (aturan 39); kalau tidak, jawabannya `perlu_berat` dan layar membuka kotak lama yang sudah
+    terisi platnya (Bruto, atau bar tara), operator mengetik angka lalu Enter. Truk yang belum
+    terdaftar boleh datang tapi tidak ditimbang (`belum_terdaftar`), truk nonaktif juga tidak
+    (`nonaktif`). **Bacaan ganda:** layar membuang QR yang sama dalam 2 detik
+    (`JEDA_BACA_ULANG_MS`), dan server menjawab `perlu_konfirmasi` untuk datang, timbang isi,
+    atau timbang kosong yang datang kurang dari 3 menit sesudah langkah sebelumnya truk itu
+    (`JEDA_SCAN_ULANG`); layar bertanya lewat `tanyaKonfirmasi`, dan cuma "Catat" yang mengirim
+    ulang dengan `konfirmasi: true`. Operator menjawab tanpa mouse (user 2026-10-06): scan QR yang
+    sama sekali lagi = Catat, tapi baru 2 detik sesudah pertanyaan muncul (`scanUlang`, bacaan
+    ganda tidak boleh menjawab pertanyaannya sendiri); QR lain = Batal; Esc = Batal. Tanpa itu satu QR yang terbaca dua kali mencatat timbang
+    isi dengan berat apa pun yang sedang di jembatan, atau timbang kosong dengan berat timbang
+    isinya sendiri. Keluar tidak pernah ditanya: jam keluar yang terlalu cepat tidak merugikan.
+    Kolomnya **memegang fokus** selama tab Timbangan terbuka (`jagaFokusScan`), tapi tidak
+    pernah merebutnya dari kolom ketik lain, daftar pilihan yang terbuka, atau dialog; jadi
+    scanner langsung dipakai tanpa klik. Enter datang dari scanner sendiri (terbukti
+    2026-10-06 dengan CASHCOW HC-4208DB lewat Bluetooth di Mac, skill `scanner-qr`). Toast
+    tiap scan yang berhasil menyebut langkah, plat, berat, dan supplier. **Hasil scan punya
+    `#scan-otomatis-pesan` sendiri, bukan banner global**: `refresh()` membersihkan banner
+    tiap kali berhasil, jadi pesan scan hilang dalam 2 detik (ketemu di browser).
+    **`BUKAN_PLAT` kode tersendiri, bukan `PLAT_KOSONG`**: layar menerjemahkan per kode, dan
+    QR berisi URL yang dijawab "tidak boleh kosong" adalah pesan salah di depan operator.
+    Rute lama `POST /api/console/scan` dan `/scan/keluar` (`ScanService`, cuma mencari) masih
+    ada tapi tidak dipakai layar lagi.
     **Tara diisi di bar tara (`#tara-grup`) di bawah kedua form, bukan dialog yang menutup layar**
     (dua kali dilaporkan operator 2026-09-15). `prompt()` bawaan browser ditolak lebih
     dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan
@@ -393,7 +410,7 @@ end of this file.
     strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
     pandangan justru saat paling butuh. (Ini soal mengisi angka; pertanyaan ya/tidak memakai
     `tanyaKonfirmasi`, coding standard F12.) Bar itu **tersembunyi sampai Timbang kosong ditekan
-    di baris tiket atau scan langkah 3 berhasil**: kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
+    di baris tiket atau scan timbang kosong meminta beratnya**: kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
     Platnya disebut di sebelahnya: operator melihat beberapa truk sehari sambil memegang
     HP supir. Angkanya divalidasi **di layar** sebelum dikirim, karena bolak-balik
     jaringan untuk hal yang terlihat di tempat itu satu detik yang hilang di gerbang;
@@ -1342,7 +1359,9 @@ end of this file.
     UTC, jadi jalur timbangan atau PLC kelak wajib mengirim jam dengan offset. ⚠️ Tulisan
     "menunggu N menit" yang hidup membandingkan jam server dengan jam browser saat datang.
     ⚠️ Tiket yang pertama kali ditulis langsung dengan tara tidak pernah mengklaim
-    kedatangannya. ⚠️ Empat kolom QR tetap `hidden` sampai scanner dibeli.
+    kedatangannya. Sejak 2026-10-06 scan 1 dan 4 datang dari satu kolom scan yang memilih
+    langkahnya dari keadaan truk (aturan 20); kolom itu muncul kalau saklar **Scanner QR**
+    (Setelan, support) nyala, bawaan mati.
 
 38. **Update now dari konsol** (batch 4.6, 2026-10-03). Konsol **tidak pernah** menyentuh Docker
     (tanpa `docker.sock`, selamanya). Satu-satunya jalurnya folder `update/` (`UPDATE_DIR`,
@@ -1371,6 +1390,30 @@ end of this file.
     tab Log (sekali per hasil, `.result-logged.json` bertahan lewat restart; gagal = ERROR
     sampai Discord), tanpa notifikasi desktop (keputusan user 2026-10-02). Aturan murni:
     `domain/pembaruan.py`; kontrak berkas: `docs/backend-overview.md` § Update now.
+
+39. **Timbangan live: dibaca konsol dari PLC, masuk tiket cuma lewat scan dan kalau layak** (2026-10-06). Angka besar di kotak
+    **Data timbangan** (strip "Hari ini") adalah berat di jembatan timbang SEKARANG, dibaca
+    konsol dari register kata PLC lewat MC Protocol (`plc/pembaca_timbangan.py`, worker
+    `workers/timbangan_live_worker.py`, tiap `SCALE_POLL_MS`), di **sambungan sendiri**
+    (`SCALE_PLC_PORT`, bawaan 1028; 1025-1027 dipegang tiga line, satu port satu pemakai), bukan
+    lewat line. Angka ini mengisi tiket **cuma lewat satu kolom scan** (aturan 20, user
+    2026-10-06) dan cuma kalau **layak** (`domain/timbangan_live.berat_layak`): keadaan `stabil`,
+    atau `terbaca` dengan kg yang sama minimal 2 detik di antara bacaan pertama dan terakhir
+    angka itu (`TAHAN_DETIK`, dihitung `TimbanganLive`, diulang dari nol sesudah putus; satu
+    bacaan lalu sambungan macet tidak dihitung tahan), dan minimal 1.000 kg (`MINIMUM_WEIGHT_KG`:
+    jembatan kosong terbaca mendekati nol). Bergerak, putus, basi, atau error tidak pernah
+    tersimpan; operator mengetik beratnya. Tetap lewat `record_weighing` dengan `net_kg`
+    dihitung (aturan 15). Disimpan di memori saja, tidak ada tabel. Semua yang belum
+    dijawab tim PLC (register, 16/32-bit, desimal, bit stabil, bit error) adalah `SCALE_PLC_*`
+    di `.env`, jadi pabrik menyalakannya tanpa rilis; `SCALE_PLC_REGISTER` kosong atau tidak sah
+    = mati, kotak menulis **Belum tersambung**, tanpa socket. 32-bit = kata rendah di `Dn`, kata
+    tinggi di `Dn+1` (DINT Mitsubishi). Angka **tidak pernah ditampilkan** saat sambungan putus,
+    bacaan lebih tua dari 5 detik (`BASI_DETIK`), atau bit error menyala: strip, bukan angka
+    yang membeku dan dicatat operator. Balasan PLC yang terpotong ditolak seperti pembacaan bit
+    (`McProtocolPlcClient._terjaga`): socket mati terbaca kata nol, yaitu "jembatan kosong".
+    Putus dicatat sekali saat mulai dan sekali saat pulih (aturan 33). Aturan murni:
+    `domain/timbangan_live.py`; layar polling `GET /api/console/scale/live` tiap detik di semua
+    tab (tiap 30 detik selama `tidak_dipakai`).
 
 ---
 

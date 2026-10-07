@@ -84,6 +84,28 @@ def _penugasan_manual(konsol: KonsolUji) -> None:
 
 
 @pytest.fixture
+def scanner_nyala(konsol: KonsolUji) -> Iterator[None]:
+    """The scan field shown through the switch, the way the mill turns it on; OFF again
+    after, the shipped state. Un-hiding it by JS no longer works: the 2 s poll hides it
+    again while the switch is off."""
+    from langkah import setel_scanner  # here, not at the top: langkah decides the Playwright skip
+
+    setel_scanner(konsol.url, True)
+    yield
+    setel_scanner(konsol.url, False)
+
+
+@pytest.fixture
+def scanner_mati(konsol: KonsolUji) -> Iterator[None]:
+    """The switch OFF before and after the test (the shipped state)."""
+    from langkah import setel_scanner
+
+    setel_scanner(konsol.url, False)
+    yield
+    setel_scanner(konsol.url, False)
+
+
+@pytest.fixture
 def penugasan_bersih(konsol: KonsolUji) -> Iterator[None]:
     """Automatic assignment OFF on all three lines, lines 1-2 free, unloading queue empty,
     before AND after the test.

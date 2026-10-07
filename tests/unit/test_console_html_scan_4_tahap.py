@@ -1,5 +1,6 @@
-"""Tab Timbangan dengan empat scan (keputusan user 2026-09-30): satu kolom per tahap,
-karena konsol tidak bisa menebak ini scan ke berapa (scan 1 boleh terlewat)."""
+"""Tab Timbangan dengan empat langkah (keputusan user 2026-09-30). Sejak 2026-10-06 satu
+kolom scan mencatat langkah berikutnya dari keadaan truk (`test_console_html.py`); strip
+empat langkah dan jalan cadangannya tetap di sini."""
 from __future__ import annotations
 
 import json
@@ -15,7 +16,7 @@ NODE = shutil.which("node")
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
 
 KUNCI_BARU = (
-    "lbDatang", "lbPergi", "phScanDatang", "phScanPergi", "btnDatang", "btnTimbangKosong",
+    "lbDatang", "lbPergi", "btnDatang", "btnTimbangKosong",
     "btnPergi", "hintPergi", "thAntre", "thTotal", "antreKelewat", "antreKelewatJudul",
     "antreMenunggu", "jamDatang", "jamPergi", "sukDatang", "datangSudah",
     "datangMasihDiDalam", "sukPergi", "pergiBelumKosong", "pergiSudah", "pergiTakAdaTiket",
@@ -59,24 +60,17 @@ def test_empat_tahap_berurutan_dalam_satu_baris_alat():
     assert len(re.findall(r'class="tools\b', blok)) == 1
 
 
-def test_empat_kolom_scan_tersembunyi_sampai_scanner_datang():
+def test_satu_kolom_scan_tersembunyi_sampai_saklar_scanner_nyala():
     blok = _blok_alat()
-    for id_ in ("scan-datang", "scan-plat", "scan-keluar", "scan-pergi"):
-        tag = re.search(rf'<input id="{id_}"[^>]*>', blok, re.S)
-        assert tag and " hidden" in tag.group(0), f"kolom {id_} hilang atau tampil"
+    tag = re.search(r'<div id="scan-otomatis-grup"[^>]*>', blok)
+    assert tag and " hidden" in tag.group(0)
+    assert blok.index('id="scan-otomatis-grup"') < blok.index('class="timbang-langkah"')
 
 
 def test_jalan_cadangan_tanpa_scanner():
     blok = _blok_alat()
     assert 'id="plat-datang"' in blok and 'id="datang"' in blok
     assert 'data-aksi="pergi"' in _fungsi("aksiTiket")
-
-
-@pytest.mark.parametrize("bahasa", ["id", "en"])
-def test_placeholder_empat_scan_berbeda(bahasa):
-    isi = _kamus(bahasa)
-    nilai = [re.search(rf'{k}:"([^"]+)"', isi).group(1) for k in ("phScanDatang", "phScan", "phScanKeluar", "phScanPergi")]
-    assert len(set(nilai)) == 4
 
 
 @pytest.mark.parametrize("bahasa", ["id", "en"])

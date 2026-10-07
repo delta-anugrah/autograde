@@ -81,7 +81,21 @@ class McProtocolPlcClient:
         — dan E-stop yang sedang DITEKAN terbaca lepas.
         """
         # kepala(9) + status(2); tiap byte data memuat dua bit.
-        minimal = 11 + (count + 1) // 2
+        return self._terjaga(
+            11 + (count + 1) // 2,
+            lambda: self._client.batchread_bitunits(headdevice=headdevice, readsize=count),
+        )
+
+    def _kata_terjaga(self, headdevice: str, count: int) -> list[int]:
+        """`batchread_wordunits`, same guard: a cut socket decodes as words of zero,
+        which on the scale would read as an empty weighbridge."""
+        # kepala(9) + status(2); dua byte per word.
+        return self._terjaga(
+            11 + 2 * count,
+            lambda: self._client.batchread_wordunits(headdevice=headdevice, readsize=count),
+        )
+
+    def _terjaga(self, minimal: int, baca: Callable[[], list[int]]) -> list[int]:
         terpendek: list[int] = []
 
         recv_asli = self._client._recv
@@ -93,7 +107,7 @@ class McProtocolPlcClient:
 
         self._client._recv = recv_terjaga
         try:
-            bits = self._client.batchread_bitunits(headdevice=headdevice, readsize=count)
+            hasil = baca()
         finally:
             self._client._recv = recv_asli
 
@@ -102,7 +116,7 @@ class McProtocolPlcClient:
             raise OSError(
                 f"balasan PLC terpotong: {diterima} byte diterima, minimal {minimal}"
             )
-        return bits
+        return hasil
 
     def _device(self, address: int) -> str:
         """Angka yang dipakai worker -> nama device yang dimengerti PLC."""
@@ -192,6 +206,36 @@ class McProtocolPlcClient:
             return None
         try:
             bits = self._baca_terjaga(self._device(start), count)
+        except Exception as exc:
+            self._drop(exc)
+            return None
+        self._jejak.berhasil()
+        return [bool(b) for b in bits][:count]
+
+    def read_words(self, headdevice: str, count: int) -> list[int] | None:
+        """Read `count` words from a full device name (`"D100"`), signed 16-bit each.
+
+        Takes the device NAME, not a number with the line's prefix: the scale lives in
+        D registers while the line's own block is M (live scale reading, 2026-10-06).
+        None = no answer, same sentinel as `read_discrete_inputs`.
+        """
+        if not self._ensure():
+            return None
+        try:
+            kata = self._kata_terjaga(headdevice, count)
+        except Exception as exc:
+            self._drop(exc)
+            return None
+        self._jejak.berhasil()
+        return [int(k) for k in kata][:count]
+
+    def read_bits(self, headdevice: str, count: int) -> list[bool] | None:
+        """`read_discrete_inputs` by full device name (`"M2000"`), for the scale's
+        stable and error bits."""
+        if not self._ensure():
+            return None
+        try:
+            bits = self._baca_terjaga(headdevice, count)
         except Exception as exc:
             self._drop(exc)
             return None

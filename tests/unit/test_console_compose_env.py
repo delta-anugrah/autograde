@@ -26,7 +26,8 @@ COMPOSE_PROD = REPO_ROOT / "docker-compose.prod.yml"
 # R2_* is in scope since 2026-09-16: the console's own manifest worker uploads
 # per-truck detail pages, independent of the line's batch-upload R2 usage.
 # DISCORD_ since batch 3.5: only the console sends the error digest.
-CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_", "LICENSE_", "DISCORD_")
+# SCALE_ since 2026-10-06: only the console reads the live weighbridge weight.
+CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_", "LICENSE_", "DISCORD_", "SCALE_")
 
 
 def _settings_env_names() -> set[str]:

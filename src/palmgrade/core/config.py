@@ -533,6 +533,27 @@ class Settings:
     # the screen can only show the request, marked "not confirmed by PLC".
     plc_di_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_DI_MANUAL"))
 
+    # ── Live weighbridge reading (console only, 2026-10-06) ──────
+    # The console reads the scale's weight from a PLC word register over MC Protocol,
+    # on a connection of its own (the three lines hold 1025-1027, one user per port).
+    # Empty SCALE_PLC_REGISTER = off: the tile says "not connected". Every value below
+    # is one of the open questions to Pak Ocit (sawit PERTANYAAN-TERBUKA X1), so a mill
+    # fills them in .env without a release. Rules: domain/timbangan_live.py.
+    scale_plc_host: str = field(
+        default_factory=lambda: (os.getenv("SCALE_PLC_HOST") or os.getenv("PLC_HOST") or "").strip()
+    )
+    scale_plc_port: int = field(default_factory=lambda: _plc_int("SCALE_PLC_PORT", 1028))
+    # Word device holding the weight, e.g. "D100". 32-bit = this word plus the next.
+    scale_plc_register: str = field(default_factory=lambda: os.getenv("SCALE_PLC_REGISTER", ""))
+    # 2 = 32-bit (default: 16-bit tops out at 32,767 kg, less than a loaded truck), 1 = 16-bit.
+    scale_plc_words: int = field(default_factory=lambda: _plc_int("SCALE_PLC_WORDS", 2))
+    # Implied decimal places: 1 means the register holds 123456 for 12,345.6 kg.
+    scale_plc_decimals: int = field(default_factory=lambda: _plc_int("SCALE_PLC_DECIMALS", 0))
+    # Optional bit devices, e.g. "M2000". Empty = the tile cannot say stable / error.
+    scale_plc_stable_bit: str = field(default_factory=lambda: os.getenv("SCALE_PLC_STABLE_BIT", ""))
+    scale_plc_error_bit: str = field(default_factory=lambda: os.getenv("SCALE_PLC_ERROR_BIT", ""))
+    scale_poll_ms: int = field(default_factory=lambda: _plc_int("SCALE_POLL_MS", 500))
+
     # ------------------------------------------------------------------ sumber kamera
 
     def __post_init__(self) -> None:

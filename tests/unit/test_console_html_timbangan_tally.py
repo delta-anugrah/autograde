@@ -65,3 +65,43 @@ def test_label_strip_hari_ini_data_timbangan():
     assert 'labelNetoTimbangan:"Weighing data"' in HTML
     assert '<span class="lb" data-t="labelNetoTimbangan">Data timbangan</span>' in HTML
     assert "Neto timbangan" not in HTML and "Weighed net" not in HTML
+
+
+# ── Timbangan live (2026-10-06) ─────────────────────────────────────────────
+
+
+def test_angka_besar_adalah_berat_live_dan_neto_hari_ini_di_baris_kecil():
+    tally = _tally()
+    kotak = tally[tally.index('class="timbang"') :]
+    assert kotak.index('id="timbang-kg"') < kotak.index('class="timbang-sub"') < kotak.index('id="tot-neto"')
+    assert 'id="timbang-keadaan"' in kotak
+
+
+def test_live_dipolling_tiap_detik_di_semua_tab():
+    awal = HTML.rindex("(async () => {")
+    blok = HTML[awal:]
+    assert "setInterval(sekaliJalan(muatTimbanganLive), 1000)" in blok
+
+
+def test_render_live_tanpa_hitungan_di_layar():
+    awal = HTML.find("function gambarTimbanganLive")
+    blok = HTML[awal : HTML.find("\n}\n", awal)]
+    # Angka dan keadaan dari server; layar cuma memformat (L4, F3).
+    assert "kg(r.kg)" in blok
+    assert "KOSONG" in blok
+    # Keadaan asing tidak pernah masuk ke atribut: dibaca putus.
+    assert ': "putus"' in blok
+
+
+@pytest.mark.parametrize(
+    "kunci",
+    ["timbangHariIni", "timbangTidakDipakai", "timbangMemeriksa", "timbangPutus",
+     "timbangError", "timbangStabil", "timbangBergerak", "timbangTerbaca"],
+)
+def test_kamus_live_dua_bahasa(kunci):
+    assert len(re.findall(rf"\b{kunci}:", HTML)) >= 2, f"{kunci} tidak ada di kedua bahasa"
+
+
+def test_belum_dipasang_tertulis_belum_tersambung():
+    assert 'timbangTidakDipakai:"Belum tersambung"' in HTML
+    assert 'timbangTidakDipakai:"Not connected"' in HTML

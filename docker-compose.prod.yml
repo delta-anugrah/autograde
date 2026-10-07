@@ -130,6 +130,16 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Batch 3.5, lapor Discord. Kosong = mati. Compose HOST pabrik ditambah tangan.
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      # Timbangan live (2026-10-06). Compose HOST pabrik ditambah tangan.
+      - PLC_HOST=${PLC_HOST:-}
+      - SCALE_PLC_HOST=${SCALE_PLC_HOST:-}
+      - SCALE_PLC_PORT=${SCALE_PLC_PORT:-1028}
+      - SCALE_PLC_REGISTER=${SCALE_PLC_REGISTER:-}
+      - SCALE_PLC_WORDS=${SCALE_PLC_WORDS:-2}
+      - SCALE_PLC_DECIMALS=${SCALE_PLC_DECIMALS:-0}
+      - SCALE_PLC_STABLE_BIT=${SCALE_PLC_STABLE_BIT:-}
+      - SCALE_PLC_ERROR_BIT=${SCALE_PLC_ERROR_BIT:-}
+      - SCALE_POLL_MS=${SCALE_POLL_MS:-500}
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}

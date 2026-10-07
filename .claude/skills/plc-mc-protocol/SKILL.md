@@ -18,7 +18,12 @@ kalau dokumen dan skill ini berbeda. Dokumen jalur ODOT lama sudah dihapus
 **Berubah: satu lapisan saja:** `plc/mc_client.py` menggantikan `plc/modbus_client.py`
 sebagai pengirim. Keduanya punya tiga method yang sama persis (`write_coil`,
 `read_discrete_inputs`, `close`), dan `build_plc_client(settings)` memilih salah satunya
-dari `PLC_PROTOCOL`.
+dari `PLC_PROTOCOL`. MC saja punya `read_words` / `read_bits` (nama device utuh, mis. `D100`),
+dipakai `plc/pembaca_timbangan.py` di KONSOL, bukan `PlcWorker`.
+
+**Timbangan live (aturan 39, 2026-10-06):** konsol membaca berat dari register D di sambungan
+sendiri, port **1028** (`SCALE_PLC_PORT`), bukan lewat line. Setelan `SCALE_PLC_*` dan cara
+cek: `docs/plc-integration.md` § Timbangan live; tes `tests/unit/plc/test_pembaca_timbangan.py`.
 
 **TIDAK berubah:** `PlcWorker`, `PulseScheduler`, `domain/plc_signal.py`,
 `domain/grade_class.py`, aturan buah internal, piston manual, layar Uji PLC. Worker tidak
@@ -161,7 +166,7 @@ Ringkasan yang harus diingat, urut seperti kejadiannya:
    CPU**. Retry 200 ms membanjiri log, `PLC_ENABLED=false` sementara kalau menunggu lama.
 5. 🔴 **Satu Open Setting = SATU koneksi TCP.** Tiga line di port 1025 ⇒ satu line dapat,
    dua lainnya `connect timed out`. Sekarang **port literal per line: 1025/1026/1027**
-   (compose + dokumen + test pengikat). `Connection refused` sesudah Ocit "menambah port" =
+   (compose + dokumen + test pengikat); konsol memakai 1028 untuk timbangan live. `Connection refused` sesudah Ocit "menambah port" =
    **belum reset CPU**.
 6. Sesudah PLC beres, PC **tidak perlu restart**, tiap line reconnect sendiri tiap tick.
 

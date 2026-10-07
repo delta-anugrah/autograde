@@ -28,12 +28,14 @@ from .routes.console_deps import (
     get_auth_service,
     get_console_service,
     get_lapor_discord,
+    get_timbangan_live,
     hangatkan_singleton,
     pasang_penangan_validasi,
 )
 from .routes.console_ingest import ingest_router
 from .routes.console_lapor_discord import router as lapor_discord_router
 from .routes.console_roi_bawaan import router as roi_bawaan_router
+from .routes.console_timbangan_live import router as timbangan_live_router
 from .services.akun_bawaan import seed_default_accounts
 from .services.lapor_discord import pasang_handler_lapor
 from .workers.cek_sinkron_worker import build_cek_sinkron
@@ -41,6 +43,7 @@ from .workers.erp_link import build_erp_workers
 from .workers.lapor_discord_worker import LaporDiscordWorker
 from .workers.line_status_worker import LineStatusWorker
 from .workers.tarik_log_line_worker import TarikLogLineWorker
+from .workers.timbangan_live_worker import build_timbangan_live
 
 # Same bootstrap as main.py, and for the same reason: settings are read when the
 # app is built, below. `override=False` keeps a real environment variable ahead
@@ -127,6 +130,12 @@ async def lifespan(app: FastAPI):
     if service.manifest_queue is not None:
         tasks.append(asyncio.create_task(service.manifest_queue.run_loop()))
 
+    # Live weighbridge reading (2026-10-06): its own MC Protocol connection to the PLC.
+    # None while SCALE_PLC_REGISTER is empty; the tile then says "not connected".
+    timbangan_live = build_timbangan_live(service.settings, get_timbangan_live())
+    if timbangan_live is not None:
+        tasks.append(asyncio.create_task(timbangan_live.run_loop()))
+
     # Separate from the ERP workers above: the piston button must survive an
     # empty ERP_URL, so it cannot depend on build_erp_workers().
     # Every answered status also closes a forced release the line has not heard (Lepas paksa).
@@ -181,6 +190,7 @@ def create_console_app() -> FastAPI:
     app.include_router(antrean_line_router)
     app.include_router(roi_bawaan_router)
     app.include_router(lapor_discord_router)
+    app.include_router(timbangan_live_router)
     app.include_router(ingest_router, prefix=settings.backend_api_ver)
     pasang_penangan_validasi(app)
 

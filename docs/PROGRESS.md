@@ -18,6 +18,95 @@ Next:           ...
 
 ---
 
+## 2026-10-06 · console · Answer the "Catat?" question by scanning again (PR #252)
+Changed:        While the repeat-scan question is open, a capture keydown listener takes the
+                scanner's keys: the same QR again answers Catat, from 2 s after the question
+                opened (a double read must not answer its own question); another QR answers
+                Batal; Esc still cancels. Text of the question says so. MANUAL 2.24, rule 20,
+                skills konsol-autograde and scanner-qr.
+Validated:      browser konfirmasi + scan_otomatis + scanner_qr + gerbang + tengah_malam, chromium
+                + firefox → 86 passed; tests/unit/test_console_html.py → passed; ruff → All
+                checks passed; MANUAL.pdf rebuilt (47 pages).
+Not validated:  with the real scanner (only typed by Playwright).
+Next:           Release with #251; test one visit at Lampung with the scanner only.
+
+## 2026-10-06 · console · One scan field that records the truck's next step (PR #251)
+Changed:        The four QR fields on the Timbangan tab became one field `#scan-otomatis` that
+                keeps the focus. POST /api/console/scan/auto decides the step from the truck's
+                state (domain/gerbang.putuskan_langkah): open ticket = weigh-out (two = refused),
+                tared and weighed out < 2 h ago = leave, waiting arrival = weigh-in, else arrival.
+                Weight from the live scale when fit (stable, or the same kg for 2 s between reads,
+                >= 1,000 kg), else the bruto box or tara bar opens. A scan < 3 min after the
+                truck's previous step asks first; the screen drops the same QR within 2 s. Toast
+                names step, plate, kg and supplier. Line card picker follows auto-assignment.
+                Rules 20, 37, 39, MANUAL 2.23 (PDF 47 pages), backend-overview, skills.
+Validated:      pytest tests/unit tests/e2e tests/integration → exit 0; ruff → All checks passed;
+                browser suite chromium + firefox → 2 failed of the full run, both outside this
+                change: slip (passed alone) and data_segar timer test, which also fails 2 of 3 on
+                origin/staging on this laptop (a 100 ms timing bound); the scan tests 70/70 in
+                both browsers.
+Not validated:  a real stable reading from the PLC (register still unknown, X1); the scanner on
+                the Linux factory PC; a real truck at Lampung.
+Decisions:      final review fixes: a late scan (> 2 h after weigh-out) is a new visit, not a
+                made-up Keluar on the old ticket (rule 37); the 2 s hold is measured between
+                reads, so one read and a stalled link is not "held"; English path `scan/auto` (B2).
+                Old routes /api/console/scan and /scan/keluar stay but the screen no longer uses them.
+Next:           Release, install at Lampung, scan one full visit; fill SCALE_PLC_* when Pak Ocit answers.
+
+## 2026-10-06 · docs · Skill for the truck QR scanner (PR #250)
+Changed:        New skill `scanner-qr` (mirrored in `.agents/skills/`) from the user's notes on the
+                CASHCOW HC-4208DB: USB ids, connection modes, lights and beeps, manual-barcode
+                settings, how the console receives a scan. Row in CLAUDE.md §6 and MANUAL §10.
+Validated:      test_doc_links + test_dokumen_tanpa_em_dash → 0 failed; MANUAL.pdf rebuilt (46 pages).
+Not validated:  Whether the scanner sends Enter after a scan (the console needs it); the 2.4G
+                dongle on the Linux factory PC. The dongle types nothing on macOS (user test).
+Next:           Scan into a text editor and check the cursor moves to a new line.
+
+## 2026-10-06 · console · Live weighbridge weight from the PLC, rule 39 (PR #248)
+Changed:        Data timbangan tile = live weight read by the console from a PLC word register
+                (MC Protocol, own port 1028), state word Stabil/Bergerak/putus/error/Belum
+                tersambung; today's net moved to the small line. SCALE_PLC_* env vars, route
+                GET /api/console/scale/live, McProtocolPlcClient.read_words/read_bits. Display
+                only, never fills a ticket.
+Validated:      pytest tests/unit → 5201 passed, 28 skipped; ruff → All checks passed;
+                browser suite (chromium + firefox) → 319 passed, 1 failed (grading_saring photo
+                click timeout, firefox), passed when rerun alone; test_browser_timbangan_live 4/4.
+Not validated:  no real PLC (register unknown); not tried in a container.
+Decisions:      every open question to Pak Ocit (sawit PERTANYAAN-TERBUKA X1) is an .env value,
+                so the factory turns it on without a release; 32 bit = low word first (DINT).
+Risks:          host compose console block needs 9 lines by hand to turn it on; word order to
+                confirm against GX Works2.
+Next:           fill SCALE_PLC_* when Pak Ocit answers; decide whether the live weight may fill
+                a ticket.
+
+## 2026-10-06 · console · Scanner QR switch (PR #249)
+Changed:        Support turns on the four QR scan fields of the Timbangan tab with a new Settings
+                sub-tab Scanner QR (default off, so a PC without a scanner looks as before; plate
+                picker and row buttons stay). Key `setelan_scanner_qr` in sync_state (survives
+                Danger Zone), `GET/POST /api/console/dev/scanner-qr` (support, plain def, WARNING
+                with who), `/api/console/state` carries `scanner_qr`; `tampilkanKolomScan` in
+                `refresh()` writes `hidden` only on a change, `=== true` so an older server reads
+                off; Save goes through `refresh()` so a stale poll cannot flip it back. Old scan
+                browser tests now turn the switch on (`scanner_nyala`, `setel_scanner`) instead of
+                un-hiding by JS, which the poll now undoes. Bought for it: Cashcow HC-4208DB (USB
+                2.4G receiver, types the plate plus Enter).
+                Settings sub-tab grid 7 -> 8 columns so Danger Zone stays on the same row (user
+                2026-10-06), pinned by a unit test and a browser test at 1280/1600/1920 px.
+Validated:      unit + e2e + integration 5752 passed / 48 skipped / 0 failed, ruff clean;
+                make test-browser 322 passed (Chromium + Firefox). First full browser run had 2
+                unrelated-looking failures, one of them caused by this branch (poll re-hid a field
+                an old test un-hid by JS, fixed); rerun 322/322. After the review fix: the scanner,
+                Setelan and gerbang browser files 68 passed. Final review (fresh reviewer): no
+                Critical; PROGRESS entry and the save flicker fixed.
+Not validated:  The real scanner on the Lampung PC (needs a release, the scanner arrives later).
+                Linux keyboard layout for the scanner (must be US English).
+Decisions:      User 2026-10-05: a switch in Settings, support only, default off. Own sub-tab
+                because Settings has sub-tabs since 2026-10-05. Deferred: a half-typed scan stays
+                in a field the switch hides; layout with the switch on is not pinned by a test
+                (passes today; at 1280 px the Timbang isi button wraps to a second row); rule 21
+                still says "Ketujuh /api/console/dev/*".
+Next:           Merge to staging, release, install on the Lampung PC, plug in the scanner, turn
+                the switch on, scan a printed card and a phone screen.
 ## 2026-10-06 · console · Setelan Kamera: Refresh button, spacing, reason text inset (PR #247)
 Changed:        The Setelan Kamera button reads **Segarkan** / **Refresh** (was Baca ulang / Read again), and
                 the "camera not answering" sentence names the same verb. 16 px under the button, and the

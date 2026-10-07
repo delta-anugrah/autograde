@@ -47,6 +47,10 @@ JENDELA_KELUAR = timedelta(seconds=JENDELA_KUNJUNGAN_DETIK)
 #: visit is finished "tanpa scan 4" (user 2026-10-03). Why it differs: `JENDELA_TANPA_KELUAR_DETIK`.
 JENDELA_TANPA_KELUAR = timedelta(seconds=JENDELA_TANPA_KELUAR_DETIK)
 
+#: Console state key for the Scanner QR switch (support, 2026-10-05): "1" shows the four QR
+#: fields on the Timbangan tab. Missing or anything else = off, the plate picker only.
+KUNCI_SCANNER_QR = "setelan_scanner_qr"
+
 
 def baca_waktu(teks: str) -> datetime:
     """ISO text → aware datetime. No offset is read as UTC, like `work_date_for`."""
@@ -246,3 +250,92 @@ def putuskan_keluar(
     if selesai:
         return KeputusanKeluar(SUDAH_KELUAR, _terbaru(selesai))
     return KeputusanKeluar(TIDAK_ADA_TIKET)
+
+
+# ---- one scan field (user 2026-10-06) ----------------------------------------------------
+#: The step a scan records, decided from the truck's state, never typed or picked.
+LANGKAH_DATANG = "datang"
+LANGKAH_ISI = "timbang_isi"
+LANGKAH_KOSONG = "timbang_kosong"
+LANGKAH_KELUAR = "keluar"
+#: Two tickets of one truck wait for their tare: refused, the operator picks (2026-09-15).
+GANDA = "ganda"
+#: A scan this soon after the truck's previous step asks the operator first: a scanner that
+#: reads one QR twice would otherwise record the next step (a weigh-in with whatever stands
+#: on the bridge, or a weigh-out with the weigh-in's own weight).
+JEDA_SCAN_ULANG = timedelta(minutes=3)
+#: How long after its weigh-out a scan still means "this truck leaves now". A truck leaves the
+#: bridge for the gate within minutes; one scanned hours later skipped its Keluar and is back
+#: for a new visit, and closing the old ticket with this time would make up a gate time (rule
+#: 37: a returning truck finishes the old visit "tanpa scan 4", nothing written).
+JENDELA_SCAN_KELUAR = timedelta(hours=2)
+
+
+@dataclass(frozen=True)
+class Langkah:
+    """What one scan should record. `weighing` is the ticket it is about (timbang_kosong,
+    keluar), `pilihan` the open tickets of a `ganda`, `sebelumnya` when the truck's previous
+    step happened (ISO text, for the double-read question)."""
+
+    nama: str
+    weighing: dict[str, Any] | None = None
+    pilihan: tuple[dict[str, Any], ...] = ()
+    sebelumnya: str | None = None
+
+
+def putuskan_langkah(
+    tiket: list[dict[str, Any]],
+    kedatangan: list[dict[str, Any]],
+    at: str,
+    kembali: Iterable[str | None] = (),
+) -> Langkah:
+    """One truck's tickets and waiting arrivals → the step its scan records now.
+
+    In this order, each reusing the rule its own lane already has:
+
+    1. A ticket waiting for its tare inside the visit window → timbang kosong. Two of them →
+       `ganda`, never a guess (same rule as the old exit scan).
+    2. A weighed-out ticket not left, not finished "tanpa scan 4" (`putuskan_keluar`) and weighed
+       out less than `JENDELA_SCAN_KELUAR` ago → keluar. Older: the truck is back, so datang.
+    3. A waiting arrival a weigh-in now would claim → timbang isi (`pilih_kedatangan`).
+    4. Otherwise a new visit → datang; `sebelumnya` is the newest leave time, so a double
+       read right after Keluar does not open a new visit unasked.
+    """
+    sekarang = baca_waktu(at)
+    terbuka = [
+        (waktu, row) for row in tiket
+        if row.get("tare_kg") is None
+        and _baru(waktu := _waktu_atau_none(row.get("entered_at")), sekarang, JENDELA_KELUAR)
+    ]
+    if len(terbuka) > 1:
+        urut = sorted(terbuka, key=lambda pasangan: pasangan[0] or _PALING_TUA, reverse=True)
+        return Langkah(GANDA, pilihan=tuple(row for _, row in urut))
+    if terbuka:
+        row = terbuka[0][1]
+        return Langkah(LANGKAH_KOSONG, row, sebelumnya=row.get("entered_at"))
+
+    keluar = putuskan_keluar(tiket, at, kembali=kembali)
+    if keluar.hasil == TERCATAT and keluar.weighing is not None:
+        saat = saat_timbang_kosong(keluar.weighing)
+        if saat is not None and saat >= sekarang - JENDELA_SCAN_KELUAR:
+            return Langkah(LANGKAH_KELUAR, keluar.weighing, sebelumnya=saat.isoformat())
+
+    datang = pilih_kedatangan(kedatangan, at)
+    if datang is not None:
+        return Langkah(LANGKAH_ISI, sebelumnya=datang.get("arrived_at"))
+
+    pergi = [(w, row["left_at"]) for row in tiket if (w := _waktu_atau_none(row.get("left_at")))]
+    return Langkah(LANGKAH_DATANG, sebelumnya=max(pergi)[1] if pergi else None)
+
+
+def perlu_konfirmasi(langkah: Langkah, at: str) -> int | None:
+    """Whole minutes since the truck's previous step when this scan must be confirmed first,
+    else None. Never for keluar: a leave time recorded twice too early is harmless, and the
+    exit gate is often right next to the bridge. A previous time in the future (a PC clock
+    moved back) or unreadable is not a double read."""
+    if langkah.nama not in (LANGKAH_DATANG, LANGKAH_ISI, LANGKAH_KOSONG):
+        return None
+    lalu, kini = _waktu_atau_none(langkah.sebelumnya), _waktu_atau_none(at)
+    if lalu is None or kini is None or lalu > kini or kini - lalu >= JEDA_SCAN_ULANG:
+        return None
+    return menit_antara(langkah.sebelumnya, at)
