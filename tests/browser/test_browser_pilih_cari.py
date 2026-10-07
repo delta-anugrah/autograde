@@ -8,10 +8,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import httpx
-from langkah import OPERATOR, SUPPORT, buka_setelan, buka_tab, kamus, masuk, plat
+from langkah import OPERATOR, SUPPORT, buka_menu_line, buka_setelan, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
-_KARTU = '#lines .card[data-line="line-2"] .assign .pilih'
+_KARTU_LINE = '#lines .card[data-line="line-2"]'
+_KARTU = _KARTU_LINE + ' .assign .pilih'
 _OPSI_TAMPAK = '[role="option"]:not([hidden])'
 
 
@@ -32,6 +33,7 @@ def test_typing_part_of_a_plate_leaves_its_row_and_enter_picks_it(halaman, konso
     masuk(halaman, OPERATOR)
     halaman.evaluate("() => muatTrucks()")
     pemilih = halaman.locator(_KARTU)
+    buka_menu_line(halaman.locator(_KARTU_LINE))
     semua = pemilih.locator('[role="option"]').count()
     assert semua >= 8, "the seeded truck list is long enough to need a search"
 
@@ -61,6 +63,7 @@ def test_typing_part_of_a_plate_leaves_its_row_and_enter_picks_it(halaman, konso
 def test_a_search_with_no_match_says_so_and_a_click_in_the_field_keeps_the_list_open(halaman):
     masuk(halaman, OPERATOR)
     pemilih = halaman.locator(_KARTU)
+    buka_menu_line(halaman.locator(_KARTU_LINE))
     pemilih.locator(".pilih-tombol").click()
     pemilih.locator(".pilih-cari").click()
     expect(pemilih.locator(".pilih-panel")).to_be_visible()
@@ -83,6 +86,7 @@ def test_arrow_keys_walk_the_rows_that_are_left_and_a_letter_returns_to_the_fiel
     masuk(halaman, OPERATOR)
     halaman.evaluate("() => muatTrucks()")
     pemilih = halaman.locator(_KARTU)
+    buka_menu_line(halaman.locator(_KARTU_LINE))
     pemilih.locator(".pilih-tombol").click()
     halaman.keyboard.type(nomor.lower()[2:6])
     tampak = pemilih.locator(_OPSI_TAMPAK)
@@ -114,6 +118,7 @@ def test_a_weighed_in_truck_leads_the_card_list_in_its_own_section(halaman, kons
     masuk(halaman, OPERATOR)
     halaman.evaluate("() => muatTrucks()")
     pemilih = halaman.locator(_KARTU)
+    buka_menu_line(halaman.locator(_KARTU_LINE))
 
     pemilih.locator(".pilih-tombol").click()
 

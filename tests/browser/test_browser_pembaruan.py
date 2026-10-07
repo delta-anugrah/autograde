@@ -9,7 +9,7 @@ import json
 import shutil
 
 import pytest
-from langkah import OPERATOR, buka_tab, kamus, masuk, plat
+from langkah import OPERATOR, buka_menu_line, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
 STATUS = {
@@ -80,6 +80,7 @@ def test_update_now_releases_the_truck_then_shows_the_curtain_and_the_result(
     expect(halaman.locator("#trucks")).to_contain_text(nomor)
     buka_tab(halaman, "grading")
     kartu = halaman.locator('#lines .card[data-line="line-1"]')
+    buka_menu_line(kartu)
     kartu.locator(".pilih-tombol").click()
     kartu.locator('[role="option"]', has_text=nomor).click()
     kartu.locator('[data-aksi="tugaskan"]').click()

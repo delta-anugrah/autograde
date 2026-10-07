@@ -13,7 +13,7 @@ import re
 
 import httpx
 import pytest
-from langkah import OPERATOR, SUPPORT, buka_tab, kamus, masuk, plat
+from langkah import OPERATOR, SUPPORT, buka_menu_line, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
 # The screen polls every 2 s; generous for a slow CI runner.
@@ -77,7 +77,8 @@ def test_the_piston_shortcut_hint_survives_the_slot(halaman):
     expect(kartu.locator("button.piston .pintas")).to_have_text(f"P+{urut}")
     lebar = halaman.evaluate(
         """() => { const k = document.querySelector('#lines .card[data-line="line-1"] .aksi-line');
-          return [...k.querySelectorAll("button")].map((b) => Math.round(b.getBoundingClientRect().width)); }"""
+          return [...k.querySelectorAll(":scope > button, :scope > .slot-piston > button")]
+            .map((b) => Math.round(b.getBoundingClientRect().width)); }"""
     )
     assert len(lebar) == 2 and abs(lebar[0] - lebar[1]) <= 1, lebar
 
@@ -141,6 +142,7 @@ def test_timer_ticks_never_stack_a_second_request_on_a_slow_console(halaman):
 def test_a_truck_registered_elsewhere_reaches_the_card_list_without_a_reload(halaman, konsol, browser_name):
     masuk(halaman, OPERATOR)
     kartu = halaman.locator('#lines .card[data-line="line-2"]')
+    buka_menu_line(kartu)
     pemilih = kartu.locator(".assign .pilih")
     expect(pemilih).to_be_visible()
     nomor = plat(browser_name, 5301)
@@ -164,6 +166,7 @@ def test_a_truck_registered_elsewhere_reaches_the_card_list_without_a_reload(hal
 
 def test_an_open_card_list_is_not_rebuilt_until_it_is_closed(halaman, konsol, browser_name):
     masuk(halaman, OPERATOR)
+    buka_menu_line(halaman.locator('#lines .card[data-line="line-2"]'))
     pemilih = halaman.locator('#lines .card[data-line="line-2"] .assign .pilih')
     pemilih.locator(".pilih-tombol").click()
     expect(pemilih.locator(".pilih-panel")).to_be_visible()

@@ -43,11 +43,11 @@ PRs; a PR is not blocked by a gap it did not add.
 
 ## Frontend (`static/console.html`)
 
-- **F1.** One file, vanilla JS, no build, no CDN, zero `https://`: the screen must work with the internet down.
+- **F1.** One file, vanilla JS, no build, no CDN, zero `https://`: the screen must work with the internet down. The two fonts (Plus Jakarta Sans, Barlow Condensed, OFL) are woff2 data URIs written by `scripts/tanam_font.py` from `assets/fonts/` (`tests/unit/test_console_html_font.py`).
 - **F2.** One render function per part of the screen (line card, tab, table), as `kartuLine`; loading and computing stay out of render functions.
 - **F3.** The screen never decides or computes what counts (L4). Hiding a support control is only tidiness; the lock is the backend guard (`require_support`, 403, rule 21).
 - **F4.** Every view that loads data handles five states: loading, error, empty, content, and disconnected (camera, line or AutoERP unreachable).
-- **F5.** Colours and spacing come from the CSS variables in `:root` (light and dark theme); text reads from metres away; buttons in one row share one width.
+- **F5.** Colours and spacing come from the CSS variables in `:root` (light and dark theme): `--merek` for actions, selection and focus, `--ripe --unripe --jk --tp` for the classes, `--font` / `--angka` / `--kode` for text, figures and code. Every text colour keeps 6:1 against `--card` in both themes, the sunlight rule (`tests/unit/test_console_html_token.py`); text reads from metres away; buttons in one row share one width.
 - **F6.** All screen text goes through `KAMUS` (id and en), with no em dash, no spaced hyphen as a pause, and verbs that match the button labels (`tests/unit/test_console_copy.py`). Outside the Log tab no system error text: no HTTP status, URL, raw server or exception text, env or file name, or error code; a failure is worded from a code, and an unknown code gets the generic sentence (`alasan`, rule 21, `tests/unit/test_console_html_teks_ramah.py`).
 - **F7.** Text from the server or from the operator reaches `innerHTML` only through `esc()`; a number goes through `Number()` or `kg()` first.
 - **F8.** A POST that changes data runs inside `denganSibuk(`: spinner on, second click refused (`tests/unit/test_console_tombol_sibuk.py`).

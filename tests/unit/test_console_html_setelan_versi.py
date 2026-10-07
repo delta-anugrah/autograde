@@ -161,9 +161,10 @@ def test_tooltip_satu_komponen_di_tombol_bar_atas():
     assert "[data-tip]::after" not in HTML
     # The busy spinner owns `::before`; the tooltip must never use it.
     assert "[data-tip]::before" not in HTML
-    # The two right-most buttons open their hint leftwards, so the page never widens.
-    for tombol in ("tema", "keluar"):
-        assert re.search(rf'<button id="{tombol}"[^>]*data-tip-sisi="akhir"', HTML), tombol
+    # The right-most header button opens its hint leftwards, so the page never widens; Keluar
+    # (at the foot of the left rail since 2026-10-07) opens it upward.
+    assert re.search(r'<button id="tema"[^>]*data-tip-sisi="akhir"', HTML)
+    assert re.search(r'<button id="keluar"[^>]*data-tip-sisi="atas"', HTML)
 
 
 def test_strip_langkah_timbangan_punya_ikon_per_langkah():

@@ -1241,13 +1241,12 @@ def test_tanggal_langganan_tidak_menampilkan_jam():
     assert "hour" not in fn and "minute" not in fn
 
 
-def test_deretan_tab_turun_baris_bukan_meluap():
-    """14 tab support tidak muat di layar 1024 px. Tanpa flex-wrap tiap tab
-    tidak bisa menyusut di bawah lebar labelnya, dan seluruh halaman bergeser
-    ke samping (terukur 1338 px di layar 1024, 2026-09-26). Dengan wrap, tab
-    baru turun baris kalau memang tidak muat, jadi layar lebar tetap satu baris."""
-    aturan = re.search(r"#tabs\s*\{([^}]*)\}", HTML).group(1)
-    assert "flex-wrap:wrap" in aturan.replace(" ", "")
+def test_rel_tab_bergulir_tegak_bukan_melebarkan_halaman():
+    """14 support tabs once widened the page sideways (1338 px on a 1024 px screen,
+    2026-09-26). Since 2026-10-07 they stand in a fixed left rail that scrolls on its own
+    (spec §5.1), so they can never push the page wider."""
+    aturan = re.search(r"#tabs\s*\{([^}]*)\}", HTML).group(1).replace(" ", "")
+    assert "position:fixed" in aturan and "overflow:hiddenauto" in aturan
 
 
 def test_reject_dan_piston_berdampingan_sama_lebar():

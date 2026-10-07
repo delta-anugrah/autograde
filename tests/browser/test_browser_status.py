@@ -77,22 +77,22 @@ def test_status_sub_tabs_show_one_section_and_remember_it(halaman):
     expect(halaman.locator('#sec-status [data-status-sub="versi"]')).to_be_hidden()
 
 
-def test_sub_tab_bars_are_as_wide_as_the_main_tab_bar(halaman):
-    """User 2026-10-05: every sub-tab bar spans the main tab bar's width exactly."""
+def test_sub_tab_bars_span_their_panel(halaman):
+    """User 2026-10-05: every sub-tab bar spans the full width. Since the tabs moved to a left
+    rail (2026-10-07) that width is the open panel's content box."""
     halaman.set_viewport_size({"width": 1600, "height": 1000})
     masuk(halaman, SUPPORT)
-    utama = None
     for tab, bar in (("status", "#status-sub"), ("setelan", "#setelan-sub"), ("line", "#line-sub"),
                      ("rekap", ".riwayat-tampilan")):
         halaman.click(f'#tabs [data-tab="{tab}"]')
         expect(halaman.locator(bar)).to_be_visible()
-        if utama is None:
-            utama = halaman.locator("#tabs").evaluate(
-                "(el) => { const r = el.getBoundingClientRect(), s = getComputedStyle(el);"
-                " return [r.left + parseFloat(s.paddingLeft), r.right - parseFloat(s.paddingRight)]; }")
+        isi = halaman.locator(f"#sec-{tab}").evaluate(
+            "(el) => { const r = el.getBoundingClientRect(), s = getComputedStyle(el);"
+            " return [r.left + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),"
+            " r.right - parseFloat(s.paddingRight) - parseFloat(s.borderRightWidth)]; }")
         kotak = halaman.locator(bar).bounding_box()
-        assert abs(kotak["x"] - utama[0]) <= 1, (tab, kotak, utama)
-        assert abs(kotak["x"] + kotak["width"] - utama[1]) <= 1, (tab, kotak, utama)
+        assert abs(kotak["x"] - isi[0]) <= 1, (tab, kotak, isi)
+        assert abs(kotak["x"] + kotak["width"] - isi[1]) <= 1, (tab, kotak, isi)
 
 
 @pytest.mark.parametrize("lebar", [1280, 1600, 1920])

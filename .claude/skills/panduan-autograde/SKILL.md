@@ -47,11 +47,11 @@ ditanya.
   **tidak naik ke AutoERP**; arah akun cuma AutoERP → PC.
   Akun dari AutoERP direset di AutoERP. Bawaan: `operator@autograde.local`,
   `support@autograde.local`, sandi beda per PKS (`make hash-sandi`, tulis `$$`).
-- **Tab operator** (Grading, Truk, Timbangan, Rekap). **Rekap** = Rekap + Riwayat sejak
+- **Menu kiri** (sejak 2026-10-07; bisa disembunyikan, diingat browser). **Tab operator** (Grading, Truk, Timbangan, Rekap). **Rekap** = Rekap + Riwayat sejak
   2026-09-28: dibuka di Hari ini, Per truk (segar tiap 15 dtk), ganti tanggal untuk hari
   sebelumnya (maks 31 hari per tampilan), per hari / per truk / per janjang + CSV. Query-nya
   koneksi SQLite baca-saja sendiri (aturan 26).
-- **Last Sync** (strip "Hari ini", semua operator): baris **AutoERP** dan **Cloud Photo**.
+- **Last Sync** (pil di kepala layar sejak 2026-10-07, semua operator): **AutoERP** dan **Cloud Photo**.
   Jam = data terakhir yang benar-benar lewat; titik hijau/kuning = sambungan hidup/putus
   SEKARANG (cek tiap 60 detik), bukan umur jam: foto naik tiap jam. Kuning → tab Log
   ("AutoERP terputus: …" / "Cloud Photo line-N terputus: …"); data menunggu di antrean,

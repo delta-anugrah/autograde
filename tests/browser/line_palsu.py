@@ -73,7 +73,7 @@ SETELAN_KAMERA = {
          "pilihan": ["Off", "Once", "Continuous"]},
     ],
 }
-_PERINTAH = ("/internal/assignment", "/internal/setelan")
+_PERINTAH = ("/internal/assignment", "/internal/setelan", "/internal/manual-reject")
 _SAMBUNG_ULANG = "/internal/camera/reconnect"
 
 
