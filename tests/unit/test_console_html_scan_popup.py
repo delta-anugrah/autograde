@@ -138,7 +138,7 @@ const clearTimeout = (id) => { jam = jam.filter((x) => x.id !== id); };
 const maju = (ms) => { sekarang += ms; for (const x of jam.filter((j) => j.pada <= sekarang)) { jam = jam.filter((j) => j !== x); x.f(); } };
 let timerPopupScan = null;
 const kolom = { value: "", blur() {} };
-let popupBerat = { plat: "B 1995 SME", langkah: "timbang_isi", ketik: "", pada: 0, awal: "", cepat: false, rusak: false, rusakPada: 0, menyimpan: false };
+let popupBerat = { plat: "B 1995 SME", langkah: "timbang_isi", ketik: "", pada: 0, awal: "", rusak: false, rusakPada: 0, menyimpan: false };
 const $ = () => kolom;
 const galat = [], disimpan = [], terkirim = [], ditutup = [];
 const galatPopupScan = (m) => galat.push(m);

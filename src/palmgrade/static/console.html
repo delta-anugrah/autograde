@@ -3668,7 +3668,7 @@ const KAMUS = {
     judulPembaruan:"Pembaruan", pembaruanSiap:"Versi {versi} siap dipasang",
     pembaruanSyarat:"Konsol dan ketiga line berhenti sekitar 2 menit, lalu menyala sendiri. Truk yang masih di line dilepas otomatis.",
     konfirmasiPasangJudul:"Pasang {versi}?", konfirmasiPasangTruk:"{plat} di {line}",
-    konfirmasiPasangLepas:"Truk ini dilepas dulu dan rekap gradingnya dikirim ke AutoERP. Yang belum selesai bongkar ditugaskan lagi sesudah konsol menyala.",
+    konfirmasiPasangLepas:"Truk ini dilepas dulu dan rekap gradingnya dikirim ke AutoERP. Truk yang belum selesai bongkar harus ditugaskan lagi oleh operator sesudah konsol menyala.",
     konfirmasiPasangRestart:"Konsol dan ketiga line restart \u00b12 menit.",
     tiraiPasang:"Memasang {versi}. Konsol dan line restart, tunggu \u00b12 menit. Jangan matikan PC.",
     pembaruanBerhasil:"{versi} terpasang",
@@ -4221,7 +4221,7 @@ const KAMUS = {
     judulPembaruan:"Update", pembaruanSiap:"Version {versi} ready to install",
     pembaruanSyarat:"The console and all three lines stop for about 2 minutes, then start again by themselves. Any truck still on a line is released automatically.",
     konfirmasiPasangJudul:"Install {versi}?", konfirmasiPasangTruk:"{plat} on {line}",
-    konfirmasiPasangLepas:"This truck is released first and its grading recap is sent to AutoERP. If unloading is not finished, assign it again once the console is back.",
+    konfirmasiPasangLepas:"This truck is released first and its grading recap is sent to AutoERP. If unloading is not finished, the operator must assign it again once the console is back.",
     konfirmasiPasangRestart:"The console and all three lines restart for about 2 minutes.",
     tiraiPasang:"Installing {versi}. The console and lines are restarting, wait about 2 minutes. Do not switch off the PC.",
     pembaruanBerhasil:"{versi} installed",
@@ -6749,7 +6749,7 @@ async function mintaBerat(h) {
   });
   popupBerat = {
     plat: h.plate_number, langkah: h.langkah, weighing: h.weighing || null, supplier: h.supplier || "",
-    ketik: "", pada: 0, awal: "", cepat: false, rusak: false, rusakPada: 0, menyimpan: false,
+    ketik: "", pada: 0, awal: "", rusak: false, rusakPada: 0, menyimpan: false,
   };
   const kolom = $("scan-popup-berat");
   kolom.value = "";
@@ -6815,9 +6815,6 @@ function tombolPopupBerat(ev) {
     }
     p.awal = kolom.value;
     p.ketik = "";
-    p.cepat = true;
-  } else if (jeda > JEDA_KETIK_SCANNER_MS) {
-    p.cepat = false;
   }
   p.ketik += ev.key;
   p.pada = sekarang;

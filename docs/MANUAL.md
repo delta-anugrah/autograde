@@ -140,7 +140,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   dan angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. Tidak perlu melepas truk dulu: kalau ada truk di line (termasuk yang lupa
   dilepas kemarin), konsol bertanya lebih dulu dengan menyebut truk dan line-nya, lalu
   **melepasnya sendiri** dan mengirim rekap gradingnya; truk yang belum selesai bongkar
-  ditugaskan lagi sesudah konsol menyala. Kalau ada line yang tidak menjawab, pemasangan
+  harus ditugaskan lagi oleh operator sesudah konsol menyala (**Tugaskan** di kartu line). Kalau ada line yang tidak menjawab, pemasangan
   berhenti dan menyebut line-nya (tanpa memasang apa-apa): pakai **Lepas paksa** di line itu,
   lalu tekan **Pasang sekarang** lagi. Konsol dan ketiga line berhenti sekitar 2 menit lalu
   menyala sendiri; selama itu **layar penuh** menulis bahwa versi baru sedang dipasang dan

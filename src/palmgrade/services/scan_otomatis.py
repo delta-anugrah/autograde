@@ -11,9 +11,10 @@ Nothing here writes on its own:
   of weight (`net_kg` computed, `MINIMUM_WEIGHT_KG` checked, rule 15).
 
 The weight comes from the live scale only when it is fit (`TimbanganLive.berat_layak`);
-otherwise the answer is `perlu_berat` and the screen opens a popup where the operator types the weight. A scan
-this soon after the truck's previous step is answered `perlu_konfirmasi` and writes nothing
-until the operator says yes: a scanner that reads one QR twice must not record two steps.
+otherwise the answer is `perlu_berat` and the screen opens a popup where the operator types
+the weight. A scan this soon after the truck's previous step is answered `perlu_konfirmasi`
+and writes nothing until the operator says yes: a scanner that reads one QR twice must not
+record two steps.
 """
 from __future__ import annotations
 

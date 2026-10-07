@@ -214,8 +214,8 @@ end of this file.
     `""` yang lolos apa adanya akan ditolak validasi UUID palmgrade-api.
     **Satu pengecualian: Lepas paksa** (keputusan user 2026-10-04,
     `POST /api/console/lines/{line_code}/force-release`, `services/lepas_paksa.py`). Line yang
-    mati tidak pernah mendengar Lepas, jadi truknya dulu tertinggal di konsol: Update now ditolak
-    (aturan 38), penugasan otomatis tertahan (aturan 36), dan line yang menyala lagi menarik truk
+    mati tidak pernah mendengar Lepas, jadi truknya dulu tertinggal di konsol: Update now berhenti dengan
+    `pembaruan_lepas_gagal` (aturan 38; lepas paksa dulu), penugasan otomatis tertahan (aturan 36), dan line yang menyala lagi menarik truk
     yang sudah pulang itu lewat `GET /internal/penugasan`. Tombolnya cuma muncul di kartu yang
     memegang truk selama status line tidak terbaca sama sekali (`sebab_kode` `tak_terjangkau`),
     menggantikan Lepas, dengan konfirmasi. Server yang memutuskan, bukan layar: Lepas biasa dicoba
@@ -365,7 +365,7 @@ end of this file.
     setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
-    **Satu kolom scan di tab Timbangan** (user 2026-10-06, menggantikan empat kolom per
+    **Satu kolom scan di tab Timbangan** (sejak 2026-10-07 scan jalan di semua tab, lihat di bawah; user 2026-10-06, menggantikan empat kolom per
     langkah). Markup-nya `hidden`; saklar **Scanner QR** di tab Setelan (support saja, bawaan
     mati, kunci `setelan_scanner_qr` di `sync_state`, 2026-10-05) memunculkannya di semua layar
     lewat polling 2 detik. Daftar plat, **Catat datang**, dan tombol di baris tiket tetap ada.
