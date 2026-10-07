@@ -12,10 +12,12 @@ from palmgrade.domain.skala_tampilan import (
     JARAK_LABEL,
     TANPA_SKALA,
     GayaKotak,
+    garis_berskala,
     gaya_berskala,
     gaya_label,
     kotak_berskala,
     skala_ke,
+    ukuran_muat,
 )
 
 SENSOR = (2448, 2048)
@@ -97,3 +99,43 @@ def test_tulisan_kecil_tidak_pernah_hilang():
 
     assert gaya.font_scale == pytest.approx(0.25)
     assert gaya.font_thickness == 1 and gaya.jarak_label >= 1
+
+
+# ------------------------------------------------------------------ the picture keeps its ratio (2026-10-07)
+
+
+@pytest.mark.parametrize(("frame", "hasil"), [
+    ((1224, 1024), (861, 720)),   # Lampung Hikrobot with binning: 6:5, height decides
+    ((2448, 2048), (861, 720)),   # the same camera without binning
+    ((640, 480), (960, 720)),     # a 4:3 webcam
+    ((1920, 1080), (1280, 720)),  # 16:9 fills the box exactly
+    ((1280, 720), (1280, 720)),   # already stream size: unchanged
+    ((1080, 1920), (405, 720)),   # a portrait photo
+    ((2000, 500), (1280, 320)),   # wider than 16:9: width decides
+])
+def test_ukuran_muat_menjaga_rasio_di_dalam_kotak_stream(frame, hasil):
+    """The stream used to be forced to 1280x720, so a 1224x1024 camera showed ~1.49x too wide.
+    Now the picture keeps its own ratio inside that box: never stretched, never cropped."""
+    assert ukuran_muat(*frame, *STREAM) == hasil
+
+
+@pytest.mark.parametrize("ukuran", [(0, 1024), (1224, 0)])
+def test_ukuran_muat_tanpa_ukuran_kembali_ke_kotak(ukuran):
+    assert ukuran_muat(*ukuran, *STREAM) == STREAM
+
+
+def test_garis_tegak_diskalakan_lebar_garis_mendatar_tinggi():
+    """The capture line is stored in settings space (1280x720) and drawn on the smaller picture:
+    an upright line moves with the width, a flat one with the height (the 2026-09 bug class)."""
+    skala = (861 / 1280, 720 / 720)
+
+    assert garis_berskala(640, False, skala) == 430  # 430.5, round half to even
+    assert garis_berskala(360, True, skala) == 360
+    assert garis_berskala(0, False, skala) == 0, "0 = no line, and stays no line"
+    assert garis_berskala(640, False, TANPA_SKALA) == 640
+
+
+def test_garis_kecil_tidak_hilang_dari_gambar_sesudah_diskala():
+    """A flat line at 1 on a 2000x500 source (scale 0.44) must stay a line on screen: detection
+    still uses it, so drawing nothing would hide a working capture line."""
+    assert garis_berskala(1, True, (1.0, 320 / 720)) == 1

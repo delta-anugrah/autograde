@@ -6,7 +6,7 @@ Used by the `rule-reviewer` subagent and by humans. Report violations only; do n
 - [ ] Layer rule kept: route, controller, service, repository/pipeline/integration; console without controller.
 - [ ] Detection workers never POST events; they write to disk and the outbox, and only `OutboxRetryWorker` and `BatchUploadWorker` send them (rule 1). Console workers (AutoERP, sync checks, line status) call the network by design.
 - [ ] The detection thread never waits for disk: PLC pulse, `processed` marks and the `timestamp` stay on the detection path (rule 1b).
-- [ ] Geometry in stream space; capture line and ROI not confused (Conventions).
+- [ ] Geometry in settings space (the stream picture keeps the camera ratio, mapped per axis); capture line and ROI not confused (Conventions).
 - [ ] Any change to a rule's behaviour updates `docs/rules.md` under the same number and the index line in `CLAUDE.md`.
 - [ ] A new env var has a default in `core/config.py`, is in `docker-compose*.yml`, and skill `compose-host-pabrik` was consulted if the factory must receive it.
 - [ ] Screen text and docs without em dash; frontmatter without `: ` in `description`.

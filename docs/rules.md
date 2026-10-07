@@ -1441,7 +1441,10 @@ memang khas satu mesin.
 - `snake_case` files/functions, `PascalCase` classes, `UPPER_SNAKE` constants (`core/constants.py`) & env vars.
 - All paths via `Settings` (`core/config.py`): never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
-- ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+- ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **settings space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+  Since 2026-10-07 the stream picture keeps the camera's own ratio inside that box (1224×1024 becomes 861×720,
+  `domain/skala_tampilan.ukuran_muat`), so `DisplayWorker` maps the stored ROI and capture line onto the picture per axis
+  (`draw_roi(skala_setelan=...)`); the stored numbers keep their meaning and nothing is recalibrated.
   Since 2026-10-04 the box can also be set from the console (Settings, Camera & Conveyor), one box for all lines: `RuntimeState.roi_override` wins over `.env`, and `null` (never set, or an older console) leaves each line its own `ROI_*`. Never default it to zeros: that would reset a calibrated box to the full frame.
 - **Garis capture (biru, bertanda `CAPTURE`) menentukan KAPAN janjang difoto; ROI menentukan DI MANA.**
   Dua hal berbeda, sengaja dipisah sejak 2026-09-18. Janjang difoto saat kotaknya **menyentuh**
@@ -1453,7 +1456,7 @@ memang khas satu mesin.
   `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal, bawaannya **300** (`config.py`, compose, `.env.example`). **`0` = tidak ada
   garis**, dan itu perilaku sebelum fitur ini ada (semua janjang di dalam ROI difoto),
   tetap sah, tapi harus ditulis sendiri sejak bawaannya bukan lagi 0.
-  ⚠️ Angkanya ruang **stream** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
+  ⚠️ Angkanya ruang **setelan** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
   menyaring (`skala_garis_ke_frame`): melewatkan penskalaan itu bug yang sudah pernah terjadi di
   ROI (`bdcb300`): garis terlihat benar di layar sementara yang menyaring sepertiga frame.
   Kalau capture terasa terlalu cepat, **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
