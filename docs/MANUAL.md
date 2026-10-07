@@ -132,10 +132,11 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   akun support juga Log, Status, Akun, Line, Setelan di bawah garis **Support**). Tombol
   berikon panel di kiri atas **menyembunyikan menu** supaya kamera dapat ruang lebih; ketuk lagi
   untuk memunculkannya. Pilihannya diingat browser itu. Di kepala layar: tulisan **AutoGrade**
-  (layar yang terbuka ditandai biru di menu kiri), tanggal hari kerja dan nama perusahaan, pil **AutoERP** dan **Cloud Photo**, jam,
-  lalu tombol Segarkan,
-  bahasa, tema, dan Keluar. Tema bawaan terang (untuk layar di bawah matahari); **Gelap** satu
-  ketukan.
+  (layar yang terbuka ditandai biru di menu kiri), tanggal hari kerja dan nama perusahaan, pil
+  **AutoERP** dan **Cloud Photo**, jam, lalu tombol bundar: **Tata letak** (ikon kotak-kotak,
+  layar Grading saja), **Segarkan**, bahasa (**EN** / **ID**), dan tema. Tema bawaan terang
+  (untuk layar di bawah matahari); **Gelap** satu ketukan. **Nama operator dan Keluar** ada di
+  bawah menu kiri (bulatan inisial, misalnya **OL**); kalau menu disembunyikan, munculkan dulu.
 - **Layar Grading muat satu layar tanpa scroll** di layar lebar: tiga kartu ringkasan (Janjang
   hari ini, Timbangan sekarang, truk di line dan antrean bongkar), lalu tiga kartu line. Tabel
   **Hasil grading hari ini** ada di bawahnya (scroll). Kartu kamera dan ringkasan cuma ada di
@@ -178,7 +179,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - **Tombol bundar panah melingkar** di kanan atas (**Segarkan data**): cadangan kalau ragu
   layarnya tertinggal. Menarik ulang semua data sekaligus, lalu menjawab "Data sudah
   diperbarui" atau, kalau konsol tidak menjawab, notifikasi merah.
-- Arahkan kursor ke tombol di kanan atas (Segarkan, bahasa, tema, Keluar): sesudah sebentar
+- Arahkan kursor ke tombol di kanan atas (Tata letak, Segarkan, bahasa, tema) atau ke Keluar: sesudah sebentar
   muncul kotak kecil yang menjelaskan gunanya, dalam bahasa layar.
 - Sesudah versi baru terpasang, layar yang sedang terbuka **memuat ulang dirinya sendiri**
   (tidak perlu F5). Ia menunggu dulu kalau ada kotak dialog terbuka, tombol yang masih
@@ -290,7 +291,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   dipilih dari daftar **Pilih Truk** (§3.3).
 - Warna tombol sama di semua tab: **hijau penuh** = aksi utama langkah itu (Catat datang,
   Timbang isi, Simpan); **merah muda** = membatalkan, menghapus, mereset, melepas, atau keluar
-  dari akun (Batal, Lepas, Lewati di antrean bongkar, Matikan di tab Akun, Keluar di bar atas,
+  dari akun (Batal, Lepas, Lewati di antrean bongkar, Matikan di tab Akun, Keluar di bawah menu kiri,
   tombol Danger Zone); **merah pekat** = eksekusi
   terakhir yang tidak bisa diurungkan. Setiap aksi yang berhasil menjawab lewat notifikasi
   hijau di pojok kanan bawah; kuning kalau tersimpan tapi belum sampai ke semua line.

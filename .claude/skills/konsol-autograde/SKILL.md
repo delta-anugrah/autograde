@@ -206,6 +206,10 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Rel kiri = `#tabs` (`position:fixed`, `--rel` 96px), ikon + `span[data-t]` (data-t di span,
   bukan di tombol, supaya ikon tidak terhapus). Garis `.rel-pisah` ber-`data-dev="1"` ikut
   dibuang untuk operator. `#menu-samping` menyembunyikan rel (`body.menu-tutup`, `localStorage.menuSamping`).
+- Kaki rel: `.rel-akun` = `#operator-inisial` (`inisialNama`), `#operator-aktif`, `#keluar`
+  (`data-tip-sisi="atas"`, warna bahaya tetap). Gaya rel cuma untuk `#tabs button[data-tab]`.
+  Kepala satu baris: `.tata` ikon saja (teks `.pilih-teks` sr-only), `#segarkan` / `#bahasa` /
+  `#tema` tombol bulat 44 px (`#tema-teks` sr-only), `#tz` disembunyikan di bawah 1600 px.
 - `terapkanTab` menulis `body[data-tab]`; judul `#judul-tampilan` tetap "AutoGrade" (pemilik 2026-10-07, tanpa logo biru). `#tally` dan `#lines`
   cuma tampil di Grading (`display:none`, tidak dibuang: Spasi+n dan P+n tetap jalan).
 - Kepala: `#hari-kerja`, `#perusahaan` (`lisensi.perusahaan`), pil `#sinkron-erp` /

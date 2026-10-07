@@ -3,9 +3,11 @@ browser, a header with the view title and status pills, ribbons under the header
 cameras hidden (never removed) off Grading."""
 from __future__ import annotations
 
+import json
 import re
 
-from konsol_js import HTML
+import pytest
+from konsol_js import HTML, NODE, jalankan
 
 
 def test_tab_jadi_rel_kiri_dengan_ikon():
@@ -59,3 +61,31 @@ def test_jumlah_kelas_hari_ini_bagi_rata_selebar_kartu():
 def test_tooltip_tombol_menu_tidak_terpotong_di_kiri():
     assert re.search(r'id="menu-samping"[^>]*data-tip-sisi="awal"', HTML)
     assert re.search(r'\[data-tip\]\[data-tip-sisi="awal"\]:is\(:hover, :focus-visible\)::after\s*\{\s*left:0; transform:none;', HTML)
+
+
+# Owner 2026-10-07: the header in one row. The account (initials, name) and Keluar stand at the
+# foot of the rail, as in the mockup; refresh, language and theme are round icon buttons.
+def test_akun_dan_keluar_di_kaki_rel():
+    rel = re.search(r'<nav id="tabs"[^>]*>(.*?)</nav>', HTML, re.S).group(1)
+    kaki = rel[rel.index('class="rel-akun"'):]
+    for id_ in ("operator-inisial", "operator-aktif", "keluar"):
+        assert f'id="{id_}"' in kaki, id_
+    kepala = re.search(r'<header id="topbar">(.*?)</header>', HTML, re.S).group(1)
+    assert 'id="keluar"' not in kepala and 'id="operator-aktif"' not in kepala
+
+
+def test_tombol_kepala_ringkas():
+    assert re.search(r'<span id="tema-teks" class="sr-only">', HTML)
+    assert re.search(r'<label class="lb sr-only" for="kolom-tombol"', HTML)
+    # Only the view buttons get the rail look; Keluar keeps the danger colours (F11).
+    assert 'document.querySelectorAll("#tabs button[data-tab]")' in HTML
+
+
+@pytest.mark.parametrize(("nama", "hasil"), [
+    ("Operator Line", "OL"), ("support autograde", "SA"), ("Budi", "BU"), ("  ", ""), (None, ""),
+    ("Siti Nur Aisyah", "SN"),
+])
+def test_inisial_nama(nama, hasil):
+    if NODE is None:
+        pytest.skip("node tidak ada")
+    assert jalankan(["inisialNama"], f"inisialNama({json.dumps(nama)})") == hasil
