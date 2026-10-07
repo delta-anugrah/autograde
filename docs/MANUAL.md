@@ -142,7 +142,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   **melepasnya sendiri** dan mengirim rekap gradingnya; truk yang belum selesai bongkar
   harus ditugaskan lagi oleh operator sesudah konsol menyala (**Tugaskan** di kartu line). Kalau ada line yang tidak menjawab, pemasangan
   berhenti dan menyebut line-nya (tanpa memasang apa-apa): pakai **Lepas paksa** di line itu,
-  lalu tekan **Pasang sekarang** lagi. Konsol dan ketiga line berhenti sekitar 2 menit lalu
+  lalu tekan **Pasang sekarang** lagi. Kalau truk di line lain sudah sempat dilepas sebelum line itu
+  gagal, notifikasinya menyebut line tersebut: tugaskan lagi truknya kalau belum selesai bongkar. Konsol dan ketiga line berhenti sekitar 2 menit lalu
   menyala sendiri; selama itu **layar penuh** menulis bahwa versi baru sedang dipasang dan
   menutup semua tombol, jangan matikan PC dan jangan tekan apa-apa. Sesudah halaman termuat
   ulang, notifikasi hijau muncul kalau versi barunya benar terpasang; notifikasi merah kalau

@@ -330,7 +330,7 @@ membaca dan menulis tiga berkas kecil di `UPDATE_DIR`; penunggu systemd di host 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/console/update` | `{terpasang, versi_jalan, siap, berjalan, hasil}`; sama dengan kunci `pembaruan` di `/api/console/state` |
-| POST | `/api/console/update/install` | `{target}` = versi yang dilihat operator → **202** `{id, target, dilepas: [{line_code, plate_number}]}` (truk di line dilepas dulu, lalu penanda tertulis). **409** `pembaruan_lepas_gagal` (`params.line` = line yang tidak menjawab, tanpa penanda), `pembaruan_ada_truk` (assign masih menunggu line; `params.line` = kode line, dipisah koma), `pembaruan_tidak_ada` (target bukan versi siap), `pembaruan_berjalan`; **503** `pembaruan_belum_terpasang` (tidak ada penunggu); **500** folder tidak bisa ditulis |
+| POST | `/api/console/update/install` | `{target}` = versi yang dilihat operator → **202** `{id, target, dilepas: [{line_code, plate_number}]}` (truk di line dilepas dulu, lalu penanda tertulis). **409** `pembaruan_lepas_gagal` (`params.line` = line yang tidak menjawab atau sudah tak terbaca menurut poll status, tanpa penanda; `params.dilepas` = line yang truknya sudah terlepas sebelum gagal, hanya kalau ada), `pembaruan_ada_truk` (assign masih menunggu line; `params.line` = kode line, dipisah koma), `pembaruan_tidak_ada` (target bukan versi siap), `pembaruan_berjalan`; **503** `pembaruan_belum_terpasang` (tidak ada penunggu); **500** folder tidak bisa ditulis |
 
 `assign-truck` dan `unloading-queue/{weighing_id}/assign` menjawab **409** `pembaruan_berjalan` selama pemasangan berjalan; penugasan otomatis sesudah timbang isi atau Lepas menahan truk di antrean bongkar sampai pemasangan selesai.
 

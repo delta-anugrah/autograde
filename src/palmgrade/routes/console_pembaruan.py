@@ -19,6 +19,7 @@ from ..domain.pembaruan import (
     PembaruanBelumTerpasang,
     PembaruanLepasGagal,
     line_bertruk,
+    line_tak_terbaca,
 )
 from ..integrations.notifications.line_client import LineUnavailable
 from ..schemas.console_schema import PasangBody
@@ -61,13 +62,25 @@ async def _lepas_semua(service: ConsoleService, target: str, oleh: str) -> list[
     """Release every truck the way the Release button does, minus filling the line again
     (`isi_line_otomatis` would take `pembaruan.kunci`, held here, and the line restarts anyway)."""
     assignments = await run_in_threadpool(service.assignments)
+    bertruk = line_bertruk(assignments)
+    # A line already known to be down would fail half way, after the lines before it were
+    # released: refused before anything is released.
+    mati = line_tak_terbaca(bertruk, service.line_status())
+    if mati:
+        raise PembaruanLepasGagal(", ".join(mati))
     dilepas: list[dict] = []
-    for line in line_bertruk(assignments):
+    for line in bertruk:
         plat = assignments[line].get("plate_number") or ""
+        sudah = [d["line_code"] for d in dilepas]
         try:
             await service.release_truck(line)
         except (LineUnavailable, OperatorError) as exc:
-            raise PembaruanLepasGagal(line) from exc
+            raise PembaruanLepasGagal(line, sudah) from exc
+        except Exception as exc:
+            # A bug, not a dead line: still the same refusal naming what was released (never
+            # a bare 500 that hides it), and the traceback goes to the Log tab.
+            logger.exception("Pembaruan %s: melepas truk dari %s gagal tak terduga", target, line)
+            raise PembaruanLepasGagal(line, sudah) from exc
         logger.warning("Pembaruan %s: truk %s dilepas dari %s sebelum dipasang, oleh %s", target, plat, line, oleh)
         dilepas.append({"line_code": line, "plate_number": plat})
     return dilepas

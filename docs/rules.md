@@ -1391,7 +1391,10 @@ end of this file.
     bawah `pembaruan.kunci`: semua penolakan lain dulu (`periksa`), lalu `release_truck` per line
     (tanpa mengisi line lagi), lalu penanda. Line yang tidak menjawab menghentikan pemasangan:
     409 `pembaruan_lepas_gagal` (`params.line`), tanpa penanda; pakai **Lepas paksa** (aturan 13)
-    di line itu lalu tekan Pasang lagi. Assign yang masih menunggu line tetap ditolak 409
+    di line itu lalu tekan Pasang lagi. Line bertruk yang menurut poll status terakhir sudah
+    tidak terbaca (`reachable` false) ditolak dengan kode yang sama **sebelum** satu truk pun
+    dilepas; kalau line gagal di tengah jalan (termasuk galat tak terduga, tidak pernah 500),
+    `params.dilepas` menyebut line yang truknya sudah terlepas dan layar menyuruh menugaskannya lagi. Assign yang masih menunggu line tetap ditolak 409
     `pembaruan_ada_truk`. Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
     berjalan. Penugasan otomatis (aturan 36) memakai kunci yang sama (2026-10-03): selama
     pemasangan truk yang timbang isi tetap di antrean bongkar, **Tugaskan sekarang** ditolak 409

@@ -41,7 +41,12 @@ class _StubConsole:
         self.selama_panggilan: list = []
         self.dilepas: list[str] = []
         self.gagal_di: str | None = None
+        self.aneh_di: str | None = None
         self.plat: dict[str, str] = {}
+        self.status: dict[str, dict] = {}
+
+    def line_status(self) -> dict:
+        return self.status
 
     def state(self) -> dict:
         return {"lines": [], "timezone": "Asia/Jakarta"}
@@ -52,6 +57,8 @@ class _StubConsole:
     async def release_truck(self, line_code: str, *, kirim: bool = True) -> dict:
         if line_code == self.gagal_di:
             raise LineUnavailable(LINE_TIDAK_MENJAWAB, f"{line_code} tidak menjawab")
+        if line_code == self.aneh_di:
+            raise RuntimeError("bug yang tidak diduga")
         self.dilepas.append(line_code)
         self.store.set_assignment(line_code, "a-1", "")
         return {"line_code": line_code}
@@ -163,8 +170,66 @@ def test_line_tak_menjawab_menghentikan_pemasangan(rakit):
     )
     assert res.status_code == 409
     assert res.json()["detail"]["code"] == "pembaruan_lepas_gagal"
+    # L1 was released before L2 failed and stays released: the sentence names it.
+    assert res.json()["detail"]["params"] == {"line": "L2", "dilepas": "L1"}
+    assert konsol.dilepas == ["L1"]
+    assert not (folder / PERMINTAAN).exists()
+
+
+def test_line_pertama_gagal_tanpa_daftar_dilepas(rakit):
+    aplikasi, store, folder, konsol = rakit
+    store.set_assignment("L2", "a-2", "T-2")
+    konsol.gagal_di = "L2"
+    res = _masuk(aplikasi, store, "op@pks.test", "operator").post(
+        "/api/console/update/install", json={"target": "v1.22.1"}
+    )
+    assert res.status_code == 409
     assert res.json()["detail"]["params"] == {"line": "L2"}
-    assert konsol.dilepas == ["L1"]  # released before the failing line, stays released
+
+
+def test_line_yang_sudah_tak_terbaca_tidak_melepas_apa_pun(rakit):
+    """A line the status poll already cannot read: refused before any truck is released."""
+    aplikasi, store, folder, konsol = rakit
+    store.set_assignment("L1", "a-1", "T-1")
+    store.set_assignment("L2", "a-2", "T-2")
+    store.set_assignment("L3", "a-3", "T-3")
+    konsol.status = {
+        "L1": {"reachable": True},
+        "L2": {"reachable": False, "sebab_kode": "tak_terjangkau"},
+        "L3": {"reachable": False, "sebab_kode": "kunci_ditolak"},
+    }
+    res = _masuk(aplikasi, store, "op@pks.test", "operator").post(
+        "/api/console/update/install", json={"target": "v1.22.1"}
+    )
+    assert res.status_code == 409
+    assert res.json()["detail"]["code"] == "pembaruan_lepas_gagal"
+    assert res.json()["detail"]["params"] == {"line": "L2, L3"}
+    assert konsol.dilepas == []
+    assert not (folder / PERMINTAAN).exists()
+
+
+def test_line_tanpa_truk_yang_tak_terbaca_tidak_menghalangi(rakit):
+    aplikasi, store, folder, konsol = rakit
+    store.set_assignment("L1", "a-1", "T-1")
+    konsol.status = {"L3": {"reachable": False, "sebab_kode": "tak_terjangkau"}}
+    res = _masuk(aplikasi, store, "op@pks.test", "operator").post(
+        "/api/console/update/install", json={"target": "v1.22.1"}
+    )
+    assert res.status_code == 202
+    assert konsol.dilepas == ["L1"]
+
+
+def test_galat_tak_terduga_sesudah_sebagian_dilepas_tetap_409(rakit):
+    aplikasi, store, folder, konsol = rakit
+    store.set_assignment("L1", "a-1", "T-1")
+    store.set_assignment("L2", "a-2", "T-2")
+    konsol.aneh_di = "L2"
+    res = _masuk(aplikasi, store, "op@pks.test", "operator").post(
+        "/api/console/update/install", json={"target": "v1.22.1"}
+    )
+    assert res.status_code == 409
+    assert res.json()["detail"]["code"] == "pembaruan_lepas_gagal"
+    assert res.json()["detail"]["params"] == {"line": "L2", "dilepas": "L1"}
     assert not (folder / PERMINTAAN).exists()
 
 

@@ -92,7 +92,7 @@ def test_tombol_pasang_lewat_densibuk_dan_tanpa_https():
     badan = HTML[awal : HTML.index("\n}", awal)]
     assert "denganSibuk(" in badan
     assert "/api/console/update/install" in badan
-    assert "namaLineDari(" in badan
+    assert "teksGagalPasang(" in badan
     assert "https://" not in HTML
 
 
@@ -267,3 +267,29 @@ def test_penanda_pada_bukan_angka_dianggap_basi():
     assert _tirai("(penandaMemori = {target:'v1', pada:'abc'}, bacaPenandaPasang())") is None
     assert _tirai("(penandaMemori = {target:'v1', pada: Date.now() - 26*60*1000}, bacaPenandaPasang())") is None
     assert _tirai("(penandaMemori = {target:'v1', pada: Date.now()}, bacaPenandaPasang().target)") == "v1"
+
+
+GAGAL = ["kodeDikenal", "saranUmum", "alasan", "gagalKarena", "namaLineDari", "teksGagalPasang"]
+
+
+def _gagal(e: str, bahasa: str = "id"):
+    return jalankan(GAGAL, f"teksGagalPasang({e}, {{'line-1':'Line A','line-2':'Line B','line-3':'Line C'}})",
+                    bahasa=bahasa)
+
+
+@butuh_node
+def test_lepas_gagal_menyebut_line_yang_sudah_dilepas():
+    teks = _gagal("{kode:'pembaruan_lepas_gagal', params:{line:'line-2', dilepas:'line-1, line-3'}}")
+    assert "Line B tidak menjawab" in teks
+    assert teks.endswith("Truk di Line A, Line C sudah dilepas: tugaskan lagi kalau belum selesai bongkar.")
+    en = _gagal("{kode:'pembaruan_lepas_gagal', params:{line:'line-2', dilepas:'line-1'}}", "en")
+    assert "Line B is not answering" in en and "Line A" in en.split("again.")[-1]
+
+
+@butuh_node
+def test_lepas_gagal_tanpa_yang_dilepas_tidak_menambah_kalimat():
+    teks = _gagal("{kode:'pembaruan_lepas_gagal', params:{line:'line-2, line-3'}}")
+    assert "Line B, Line C tidak menjawab" in teks
+    assert "sudah dilepas" not in teks
+    ada_truk = _gagal("{kode:'pembaruan_ada_truk', params:{line:'line-1'}}")
+    assert "Lepas dulu truk di Line A" in ada_truk

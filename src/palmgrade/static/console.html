@@ -3710,6 +3710,7 @@ const KAMUS = {
     err_hapus_berjalan:"Data sedang dihapus dari menu support (Danger Zone). Tunggu sebentar, lalu tugaskan truknya lagi.",
     err_pembaruan_ada_truk:"Lepas dulu truk di {line}, baru pasang versi baru.",
     err_pembaruan_lepas_gagal:"{line} tidak menjawab, truknya belum bisa dilepas. Pakai Lepas paksa di {line}, lalu tekan Pasang lagi.",
+    pembaruanSudahDilepas:"Truk di {dilepas} sudah dilepas: tugaskan lagi kalau belum selesai bongkar.",
     err_pembaruan_tidak_ada:"Tidak ada versi baru yang siap dipasang.",
     err_pembaruan_berjalan:"Pembaruan sedang dipasang. Tunggu sampai selesai.",
     err_pembaruan_belum_terpasang:"Pembaruan dari layar belum dipasang di PC ini. Panggil teknisi.",
@@ -4263,6 +4264,7 @@ const KAMUS = {
     err_hapus_berjalan:"Data is being deleted from the support menu (Danger Zone). Wait a moment, then assign the truck again.",
     err_pembaruan_ada_truk:"Release the truck on {line} first, then install the new version.",
     err_pembaruan_lepas_gagal:"{line} is not answering, so its truck could not be released. Use Force release on {line}, then press Update now again.",
+    pembaruanSudahDilepas:"The truck on {dilepas} was already released: assign it again if it has not finished unloading.",
     err_pembaruan_tidak_ada:"No new version is ready to install.",
     err_pembaruan_berjalan:"An update is being installed. Wait until it finishes.",
     err_pembaruan_belum_terpasang:"Updating from the screen is not set up on this PC. Call a technician.",
@@ -9790,10 +9792,19 @@ async function pasangSekarang(tombol) {
       gambarPembaruan({ ...pembaruanTerakhir, berjalan: true, siap: null, hasil: null });
       tampilkanTirai(target);
     } catch (e) {
-      if (e.kode === "pembaruan_ada_truk" || e.kode === "pembaruan_lepas_gagal") e.params = { ...e.params, line: namaLineDari(e.params.line, namaLineKartu) };
-      toast("gagal", gagalKarena("gagalPasangPembaruan", e));
+      toast("gagal", teksGagalPasang(e, namaLineKartu));
     }
   });
+}
+
+// A refused install in words, lines named as on their cards. When a line failed half way, the
+// lines released before it are named too (rule 38): their trucks stay released.
+function teksGagalPasang(e, peta) {
+  const params = (e && e.params) || {};
+  if (e.kode === "pembaruan_ada_truk" || e.kode === "pembaruan_lepas_gagal") e.params = { ...params, line: namaLineDari(params.line, peta) };
+  const teks = gagalKarena("gagalPasangPembaruan", e);
+  if (e.kode !== "pembaruan_lepas_gagal" || !params.dilepas) return teks;
+  return `${teks} ${t("pembaruanSudahDilepas").replace("{dilepas}", namaLineDari(params.dilepas, peta))}`;
 }
 
 document.addEventListener("click", (ev) => {
