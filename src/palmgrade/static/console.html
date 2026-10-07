@@ -56,14 +56,21 @@
           --angka:"Barlow Condensed", "Arial Narrow", "DejaVu Sans Condensed", sans-serif;
           /* Real monospace, only for text read character by character: logs, codes, addresses. */
           --kode:"DejaVu Sans Mono", "Ubuntu Mono", "Liberation Mono", Consolas, monospace;
-          --bg:#e7ebe8; --card:#ffffff; --fg:#0c1310; --muted:#414a57;
-          --line:#c1cac4; --line-kuat:#7b8792; --zebra:#f3f6f4;
-          --acc:#04613a; --acc-bg:#dff0e6; --on-acc:#ffffff;
-          --rej:#a72119; --rej-bg:#fdeeec;
-          --warn:#7a4b00; --warn-bg:#fbeed2;
+          /* New look 2026-10-07 (spec §4): the logo blue for actions, selection and focus;
+             one colour per grading class. Each text colour keeps 6:1 on --card, so the blue
+             is the darkest step of the logo's #0289F7 that holds it on white. */
+          --bg:#EEF2F7; --card:#FFFFFF; --panel2:#F3F6FA; --inset:#0A111C;
+          --fg:#0A1220; --muted:#46566B; --muted2:#5B6A80;
+          --line:#DCE3EC; --line-kuat:#8C99AB; --zebra:#F6F8FB;
+          --merek:#025BB0; --merek-ink:#FFFFFF; --merek-tint:rgba(2,91,176,.10);
+          --acc:#04613a; --acc-bg:rgba(4,97,58,.10); --on-acc:#ffffff;
+          --rej:#a72119; --rej-bg:rgba(167,33,25,.08);
+          --warn:#7a4b00; --warn-bg:rgba(122,75,0,.10);
           /* Blue for the "Timbang kosong" stage only (badge + step 3 header). */
-          --info:#0b4a85; --info-bg:#e2edf9;
-          --input:#ffffff; --hover:#414a57;
+          --info:#025BB0; --info-bg:rgba(2,91,176,.10);
+          --ripe:#04613a; --unripe:#a72119; --jk:#5B3CC4; --tp:#7a4b00;
+          --plat-bg:#0B0F14; --plat-fg:#F4F6F8;
+          --input:#ffffff; --hover:#46566B;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
           --bayang:rgba(12,19,16,.22);
           /* One radius scale. Rounding is the only thing softened here: sizes,
@@ -76,30 +83,37 @@
           --tinggi-1:0 1px 2px rgba(12,19,16,.05), 0 3px 10px rgba(12,19,16,.07);
           --tinggi-2:0 2px 4px rgba(12,19,16,.06), 0 12px 28px rgba(12,19,16,.12);
           --pad:20px;
+          --r-kartu:18px;
+          --bayang-kartu:0 1px 2px rgba(10,18,32,.06), 0 10px 28px rgba(10,18,32,.07);
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   :root[data-theme="dark"] { color-scheme:dark;
-          --bg:#0a0d11; --card:#151a21; --fg:#f2f5fa; --muted:#a9b3c2;
-          --line:#2c333d; --line-kuat:#4a5563; --zebra:#1a2028;
-          --acc:#4ee39f; --acc-bg:#0f2c20; --on-acc:#07211a;
-          --rej:#ff8078; --rej-bg:#331a18;
-          --warn:#ffcf70; --warn-bg:#33260c;
-          --info:#9ccbff; --info-bg:#132639;
-          --input:#222933; --hover:#5b667a;
+          --bg:#0A1019; --card:#0F1724; --panel2:#152033; --inset:#05090F;
+          --fg:#E9EFF7; --muted:#A6B3C6; --muted2:#8392A8;
+          --line:#1C2838; --line-kuat:#3A4A62; --zebra:#121C2B;
+          --merek:#3AA0FF; --merek-ink:#04121F; --merek-tint:rgba(58,160,255,.14);
+          --acc:#3DDC97; --acc-bg:rgba(61,220,151,.12); --on-acc:#04121F;
+          --rej:#FF6B7D; --rej-bg:rgba(255,107,125,.12);
+          --warn:#FFC54D; --warn-bg:rgba(255,197,77,.12);
+          --info:#3AA0FF; --info-bg:rgba(58,160,255,.14);
+          --ripe:#3DDC97; --unripe:#FF6B7D; --jk:#B49CFF; --tp:#FFC54D;
+          --plat-bg:#0B0F14; --plat-fg:#F4F6F8;
+          --input:#152033; --hover:#A6B3C6;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
           --bayang:rgba(0,0,0,.55);
           --tinggi-1:0 1px 2px rgba(0,0,0,.5), 0 3px 10px rgba(0,0,0,.45);
           --tinggi-2:0 2px 6px rgba(0,0,0,.55), 0 12px 28px rgba(0,0,0,.55);
+          --bayang-kartu:0 1px 0 rgba(255,255,255,.03) inset, 0 12px 32px rgba(0,0,0,.28);
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   /* One knob for every size; the rest is rem. The operator can still zoom with
      Ctrl + '+' - Chrome remembers that per origin, so this page needs no zoom
      button of its own. */
-  html { font-size:18px; }
+  html { font-size:16px; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.5 var(--font); font-variant-numeric:tabular-nums; }
 
   /* Micro-label: every caption, table head and unit in the page. Uppercase and
      widely tracked so it reads as a legend, never as a value. */
-  .lb { font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  .lb { font-size:.8rem; font-weight:600; letter-spacing:0; text-transform:none;
         color:var(--muted); }
   .muted { color:var(--muted); }
 
@@ -108,10 +122,8 @@
   #topbar { position:relative; z-index:30; display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px;
             padding:7px var(--pad); background:var(--card);
             border-bottom:3px solid var(--acc); }
-  h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
-       text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  /* Titik merek bulat (user 2026-10-04), di tengah tinggi huruf lewat `align-items:center` h1. */
-  h1::before { content:""; flex:none; width:.7rem; height:.7rem; background:var(--acc); border-radius:50%; }
+  h1 { font-size:1.5rem; margin:0; font-weight:800; letter-spacing:-.015em;
+       display:flex; align-items:center; gap:10px; }
   /* Tombol berikon di kepala layar: ikon dan kata di tengah vertikal, satu jarak. */
   .tombol-ikon { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
   /* Tooltip (user 2026-10-05): ONE component for every hover hint. Put `data-t-tip="<KAMUS
@@ -582,8 +594,7 @@
   #slip-cetak .slip-ttd { display:flex; justify-content:space-between; gap:24pt; margin-top:28pt; }
   #slip-cetak .slip-ttd span { flex:1; padding-top:4pt; border-top:1px solid #000; text-align:center; }
   #slip-cetak .slip-kaki { margin-top:10pt; font-size:9pt; }
-  /* The brand dot and the screen's grey table heads belong to the screen, not to paper. */
-  #slip-cetak h1::before { content:none; display:none; }
+  /* The screen's grey table heads belong to the screen, not to paper. */
   #slip-cetak th { background:#fff; color:#000; }
   @media print { body[data-cetak="slip"] { background:#fff; } }
   #gerbang-masuk { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }

@@ -43,12 +43,11 @@ def test_ikon_tombol_kepala_di_tengah_vertikal():
     assert "display:inline-flex" in aturan and "align-items:center" in aturan
 
 
-def test_logo_bulat_di_tengah():
-    titik = _aturan("h1::before")
-    lebar = re.search(r"width:([^;]+);", titik).group(1)
-    tinggi = re.search(r"height:([^;]+);", titik).group(1)
-    assert lebar == tinggi and "border-radius:50%" in titik
-    assert "align-items:center" in _aturan("h1")
+def test_judul_dan_label_tanpa_huruf_kapital_renggang():
+    # New look (spec 2026-10-07 §4): no letter-spaced capitals; the logo lives in the rail.
+    assert "text-transform:uppercase" not in _aturan("h1") and "letter-spacing:.14em" not in _aturan("h1")
+    assert "text-transform:none" in _aturan(".lb")
+    assert "h1::before" not in HTML
 
 
 @butuh_node
