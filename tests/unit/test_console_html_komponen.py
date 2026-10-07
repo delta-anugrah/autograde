@@ -28,7 +28,8 @@ def test_selection_is_the_brand_blue():
 
 
 def test_boxes_inside_a_card_have_no_heavy_outline():
-    for pemilih in (r"\n  \.tools \{", r"\n  \.tabel \{", r"\n  \.riwayat-ringkasan \{", r"\n  \.riwayat-saring \{"):
+    for pemilih in (r"\n  \.tools \{", r"\n  \.tabel \{", r"\n  \.riwayat-ringkasan \{", r"\n  \.riwayat-saring \{",
+                    r"\n  \.setelan-form \{", r"\n  \.daftar-definisi \{"):
         aturan = re.search(pemilih + r"([^}]*)\}", HTML).group(1)
         assert "var(--line-kuat)" not in aturan and "border-left:5px" not in aturan, pemilih
 

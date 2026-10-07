@@ -813,8 +813,10 @@
   .truk-kosong { font-size:1.05rem; }
   .truk-grup { display:flex; flex-direction:column; gap:1px; min-width:0; }
   .truk-grup + .truk-grup { padding-top:8px; border-top:1px solid var(--line); }
-  .truk-grup-atas { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
-  .truk-grup .plat { font-size:1.5rem; }
+  /* Wraps: at 1366 px with the queue beside it this half is about 200 px, and Lepas went
+     under the queue's edge (screenshot pass, PR 5). */
+  .truk-grup-atas { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 8px; margin-bottom:4px; }
+  .truk-grup .plat { font-size:1.3rem; }
   .truk-grup button { min-height:44px; padding:0 14px; }
   .truk-sup { overflow:hidden; font-weight:700; white-space:nowrap; text-overflow:ellipsis; }
   .truk-ket { overflow:hidden; color:var(--muted2); font-size:.8rem; white-space:nowrap; text-overflow:ellipsis; }
@@ -956,7 +958,7 @@
      lisensi terbaca sekali pandang, bukan sebagai daftar sempit di pojok. Tanpa
      margin samping (user 2026-10-01): tepinya sejajar kartu Diagnostik dan tabel
      antrean di tab Status, yang juga berdiri di padding panel. */
-  .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
+  .daftar-definisi { background:var(--panel2); border:1px solid var(--line);
                       border-radius:var(--r-md); padding:14px var(--pad); margin:0;
                       display:grid; gap:8px 16px;
                       grid-template-columns:repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
@@ -1340,8 +1342,8 @@
   .antrean-plat { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
                   font:700 1.1rem var(--angka); letter-spacing:.05em; }
   .antrean-truk .muted { font-size:.8rem; }
-  .antrean-aksi { flex:1 1 100%; display:flex; gap:6px; }
-  .antrean-aksi button { min-height:44px; padding:0 12px; font-size:.85rem; }
+  .antrean-aksi { flex:1 1 100%; display:flex; flex-wrap:wrap; gap:6px; }
+  .antrean-aksi button { flex:1 1 auto; min-height:44px; padding:0 12px; font-size:.85rem; white-space:nowrap; }
   #pita-disk p { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
                  margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
                  background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
@@ -1651,7 +1653,7 @@
      the sub-tab bar above it. Nothing inside draws another box: the group is a plain layout
      wrapper and a named block is a heading on a rule (`.setelan-sub` below). */
   .setelan-form { display:grid; gap:18px; padding:20px;
-                  border:1px solid var(--line-kuat); border-radius:var(--r-md);
+                  border:1px solid var(--line); border-radius:var(--r-md);
                   background:var(--card); }
   /* Isi kelompok menyebar jadi beberapa kolom di layar lebar, satu kolom di
      layar sempit. `minmax(0,…)` wajib: tanpanya kolom grid menolak menyusut di
