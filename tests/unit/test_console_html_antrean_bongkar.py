@@ -175,9 +175,12 @@ def test_teks_menit_seperti_kolom_lama():
 
 
 @butuh_node
-def test_strip_kosong_tanpa_antrean():
-    assert _jalankan("htmlAntreanBongkar([], true)", "teksMenit", "htmlAntreanBongkar") == ""
+def test_antrean_cuma_saat_otomatis_dan_kosong_pun_bilang():
+    # 2026-10-07: the right half of the truck card. Off = nothing; on and empty = the head
+    # with 0 and one sentence, so the card does not jump when the first truck weighs in.
     assert _jalankan("htmlAntreanBongkar(undefined, false)", "teksMenit", "htmlAntreanBongkar") == ""
+    kosong = _jalankan("htmlAntreanBongkar([], true)", "teksMenit", "htmlAntreanBongkar")
+    assert 'class="antrean-jumlah">0<' in kosong and "antrean-kosong" in kosong and "antrean-truk" not in kosong
 
 
 @butuh_node

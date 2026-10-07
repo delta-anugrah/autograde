@@ -19,18 +19,18 @@ def _tally() -> str:
     return HTML.split('<section id="tally">', 1)[1].split("</section>", 1)[0]
 
 
-def test_kotak_timbangan_di_kanan_rasio_sebelum_tata_letak():
+def test_kotak_timbangan_di_kanan_rasio_tata_letak_di_kepala():
     tally = _tally()
-    rasio = tally.index('class="rasio"')
-    timbang = tally.index('class="timbang"')
-    tata = tally.index('class="tata"')
-    assert rasio < timbang < tata
+    assert tally.index('id="tot-rate"') < tally.index('id="timbang"')
+    kepala = HTML.split('<header id="topbar">', 1)[1].split("</header>", 1)[0]
+    assert 'class="tata"' in kepala
 
 
-def test_kotak_timbangan_punya_angka_neto_dan_rincian():
-    tally = _tally()
-    assert 'id="tot-neto"' in tally
-    assert 'id="tot-tiket"' in tally
+def test_neto_hari_ini_dan_rincian_di_tampilan_timbangan():
+    # 2026-10-07 (spec §2.3): neto of the day left the Grading view; the live weight stayed.
+    timbangan = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
+    assert 'id="tot-neto"' in timbangan
+    assert 'id="tot-tiket"' in timbangan
 
 
 def test_refresh_mengisi_kotak_timbangan_dari_state():
@@ -49,32 +49,32 @@ def test_neto_diformat_seperti_tab_timbangan():
     assert "KOSONG" in blok
 
 
-@pytest.mark.parametrize("kunci", ["labelNetoTimbangan", "timbangTiket", "timbangBelumAda"])
+@pytest.mark.parametrize("kunci", ["labelTimbangSekarang", "timbangTiket", "timbangBelumAda"])
 def test_kamus_dua_bahasa(kunci):
     assert len(re.findall(rf"\b{kunci}:", HTML)) >= 2, f"{kunci} tidak ada di kedua bahasa"
 
 
 def test_css_kotak_timbangan_ada():
-    assert "#tally .timbang {" in HTML
+    assert "  #timbang {" in HTML
 
 
-def test_label_strip_hari_ini_data_timbangan():
-    """Permintaan operator 2026-09-29: "Neto Timbangan" jadi "Data Timbangan".
-    Kepala tabel "Neto (kg)" tidak ikut berubah."""
-    assert 'labelNetoTimbangan:"Data timbangan"' in HTML
-    assert 'labelNetoTimbangan:"Weighing data"' in HTML
-    assert '<span class="lb" data-t="labelNetoTimbangan">Data timbangan</span>' in HTML
+def test_label_kotak_timbangan_sekarang():
+    """2026-10-07: the card shows the scale now; "Data timbangan" (2026-09-29) went with the
+    neto line to the Timbangan view."""
+    assert '<span class="lb" data-t="labelTimbangSekarang">Timbangan sekarang</span>' in _tally()
+    assert "labelNetoTimbangan" not in HTML
     assert "Neto timbangan" not in HTML and "Weighed net" not in HTML
 
 
 # ── Timbangan live (2026-10-06) ─────────────────────────────────────────────
 
 
-def test_angka_besar_adalah_berat_live_dan_neto_hari_ini_di_baris_kecil():
+def test_angka_besar_adalah_berat_live_dengan_jejak_dan_saran():
     tally = _tally()
-    kotak = tally[tally.index('class="timbang"') :]
-    assert kotak.index('id="timbang-kg"') < kotak.index('class="timbang-sub"') < kotak.index('id="tot-neto"')
-    assert 'id="timbang-keadaan"' in kotak
+    kotak = tally[tally.index('id="timbang"') :]
+    assert kotak.index('id="timbang-keadaan"') < kotak.index('id="timbang-kg"') < kotak.index('id="timbang-jejak"')
+    assert kotak.index('id="timbang-jejak"') < kotak.index('id="timbang-saran"')
+    assert 'id="tot-neto"' not in kotak
 
 
 def test_live_dipolling_tiap_detik_di_semua_tab():
@@ -87,8 +87,8 @@ def test_render_live_tanpa_hitungan_di_layar():
     awal = HTML.find("function gambarTimbanganLive")
     blok = HTML[awal : HTML.find("\n}\n", awal)]
     # Angka dan keadaan dari server; layar cuma memformat (L4, F3).
-    assert "kg(r.kg)" in blok
-    assert "KOSONG" in blok
+    assert 'tulisBerat($("timbang-kg")' in blok
+    assert "SARAN_TIMBANG[keadaan]" in blok
     # Keadaan asing tidak pernah masuk ke atribut: dibaca putus.
     assert ': "putus"' in blok
 

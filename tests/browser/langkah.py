@@ -59,6 +59,15 @@ def buka_tab(page: Page, nama: str) -> None:
     expect(page.locator(f"#sec-{nama}")).to_be_visible()
 
 
+def buka_menu_line(kartu) -> None:
+    """Opens a line card's "more" menu (Tugaskan, Lepas, card order) when the card has one and
+    it is closed (spec 2026-10-07 §5.2)."""
+    lagi = kartu.locator("details.lagi")
+    if lagi.count() and lagi.get_attribute("open") is None:
+        lagi.locator("summary").click()
+        expect(lagi.locator(".lagi-isi")).to_be_visible()
+
+
 def buka_setelan(page: Page, sub: str) -> None:
     """The Settings tab, then one of its sub-tabs (2026-10-05). The open sub-tab is remembered
     in the browser, so a test names the one it needs rather than relying on the last test."""

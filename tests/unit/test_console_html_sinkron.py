@@ -46,13 +46,11 @@ def _node(ekspresi: str):
     return json.loads(hasil.stdout)
 
 
-def test_satu_bagian_last_sync_berisi_dua_baris_di_strip_hari_ini():
-    tally = HTML.split('<section id="tally">', 1)[1].split("</section>", 1)[0]
-    bagian = re.search(r'<div class="sinkron"[^>]*>(.*?)\n  </div>', tally, re.S)
-    assert bagian, "bagian Last Sync tidak ada di strip Hari ini"
-    isi = bagian.group(1)
-    assert 'data-t="lastSync"' in isi
-    assert re.findall(r'id="(sinkron-[a-z]+)"', isi) == ["sinkron-erp", "sinkron-cloud"]
+def test_last_sync_jadi_dua_pil_di_kepala():
+    # Since 2026-10-07 (spec §5.1) the two rows are status pills in the header.
+    kepala = HTML.split('<header id="topbar">', 1)[1].split("</header>", 1)[0]
+    assert re.findall(r'id="(sinkron-[a-z]+)"', kepala) == ["sinkron-erp", "sinkron-cloud"]
+    assert len(re.findall(r'class="sinkron-baris pil memeriksa"', kepala)) == 2
 
 
 def test_diisi_dari_polling_state_yang_sudah_ada():
@@ -122,11 +120,6 @@ def test_tersambung_tanpa_jam_juga_strip():
     r = _node(f'barisSinkron({{keadaan: "tersambung", terakhir: null, sejak: null, antre: 0}}, {_SEKARANG})')
 
     assert r["jam"] == "-"
-
-
-def test_last_sync_dipisah_garis_dari_neto_timbangan():
-    aturan = re.search(r"#tally \.sinkron\s*\{([^}]*)\}", HTML)
-    assert aturan and "border-left" in aturan.group(1)
 
 
 @butuh_node

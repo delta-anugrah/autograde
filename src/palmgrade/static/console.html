@@ -125,9 +125,19 @@
 
   /* ---- status bar ---- */
   /* `position` + `z-index`: a tooltip under a top-bar button lies over the tally strip. */
-  #topbar { position:relative; z-index:30; display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px;
-            padding:7px var(--pad); background:var(--card);
-            border-bottom:3px solid var(--acc); }
+  #topbar { position:relative; z-index:30; display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px;
+            padding:14px var(--pad) 12px; }
+  #menu-samping { flex:none; width:44px; min-width:44px; padding:0; color:var(--muted); background:var(--card); border-color:var(--line); }
+  .logo-kecil { display:none; flex:none; }
+  body.menu-tutup .logo-kecil { display:block; }
+  .sub-judul { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; font-size:.85rem; color:var(--muted); }
+  .sub-judul > span:empty { display:none; }
+  .pil-baris { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-left:auto; }
+  #pil-plc[data-keadaan="tersambung"] .titik { background:var(--acc); }
+  #pil-plc[data-keadaan="terputus"] .titik { background:var(--warn); }
+  #pil-plc .jam { font-family:var(--angka); color:var(--muted); font-weight:600; }
+  .jam.pil { gap:0 6px; }
+  .jam.pil #jam { font:600 1.45rem/1.2 var(--angka); letter-spacing:0; }
   h1 { font-size:1.5rem; margin:0; font-weight:800; letter-spacing:-.015em;
        display:flex; align-items:center; gap:10px; }
   /* Tombol berikon di kepala layar: ikon dan kata di tengah vertikal, satu jarak. */
@@ -153,7 +163,7 @@
   .tombol-ikon svg { flex:none; }
   .merek { display:flex; flex-direction:column; gap:1px; }
   /* Menjorok sejajar huruf pertama AUTOGRADE (pil hijau .7rem + jarak 10px). */
-  #info-sistem { align-self:flex-start; min-height:0; padding:0 0 0 calc(.7rem + 10px);
+  #info-sistem { align-self:flex-start; min-height:0; padding:0;
                  background:none; border:0; border-radius:0; text-align:left;
                  font-family:var(--kode); font-size:.74rem; font-weight:600; color:var(--muted); }
   #info-sistem:hover { color:var(--fg); text-decoration:underline; }
@@ -186,7 +196,7 @@
     filter:grayscale(1); opacity:.45; }
   /* `flex-wrap`: on a 390 px phone the account name and three buttons are wider than the bar,
      and without it the whole page scrolled sideways by 19 px (found 2026-10-03). */
-  #topbar .aksi { margin-left:auto; display:flex; flex-wrap:wrap; justify-content:flex-end;
+  #topbar .aksi { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end;
                   gap:8px; max-width:100%; }
   #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
   /* Icon only: round, as wide as it is tall. */
@@ -582,6 +592,7 @@
   /* Batch 5.9: a grading slip prints alone (`body[data-cetak="slip"]`, set by `cetakSlip`
      and cleared on `afterprint`); the QR card rules stand down while it does. */
   @media print {
+    body { padding-left:0 !important; }
     body[data-cetak="slip"] > :not(#slip-cetak) { display:none !important; }
     body[data-cetak="slip"] #slip-cetak { display:block; }
     body:not([data-cetak="slip"]) > *:not(#sec-truk) { display:none !important; }
@@ -607,22 +618,31 @@
   #gerbang-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
   #operator-aktif { align-self:center; font-weight:700; }
 
-  /* ---- day tally ---- */
-  /* The whole yard in one strip, for the glance from ten metres that never
-     reaches a single line panel. */
-  #tally { display:flex; flex-wrap:wrap; align-items:stretch;
-           margin:16px var(--pad) 0; background:var(--card);
-           border:1px solid var(--line-kuat); border-left:5px solid var(--acc);
-           border-radius:var(--r-lg); box-shadow:var(--tinggi-1); }
-  #tally .hari { display:flex; align-items:center; padding:10px 16px;
-                 border-right:1px solid var(--line); }
-  /* `min-width` turun dari 6,5rem: strip ini sekarang memuat lima angka (empat
-     kelas + Total), bukan tiga. Padding mengecil di layar sempit lewat clamp
-     supaya barisnya tetap muat tanpa menggeser rasio ke baris berikutnya. */
-  #tally .stat { padding:10px clamp(10px, 2.2vw, 20px) 12px; border-right:1px solid var(--line);
-                 min-width:4.6rem; text-align:center; }
-  #tally .stat b { display:block; font-family:var(--angka); font-size:2rem; font-weight:700;
-                   line-height:1.1; font-variant-numeric:tabular-nums; }
+  /* ---- summary row (spec 2026-10-07 §5.2) ----
+     Three cards for the glance from ten metres: the day, the scale now, the truck. */
+  #tally { display:flex; flex-wrap:wrap; gap:12px; margin:0 var(--pad) 12px; }
+  .ringkas { min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:8px;
+             padding:13px 18px 14px; background:var(--card); border:1px solid var(--line);
+             border-radius:var(--r-kartu); box-shadow:var(--bayang-kartu); }
+  .ringkas-hari { flex:1.7 1 380px; }
+  .ringkas-atas { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; }
+  .ringkas-atas > div { display:flex; flex-direction:column; gap:1px; }
+  .ringkas-atas .kanan { align-items:flex-end; }
+  .angka-besar { font:600 3.25rem/.95 var(--angka); font-variant-numeric:tabular-nums; }
+  .angka-besar.ripe { color:var(--ripe); }
+  .bar-kelas { display:flex; gap:4px; height:8px; }
+  .bar-kelas span { border-radius:999px; transition:width .6s ease; }
+  .bar-kelas .ripe { background:var(--ripe); }
+  .bar-kelas .unripe { background:var(--unripe); }
+  .bar-kelas .jk { background:var(--jk); }
+  .kelas-baris { display:flex; flex-wrap:wrap; gap:4px 18px; font-size:.85rem; font-weight:600; color:var(--muted); }
+  .kelas { display:inline-flex; align-items:center; gap:7px; }
+  .kelas i { width:9px; height:9px; border-radius:3px; }
+  .kelas.ripe i { background:var(--ripe); }
+  .kelas.unripe i { background:var(--unripe); }
+  .kelas.jk i { background:var(--jk); }
+  .kelas.tp i { background:var(--tp); }
+  .kelas b { font:600 1.2rem/1 var(--angka); color:var(--fg); }
   /* Odometer angka tally (user 2026-10-03, gaya NumberFlow, dibangun tangan tanpa npm): tiap
      digit yang berubah adalah pita 0 sampai 9 dua putaran (`::before`, 20 baris) yang
      bergeser ke digit barunya. Dua putaran supaya 9 ke 0 tetap maju: angka naik menggulung
@@ -649,71 +669,62 @@
   @keyframes odo-masuk { from { transform:translateY(calc(var(--ke) * -5% + var(--arah) * 5%)); opacity:0; } }
   @keyframes odo-keluar { from { opacity:1; }
                           to { transform:translateY(calc(var(--ke) * -5% - var(--arah) * 5%)); opacity:0; } }
-  #tally .stat.acc b { color:var(--acc); }
-  #tally .stat.rej b { color:var(--rej); }
-  /* TP tidak hijau dan tidak merah: tangkai panjang itu sifat janjang, bukan
-     lolos/buang. Pakai `--warn` yang sudah ada, jadi tidak ada warna baru yang
-     harus dicek ulang kontrasnya di dua tema. */
-  #tally .stat.tp b { color:var(--warn); }
-  #tally .rasio { flex:1 1 12rem; min-width:11rem; padding:12px 16px;
-                  display:flex; flex-direction:column; justify-content:center; gap:8px; }
-  #tally .rasio-hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
-  #tally .rasio-hd b { font-family:var(--angka); font-size:1.35rem; font-weight:700;
-                       font-variant-numeric:tabular-nums; }
-  #tally .bar { height:12px; border:1px solid var(--line); border-radius:var(--r-pill);
-                background:var(--rej-bg); overflow:hidden; }
-  #tally .bar span { display:block; height:100%; width:0; border-radius:var(--r-pill); background:var(--acc); transition:width .4s ease; }
-  /* Data timbangan hari ini (neto + tiket), di kanan rasio. Angkanya seukuran persen rasio
-     supaya dua angka ringkasan itu terbaca setara dari jauh. */
-  #tally .timbang { display:flex; flex-direction:column; justify-content:center; gap:4px;
-                    padding:10px 16px; border-left:1px solid var(--line);
-                    /* Fixed width (2026-10-06): the live state word changes every second
-                       (Stabil, Bergerak, Belum tersambung), and a box that follows its text
-                       would shove Last Sync back and forth across the strip. */
-                    flex:none; width:15.5rem; }
-  #tally .timbang b { font-family:var(--angka); font-size:1.35rem; font-weight:700;
-                      font-variant-numeric:tabular-nums; }
-  #tally .timbang-sub { font-size:.8rem; color:var(--muted); }
-  /* Timbangan live (2026-10-06): the big number is the weight on the bridge NOW, read
-     from the PLC; today's total moved to the small line. Word next to the dot, as in
-     Last Sync: the screen is read over AnyDesk and not everybody tells colours apart. */
-  #tally .timbang-angka { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
-  #tally .timbang-sub .baris { display:block; }
-  #tally .timbang-sub #tot-neto { font-weight:700; color:var(--fg); }
-  #tally .timbang-keadaan { display:inline-flex; align-items:center; gap:6px;
-                            font-size:.8rem; font-weight:600; white-space:nowrap; color:var(--muted); }
-  #tally .timbang-keadaan .titik { width:.6rem; height:.6rem; border-radius:50%; background:var(--muted); }
-  #timbang[data-keadaan="stabil"] .timbang-keadaan { color:var(--acc); }
-  #timbang[data-keadaan="stabil"] .titik { background:var(--acc); }
-  #timbang[data-keadaan="bergerak"] .timbang-keadaan { color:var(--warn); }
-  #timbang[data-keadaan="bergerak"] .titik { background:var(--warn); }
-  #timbang[data-keadaan="putus"] .timbang-keadaan,
-  #timbang[data-keadaan="error"] .timbang-keadaan { color:var(--rej); }
-  #timbang[data-keadaan="putus"] .titik,
-  #timbang[data-keadaan="error"] .titik { background:var(--rej); }
-  /* Last Sync: dua baris kecil, titik + nama + jam; keterangan putus di bawahnya.
-     Lebar minimum = keterangan terpanjang, supaya strip tidak bergeser tiap kali
-     status berganti. */
-  #tally .sinkron { display:flex; flex-direction:column; justify-content:center; gap:5px;
-                    min-width:16.5rem; padding:10px 16px; border-left:1px solid var(--line);
-                    border-right:1px solid var(--line); }
-  .sinkron-baris { display:grid; grid-template-columns:auto auto 1fr; align-items:center;
-                   column-gap:8px; font-size:.85rem; white-space:nowrap; }
-  .sinkron-baris .titik { width:.6rem; height:.6rem; border-radius:50%; background:var(--muted); }
+  /* The scale card is dark in both themes (a display, like the scale head itself), so it
+     carries its own light-on-dark status colours. */
+  #timbang { flex:1.2 1 290px; gap:6px; background:var(--inset); border-color:var(--line);
+             color:#EAF2FC; --acc:#3DDC97; --warn:#FFC54D; --rej:#FF6B7D; --muted:rgba(234,242,252,.72); }
+  .timbang-atas { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  #timbang .lb { color:var(--muted); }
+  .timbang-angka { display:flex; align-items:flex-end; gap:14px; min-width:0; }
+  #timbang-kg { flex:none; font:600 3.25rem/1 var(--angka); text-shadow:0 0 24px rgba(58,160,255,.38); }
+  .odo-berat .redup { opacity:.16; }
+  .odo-pisah::before, .odo-satuan::before { content:attr(data-c); }
+  .odo-satuan { margin-left:6px; font-size:.4em; color:rgba(234,242,252,.6); align-self:flex-end; }
+  .timbang-jejak { flex:1 1 auto; min-width:60px; display:flex; align-items:flex-end; gap:2px; height:40px; }
+  .timbang-jejak span { flex:1 1 0; min-height:2px; border-radius:3px 3px 0 0; background:rgba(58,160,255,.5);
+                        transition:height .45s ease, background .45s ease; }
+  .timbang-jejak .stabil { background:rgba(61,220,151,.72); }
+  .timbang-jejak .kini { background:rgba(234,242,252,.95); }
+  .timbang-saran { font-size:.82rem; font-weight:700; color:var(--muted); }
+  #timbang[data-keadaan="stabil"] .timbang-saran { color:var(--acc); }
+  /* State word next to a dot, as in Last Sync: read over AnyDesk, not everyone tells colours apart. */
+  .timbang-keadaan { display:inline-flex; align-items:center; gap:7px; padding:4px 10px; border-radius:999px;
+                     background:rgba(234,242,252,.1); color:var(--muted); font-size:.8rem; font-weight:800; white-space:nowrap; }
+  .timbang-keadaan .titik { width:7px; height:7px; border-radius:50%; background:currentColor; }
+  #timbang[data-keadaan="stabil"] .timbang-keadaan { background:rgba(61,220,151,.14); color:var(--acc); }
+  #timbang[data-keadaan="stabil"] .titik { animation:titik-hidup 1.8s ease-out infinite; }
+  #timbang:is([data-keadaan="bergerak"], [data-keadaan="terbaca"]) .timbang-keadaan { background:rgba(255,197,77,.15); color:var(--warn); }
+  #timbang:is([data-keadaan="putus"], [data-keadaan="error"]) .timbang-keadaan { background:rgba(255,107,125,.15); color:var(--rej); }
+  @keyframes titik-hidup { 0% { box-shadow:0 0 0 0 rgba(61,220,151,.55); } 70% { box-shadow:0 0 0 7px rgba(61,220,151,0); }
+                           100% { box-shadow:0 0 0 0 rgba(61,220,151,0); } }
+  /* Truck card: the truck on the lines, and the queue beside it while assignment is automatic. */
+  .ringkas-truk { flex:1.5 1 400px; padding:0; display:grid; grid-template-columns:minmax(0, 1fr); overflow:hidden; }
+  .ringkas-truk:has(#antrean-bongkar:not([hidden])) { grid-template-columns:minmax(0, 1.05fr) minmax(0, 1fr); }
+  .truk-di-line { min-width:0; display:flex; flex-direction:column; gap:8px; padding:13px 16px 14px; }
+  .truk-di-line .lb { display:inline-flex; align-items:center; gap:8px; }
+  .titik-hidup { width:7px; height:7px; border-radius:50%; background:var(--acc); animation:titik-hidup 1.8s ease-out infinite; }
+  .truk-kosong { font-size:1.05rem; }
+  .truk-grup { display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .truk-grup + .truk-grup { padding-top:8px; border-top:1px solid var(--line); }
+  .truk-grup-atas { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
+  .truk-grup .plat { font-size:1.5rem; }
+  .truk-grup button { min-height:36px; padding:0 12px; }
+  .truk-sup { overflow:hidden; font-weight:700; white-space:nowrap; text-overflow:ellipsis; }
+  .truk-ket { overflow:hidden; color:var(--muted2); font-size:.8rem; white-space:nowrap; text-overflow:ellipsis; }
+  /* Last Sync (2026-09-27), a pill each in the header since 2026-10-07: dot + name + time;
+     the "cut since" note rides the hover title and the small line. */
+  .sinkron-baris { flex-wrap:wrap; white-space:nowrap; }
   .sinkron-baris.tersambung .titik { background:var(--acc); }
   .sinkron-baris.terputus .titik { background:var(--warn); }
   .sinkron-baris b { font-weight:600; }
-  .sinkron-baris .jam { font-family:var(--angka); font-weight:700; justify-self:end; }
+  .sinkron-baris .jam { font-family:var(--angka); font-weight:600; color:var(--muted); }
   .sinkron-baris.tidak_dipakai .jam, .sinkron-baris.memeriksa .jam { font-family:inherit;
                                                                     font-weight:400; color:var(--muted); }
-  .sinkron-baris .ket { grid-column:2 / -1; color:var(--warn); font-size:.75rem; font-weight:600; }
-  /* Label above the control, not beside it: beside it the two-word caption set
-     its own width and the strip's last cell came out a different shape from
-     every other cell. Centred and stacked, it lines up with the stat blocks. */
-  #tally .tata { display:flex; flex-direction:column; justify-content:center;
-                 gap:5px; padding:10px 16px; border-left:1px solid var(--line);
-                 text-align:center; }
-  #tally .tata .pilih { width:11rem; }
+  .sinkron-baris .ket { color:var(--warn); font-size:.75rem; font-weight:600; }
+  /* Camera layout (columns), in the header since 2026-10-07; only on the Grading view. */
+  .tata { display:flex; align-items:center; gap:8px; }
+  .tata .pilih { width:9.5rem; }
+  body:not([data-tab="grading"]) .tata { display:none; }
 
   /* ---- camera panels ---- */
   /* terapkanKolom() overrides this inline; this value holds until JS runs, and
@@ -1145,13 +1156,24 @@
      memakai palet --warn dengan denyut pelan supaya operator melihatnya; kritis
      memakai palet dan denyut bahaya yang sama dengan pita AI. */
   #pita-disk { margin:10px var(--pad) 0; }
-  /* ---- antrean bongkar (2026-10-01): truk yang menunggu line, di atas kartu line ---- */
-  .antrean-bongkar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
-                     margin:10px var(--pad) 0; padding:8px 12px; background:var(--card);
-                     border:1px solid var(--line-kuat); border-radius:8px; }
+  /* ---- antrean bongkar (2026-10-01): trucks waiting for the lines; since 2026-10-07 the
+     right half of the truck card, an ordered list ---- */
+  .antrean-bongkar { min-width:0; display:flex; flex-direction:column; gap:7px; padding:13px 16px 14px;
+                     border-left:1px solid var(--line); background:var(--panel2); }
   .antrean-bongkar[hidden] { display:none; }
-  .antrean-truk { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
-  .antrean-truk b { font-family:var(--angka); font-size:1.05rem; }
+  .antrean-kepala { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .antrean-jumlah { min-width:26px; padding:0 8px; border-radius:999px; background:var(--line);
+                    text-align:center; font:700 .95rem/1.5 var(--angka); }
+  .antrean-bongkar ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .antrean-kosong { margin:0; font-size:.85rem; }
+  .antrean-truk { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; min-width:0; }
+  .antrean-no { flex:none; display:grid; place-items:center; width:24px; height:24px; border-radius:50%;
+                background:var(--card); border:1px solid var(--line-kuat); font:700 .85rem var(--angka); }
+  .antrean-plat { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+                  font:700 1.1rem var(--angka); letter-spacing:.05em; }
+  .antrean-truk .muted { font-size:.8rem; }
+  .antrean-aksi { flex:1 1 100%; display:flex; gap:6px; }
+  .antrean-aksi button { min-height:34px; padding:0 10px; font-size:.8rem; }
   #pita-disk p { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
                  margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
                  background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
@@ -1250,25 +1272,40 @@
      has to scroll to reach an option. Asked for per dropdown, like --kanan. */
   .pilih-panel--atas { top:auto; bottom:calc(100% + 4px); }
 
-  /* ---- tabs ---- */
-  /* flex-wrap: tab turun ke baris kedua HANYA kalau tidak muat. Tiap tab tidak
-     bisa menyusut di bawah lebar labelnya, jadi tanpa wrap 14 tab support di layar
-     1024 px meluap 1338 px dan seluruh halaman bergeser ke samping (2026-09-26).
-     Di layar lebar tetap satu baris. */
-  #tabs { display:flex; flex-wrap:wrap; gap:3px; padding:26px var(--pad) 0; }
-  /* flex:1 1 0 - widths split evenly instead of following text length, so a long
-     label does not shove the others when the language flips. Inactive tabs stay
-     recessed rather than invisible: bare words on the page background do not
-     read as "these are buttons". No rail under the strip - it ran past the tabs
-     into the page margin on both sides and read as a stray mark. */
-  #tabs button { flex:1 1 0; background:var(--zebra); color:var(--muted);
-                 border:1px solid var(--line);
-                 border-radius:var(--r-sm) var(--r-sm) 0 0;
-                 font-size:1rem; letter-spacing:.04em; }
-  #tabs button:hover { color:var(--fg); transform:none; box-shadow:none; }
-  #tabs button.aktif { background:var(--card); color:var(--fg);
-                       border-color:var(--line-kuat);
-                       box-shadow:inset 0 4px 0 var(--acc); }
+  /* ---- left rail (spec 2026-10-07 §5.1) ----
+     The tab buttons (`#tabs`, same `data-tab`) stand in a fixed rail on the left: icon above
+     the word, support tabs under a divider that leaves the DOM with them for an operator.
+     The hide button in the header slides it to 0 and the page takes the room. No keyboard
+     shortcut for it: the QR scanner types into the page and a letter could fire mid-scan. */
+  :root { --rel:96px; }
+  body { padding-left:var(--rel); transition:padding-left .28s ease; }
+  body.menu-tutup { --rel:0px; }
+  #tabs { position:fixed; z-index:35; inset:0 auto 0 0; width:var(--rel); overflow:hidden auto;
+          display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:16px 10px;
+          background:var(--card); border-right:1px solid var(--line);
+          transition:width .28s ease, padding .28s ease; }
+  body.menu-tutup #tabs { padding-inline:0; border-right-color:transparent; }
+  #tabs .logo-rel { align-self:center; flex:none; margin:2px 0 12px; }
+  #tabs button { display:flex; flex-direction:column; align-items:center; gap:5px; min-height:0;
+                 padding:10px 4px; border:0; border-radius:14px; background:none; color:var(--muted);
+                 font-size:.75rem; font-weight:700; letter-spacing:0; }
+  #tabs button:hover:not(:disabled) { background:var(--panel2); color:var(--fg); transform:none; box-shadow:none; }
+  #tabs button.aktif { background:var(--merek-tint); color:var(--merek); font-weight:800; }
+  #tabs .ikon { width:24px; height:24px; flex:none; fill:none; stroke:currentColor; stroke-width:1.9;
+                stroke-linecap:round; stroke-linejoin:round; }
+  #tabs .rel-pisah { margin:10px 8px 2px; padding-top:8px; border-top:1px solid var(--line);
+                     text-align:center; font-size:.7rem; font-weight:700; color:var(--muted2); }
+  /* Cameras and the day summary belong to the Grading view. Hidden, never removed: Space + n
+     and P + n reach the cards from every view, and the streams keep their connection. */
+  body:not([data-tab="grading"]) :is(#tally, #lines) { display:none; }
+  @media (max-width:760px) {
+    body { padding-left:0; display:flex; flex-direction:column; }
+    #tabs { position:sticky; top:0; order:-1; width:auto; flex-direction:row; overflow-x:auto;
+            padding:6px; border-right:0; border-bottom:1px solid var(--line); }
+    #tabs .logo-rel, #tabs .rel-pisah { display:none; }
+    #tabs button { flex:none; min-width:76px; }
+    body.menu-tutup #tabs { display:none; }
+  }
 
   /* ---- panels & tables ---- */
   /* Every view is one card (spec §4): radius 18, one hairline, soft shadow. */
@@ -1776,25 +1813,61 @@
   /* `backwards`, not `both`: `both` leaves an identity transform behind, and an
      element with a transform is its own stacking context - which buries an open
      dropdown panel under the section that follows it. */
-  #topbar, #tally, #lines, #tabs { animation:muncul .4s ease backwards; }
+  #topbar, #tally, #lines { animation:muncul .4s ease backwards; }
   #tally { animation-delay:.05s; }
-  #lines { animation-delay:.1s; } #tabs { animation-delay:.2s; }
+  #lines { animation-delay:.1s; }
   @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
   @media (max-width:640px) { :root { --pad:12px; } }
 </style>
 
 <header id="topbar">
-  <!-- Versi + lisensi di bawah tulisan AUTOGRADE, untuk SEMUA akun (2026-09-28): dulu
-       cuma di tab Versi yang support-only, jadi operator tidak tahu langganan PC-nya
-       sampai kapan. Klik membuka kotak detail. Diisi tiap polling `/api/console/state`. -->
+  <!-- Spec 2026-10-07 §5.1: hide button, view title, date and company, status pills, clock,
+       then the actions. The version and licence line (all accounts, 2026-09-28) stays under
+       the title; a click opens the detail box. Filled by every `/api/console/state` poll. -->
+  <button type="button" id="menu-samping" class="tombol-ikon" aria-controls="tabs" aria-expanded="true"
+          data-t-lb="menuSembunyikan" data-t-tip="tipMenuSamping"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg></button>
+  <svg class="logo-kecil" width="30" height="30" viewBox="0 0 54 54" aria-hidden="true"><path d="M38.57 0H15.43C6.91 0 0 6.91 0 15.43v23.14C0 47.09 6.91 54 15.43 54h23.14C47.09 54 54 47.09 54 38.57V15.43C54 6.91 47.09 0 38.57 0Z" fill="#0289F7"/><path d="M27 22c-2.8-5-2.5-10 0-13.5 2.5 3.5 2.8 8.5 0 13.5Zm0 0c3-6.5 8.5-10 15.5-8.5C38 17.5 32 20.2 27 22Zm0 0c-3-6.5-8.5-10-15.5-8.5C16 17.5 22 20.2 27 22Zm0 0c6-2 12.5-.5 17 5-5.5-1.4-11.5-2.8-17-5Zm0 0c-6-2-12.5-.5-17 5 5.5-1.4 11.5-2.8 17-5Z" fill="#fff"/><path d="M24.6 43c0-6.5.6-12.5 1.4-18h2c.8 5.5 1.4 11.5 1.4 18Z" fill="#fff"/><circle cx="27" cy="22" r="3.2" fill="#fff"/></svg>
   <div class="merek">
-    <h1>AutoGrade</h1>
-    <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button>
+    <h1 id="judul-tampilan" data-t="judulGrading">Grading</h1>
+    <span class="sub-judul"><span id="hari-kerja"></span><span id="perusahaan"></span>
+      <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button></span>
   </div>
-  <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span>
+  <span class="pil-baris">
+    <!-- Last Sync (2026-09-27): dot = the connection NOW (checked every minute), time = the
+         last good sync. Cloud Photo uploads hourly, so its time trailing by up to an hour is
+         normal while the dot is green. Words beside the colour: read over AnyDesk. -->
+    <div class="sinkron-baris pil memeriksa" id="sinkron-erp">
+      <span class="titik" aria-hidden="true"></span>
+      <b data-t="sinkronErp">AutoERP</b>
+      <span class="jam">-</span>
+      <small class="ket" hidden></small>
+    </div>
+    <div class="sinkron-baris pil memeriksa" id="sinkron-cloud">
+      <span class="titik" aria-hidden="true"></span>
+      <b data-t="sinkronCloud">Cloud Photo</b>
+      <span class="jam">-</span>
+      <small class="ket" hidden></small>
+    </div>
+    <span class="pil" id="pil-plc" data-keadaan="memeriksa"><span class="titik" aria-hidden="true"></span><b>PLC</b><span class="jam">-</span></span>
+  </span>
+  <span class="jam pil"><b id="jam">-</b> <span id="tz" class="lb"></span>
     <span id="segar" role="status" hidden></span></span>
   <span class="aksi">
     <span id="operator-aktif" hidden></span>
+    <div class="tata">
+      <label class="lb" for="kolom-tombol" data-t="labelLayout">Tata letak</label>
+      <div class="pilih" id="kolom" data-nilai="auto">
+        <button type="button" id="kolom-tombol" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
+          <span class="pilih-teks">Otomatis</span>
+        </button>
+        <div class="pilih-panel pilih-panel--kanan" role="listbox" hidden>
+          <div role="option" tabindex="-1" data-nilai="auto" aria-selected="true" data-t="kolomAuto">Otomatis</div>
+          <div role="option" tabindex="-1" data-nilai="1" aria-selected="false" data-t="kolom1">1 per baris</div>
+          <div role="option" tabindex="-1" data-nilai="2" aria-selected="false" data-t="kolom2">2 per baris</div>
+          <div role="option" tabindex="-1" data-nilai="3" aria-selected="false" data-t="kolom3">3 per baris</div>
+        </div>
+      </div>
+    </div>
     <!-- Ikon di tiap tombol (user 2026-10-04): bola dunia = bahasa, lingkaran setengah = tema,
          pintu = keluar. Katanya di span, supaya ganti bahasa/tema tidak menghapus ikonnya. -->
     <!-- Batch 5.3: every part of the screen refreshes itself; this is the spare. -->
@@ -1812,6 +1885,14 @@
   bukan kejadian mendadak, dan `alert` akan memotong pembacaan layar tiap 2 detik.
 -->
 <div id="lisensi-banner" role="status"></div>
+<!-- Batch 4.6, pita sejak 2026-10-04 (dulu lencana kecil di bawah AUTOGRADE): "Versi X siap
+     dipasang", semua akun. Ketuk membuka kotak Versi & lisensi; × menyembunyikannya sampai
+     versi berikutnya. Angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. -->
+<div id="pita-pembaruan" hidden></div>
+<div id="pita-alarm" hidden></div>
+<div id="pita-disk" hidden></div>
+<!-- Batch 5.7: 15 minutes before the session ends. Any touch renews it; the button is the spare. -->
+<div id="pita-sesi" role="status" hidden><span id="pita-sesi-teks"></span><button type="button" id="pita-sesi-perpanjang" class="utama" data-t="btnPerpanjangSesi">Perpanjang</button></div>
 <div id="toasts" aria-live="polite"></div>
 <div id="slip-cetak" aria-hidden="true"></div>
 
@@ -1849,107 +1930,63 @@
 </div>
 
 <section id="tally">
-  <span class="lb hari" data-t="labelHariIni">Hari ini</span>
-  <div class="stat acc"><span class="lb" data-t="clsRipe">Ripe</span><b id="tot-ripe">0</b></div>
-  <div class="stat rej"><span class="lb" data-t="clsUnripe">Unripe</span><b id="tot-unripe">0</b></div>
-  <div class="stat rej"><span class="lb" data-t="clsJk">JK</span><b id="tot-jk">0</b></div>
-  <div class="stat tp"><span class="lb" data-t="clsTp">TP</span><b id="tot-tp">0</b></div>
-  <div class="stat"><span class="lb">Total</span><b id="tot-all">0</b></div>
-  <div class="rasio">
-    <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio Ripe</span><b id="tot-rate">-</b></div>
-    <div class="bar"><span id="bar-acc"></span></div>
-  </div>
-  <!--
-    Timbangan, di kanan rasio (permintaan 2026-09-25, live sejak 2026-10-06). Angka
-    besar = berat di jembatan timbang SEKARANG, dibaca konsol dari PLC tiap detik
-    (`/api/console/scale/live`); selama register PLC belum diisi di .env, tertulis
-    "Belum tersambung". Baris kecil = neto hari kerja ini dari tabel `weighings`,
-    sumber yang sama dengan tab Timbangan. Angka live tidak pernah mengisi tiket.
-  -->
-  <div class="timbang" id="timbang" data-keadaan="memeriksa">
-    <span class="lb" data-t="labelNetoTimbangan">Data timbangan</span>
-    <div class="timbang-angka">
-      <b id="timbang-kg">-</b>
-      <span class="timbang-keadaan"><i class="titik"></i><span id="timbang-keadaan" data-t="timbangMemeriksa">Memeriksa…</span></span>
+  <!-- Spec 2026-10-07 §5.2: three cards. The day (bunches, ripe ratio, the class bar, four
+       counts); the scale now; the truck on the lines and the unloading queue. -->
+  <div class="ringkas ringkas-hari">
+    <div class="ringkas-atas">
+      <div><span class="lb" data-t="labelJanjangHariIni">Janjang hari ini</span><b id="tot-all" class="angka-besar">0</b></div>
+      <div class="kanan"><span class="lb" data-t="labelRasio">Rasio Ripe</span><b id="tot-rate" class="angka-besar ripe">-</b></div>
     </div>
-    <span class="timbang-sub"><span class="baris"><span data-t="timbangHariIni">Hari ini</span> <span id="tot-neto">-</span></span><span class="baris" id="tot-tiket"></span></span>
-  </div>
-  <!--
-    Last Sync (permintaan 2026-09-27): satu bagian, dua baris. Titik = keadaan
-    sambungan SEKARANG (dicek tiap menit), jam = sinkron terakhir yang berhasil.
-    Foto naik ke cloud tiap jam, jadi jam Cloud Photo yang tertinggal sampai
-    satu jam itu normal selama titiknya hijau. Kata ikut ditulis di samping
-    warna: layar ini dibaca lewat AnyDesk dan tidak semua orang membedakan warna.
-  -->
-  <div class="sinkron" id="sinkron">
-    <span class="lb" data-t="lastSync">Last Sync</span>
-    <div class="sinkron-baris memeriksa" id="sinkron-erp">
-      <span class="titik" aria-hidden="true"></span>
-      <b data-t="sinkronErp">AutoERP</b>
-      <span class="jam">-</span>
-      <small class="ket" hidden></small>
-    </div>
-    <div class="sinkron-baris memeriksa" id="sinkron-cloud">
-      <span class="titik" aria-hidden="true"></span>
-      <b data-t="sinkronCloud">Cloud Photo</b>
-      <span class="jam">-</span>
-      <small class="ket" hidden></small>
+    <div class="bar-kelas" id="bar-kelas" aria-hidden="true"></div>
+    <div class="kelas-baris">
+      <span class="kelas ripe"><i></i><span data-t="clsRipe">Ripe</span><b id="tot-ripe">0</b></span>
+      <span class="kelas unripe"><i></i><span data-t="clsUnripe">Unripe</span><b id="tot-unripe">0</b></span>
+      <span class="kelas jk"><i></i><span data-t="clsJk">JK</span><b id="tot-jk">0</b></span>
+      <span class="kelas tp"><i></i><span data-t="clsTp">TP</span><b id="tot-tp">0</b></span>
     </div>
   </div>
   <!--
-    The operator sets the camera layout, it is not forced from here: every mill
-    has a different line count and screen shape. Columns set the row shape (3
-    lines at 2 columns = a row of 2 then 1), the card arrows set the order.
-    It rides in the tally strip rather than a bar of its own: one row of chrome
-    less is one row more of camera.
+    Timbangan sekarang (live since 2026-10-06, animated since 2026-10-07): the weight on the
+    bridge NOW, read by the console from the PLC every second (`/api/console/scale/live`).
+    State word, colour and hint come from the server's state (`data-keadaan`, rule 39); the
+    screen never decides "stable". The trace is the last 24 readings, kept on the screen only.
+    The live number never fills a ticket. Neto of the day lives on the Timbangan view.
   -->
-  <div class="tata">
-    <label class="lb" for="kolom-tombol" data-t="labelLayout">Tata letak</label>
-    <div class="pilih" id="kolom" data-nilai="auto">
-      <button type="button" id="kolom-tombol" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
-        <span class="pilih-teks">Otomatis</span>
-      </button>
-      <div class="pilih-panel pilih-panel--kanan" role="listbox" hidden>
-        <div role="option" tabindex="-1" data-nilai="auto" aria-selected="true" data-t="kolomAuto">Otomatis</div>
-        <div role="option" tabindex="-1" data-nilai="1" aria-selected="false" data-t="kolom1">1 per baris</div>
-        <div role="option" tabindex="-1" data-nilai="2" aria-selected="false" data-t="kolom2">2 per baris</div>
-        <div role="option" tabindex="-1" data-nilai="3" aria-selected="false" data-t="kolom3">3 per baris</div>
-      </div>
-    </div>
+  <div class="ringkas timbang" id="timbang" data-keadaan="memeriksa">
+    <div class="timbang-atas"><span class="lb" data-t="labelTimbangSekarang">Timbangan sekarang</span>
+      <span class="timbang-keadaan"><i class="titik"></i><span id="timbang-keadaan" data-t="timbangMemeriksa">Memeriksa…</span></span></div>
+    <div class="timbang-angka"><b id="timbang-kg">-</b><span class="timbang-jejak" id="timbang-jejak" aria-hidden="true"></span></div>
+    <span class="timbang-saran" id="timbang-saran" data-t="timbangSaranMemeriksa">Menunggu bacaan pertama</span>
+  </div>
+  <!--
+    Truk di line: one truck on every line while automatic assignment is on (rule 36), or one
+    per line in manual mode. Antrean bongkar (2026-10-01): trucks weighed in, not on a line yet,
+    in order; shown only while automatic assignment is on.
+  -->
+  <div class="ringkas ringkas-truk">
+    <div id="truk-di-line" class="truk-di-line"></div>
+    <div id="antrean-bongkar" class="antrean-bongkar" hidden></div>
   </div>
 </section>
 
-<!-- Batch 4.6, pita sejak 2026-10-04 (dulu lencana kecil di bawah AUTOGRADE): "Versi X siap
-     dipasang", semua akun. Ketuk membuka kotak Versi & lisensi; × menyembunyikannya sampai
-     versi berikutnya. Angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. -->
-<div id="pita-pembaruan" hidden></div>
-<div id="pita-alarm" hidden></div>
-<div id="pita-disk" hidden></div>
-<!-- Batch 5.7: 15 minutes before the session ends. Any touch renews it; the button is the spare. -->
-<div id="pita-sesi" role="status" hidden><span id="pita-sesi-teks"></span><button type="button" id="pita-sesi-perpanjang" class="utama" data-t="btnPerpanjangSesi">Perpanjang</button></div>
-<!--
-  Antrean bongkar (2026-10-01): truk yang sudah timbang isi tapi belum di line. Satu truk di
-  line sampai selesai; truk berikutnya menunggu di sini sampai truk sebelumnya timbang
-  kosong atau dilepas. Tersembunyi kalau kosong: kamera tidak kehilangan ruang untuk
-  sesuatu yang tidak ada.
--->
-<div id="antrean-bongkar" class="antrean-bongkar" hidden></div>
 <div id="lines"></div>
 
 <nav id="tabs">
-  <button data-tab="grading" data-t="judulGrading">Grading</button>
-  <button data-tab="truk" data-t="judulTruk">Truk</button>
-  <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
+  <svg class="logo-rel" width="42" height="42" viewBox="0 0 54 54" aria-hidden="true"><path d="M38.57 0H15.43C6.91 0 0 6.91 0 15.43v23.14C0 47.09 6.91 54 15.43 54h23.14C47.09 54 54 47.09 54 38.57V15.43C54 6.91 47.09 0 38.57 0Z" fill="#0289F7"/><path d="M27 22c-2.8-5-2.5-10 0-13.5 2.5 3.5 2.8 8.5 0 13.5Zm0 0c3-6.5 8.5-10 15.5-8.5C38 17.5 32 20.2 27 22Zm0 0c-3-6.5-8.5-10-15.5-8.5C16 17.5 22 20.2 27 22Zm0 0c6-2 12.5-.5 17 5-5.5-1.4-11.5-2.8-17-5Zm0 0c-6-2-12.5-.5-17 5 5.5-1.4 11.5-2.8 17-5Z" fill="#fff"/><path d="M24.6 43c0-6.5.6-12.5 1.4-18h2c.8 5.5 1.4 11.5 1.4 18Z" fill="#fff"/><circle cx="27" cy="22" r="3.2" fill="#fff"/></svg>
+  <button data-tab="grading"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8V6a3 3 0 0 1 3-3h2"/><path d="M16 3h2a3 3 0 0 1 3 3v2"/><path d="M21 16v2a3 3 0 0 1-3 3h-2"/><path d="M8 21H6a3 3 0 0 1-3-3v-2"/><circle cx="12" cy="12" r="4"/></svg><span data-t="judulGrading">Grading</span></button>
+  <button data-tab="truk"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 4v2h-8"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg><span data-t="judulTruk">Truk</span></button>
+  <button data-tab="timbangan"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><path d="M3 21h18"/></svg><span data-t="judulTimbangan">Timbangan</span></button>
   <!-- Rekap = Riwayat sejak 2026-09-28: dibuka di "Hari ini, per truk" seperti Rekap lama. -->
-  <button data-tab="rekap" data-t="judulRekap">Rekap</button>
-  <button data-tab="log" data-dev="1" data-t="judulLog">Log</button>
-  <button data-tab="status" data-dev="1" data-t="judulStatus">Status</button>
-  <button data-tab="akun" data-dev="1" data-t="judulAkun">Akun</button>
-  <button data-tab="line" data-dev="1" data-t="judulLine">Line</button>
+  <button data-tab="rekap"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11"/><path d="M11 20V5"/><path d="M17 20v-6"/><path d="M3 20h18"/></svg><span data-t="judulRekap">Rekap</span></button>
+  <span class="rel-pisah" data-dev="1" data-t="relSupport">Support</span>
+  <button data-tab="log" data-dev="1"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg><span data-t="judulLog">Log</span></button>
+  <button data-tab="status" data-dev="1"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span data-t="judulStatus">Status</span></button>
+  <button data-tab="akun" data-dev="1"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span data-t="judulAkun">Akun</span></button>
+  <button data-tab="line" data-dev="1"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg><span data-t="judulLine">Line</span></button>
   <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
        paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
        menggeser tonase yang dibayar. -->
-  <button data-tab="setelan" data-dev="1" data-t="judulSetelan">Setelan</button>
+  <button data-tab="setelan" data-dev="1"><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg><span data-t="judulSetelan">Setelan</span></button>
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
@@ -2043,6 +2080,8 @@
 </section>
 
 <section id="sec-timbangan" class="panel" hidden>
+  <!-- Neto of the work day, from `weighings` (moved off the Grading view on 2026-10-07). -->
+  <p class="timbang-hari-ini"><span data-t="timbangHariIni">Hari ini</span> <b id="tot-neto">-</b> <span id="tot-tiket" class="muted"></span></p>
   <!--
     The operator may type bruto/tara by hand. The payload shape is identical to
     the scale program's, so once that program is live both land on the same row
@@ -3205,6 +3244,15 @@ let infoLisensi;
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
+    menuSembunyikan:"Sembunyikan menu samping", menuTampilkan:"Tampilkan menu samping",
+    tipMenuSamping:"Sembunyikan atau tampilkan menu, kamera dapat ruang lebih", relSupport:"Support",
+    labelJanjangHariIni:"Janjang hari ini", labelTimbangSekarang:"Timbangan sekarang",
+    timbangSaranStabil:"Angka diam, siap disimpan lewat scan", timbangSaranBergerak:"Angka masih bergerak, tunggu diam",
+    timbangSaranTerbaca:"Terbaca, PLC tidak mengirim tanda stabil", timbangSaranTidakDipakai:"Register PLC timbangan belum diisi",
+    timbangSaranPutus:"Tidak ada bacaan baru dari PLC", timbangSaranError:"PLC melaporkan error timbangan",
+    timbangSaranMemeriksa:"Menunggu bacaan pertama",
+    trukDiLineJudul:"Sedang dibongkar", trukDiLineJudulKosong:"Di line sekarang", trukDiLineKosong:"Belum ada truk",
+    trukDiLineDi:"di {line}", sukLepasTruk:"{truk} dilepas dari {line}", antreanBongkarKosong:"Tidak ada truk menunggu",
     riwayatHariIni:"Hari ini", judulStatus:"Status", judulLine:"Line",
     riwayatDari:"Dari", riwayatSampai:"Sampai",
     riwayatKemarin:"Kemarin", riwayat7Hari:"7 hari", riwayatBulanIni:"Bulan ini", riwayatBulanLalu:"Bulan lalu",
@@ -3343,7 +3391,7 @@ const KAMUS = {
     sinkronTersambung:"Tersambung", sinkronTerputus:"Terputus sejak {jam}", sinkronMenunggu:"{n} menunggu",
     sinkronTidakDipakai:"Tidak dipakai", sinkronMemeriksa:"Memeriksa", sinkronBelum:"Belum pernah",
     sinkronTakTerbaca:"tidak terbaca", sinkronTerakhir:"Sinkron terakhir",
-    labelNetoTimbangan:"Data timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
+    timbangTiket:"{tiket} tiket · {tara} menunggu tara",
     timbangHariIni:"Hari ini", timbangTidakDipakai:"Belum tersambung", timbangMemeriksa:"Memeriksa…",
     timbangPutus:"Timbangan putus", timbangError:"Timbangan error", timbangStabil:"Stabil",
     timbangBergerak:"Bergerak", timbangTerbaca:"Live",
@@ -3759,6 +3807,15 @@ const KAMUS = {
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
+    menuSembunyikan:"Hide the side menu", menuTampilkan:"Show the side menu",
+    tipMenuSamping:"Hide or show the menu to give the cameras more room", relSupport:"Support",
+    labelJanjangHariIni:"Bunches today", labelTimbangSekarang:"Scale now",
+    timbangSaranStabil:"Steady, ready to save with a scan", timbangSaranBergerak:"Still moving, wait until it settles",
+    timbangSaranTerbaca:"Reading, the PLC sends no steady flag", timbangSaranTidakDipakai:"Scale PLC register not set yet",
+    timbangSaranPutus:"No fresh reading from the PLC", timbangSaranError:"The PLC reports a scale error",
+    timbangSaranMemeriksa:"Waiting for the first reading",
+    trukDiLineJudul:"Unloading", trukDiLineJudulKosong:"On the lines now", trukDiLineKosong:"No truck yet",
+    trukDiLineDi:"on {line}", sukLepasTruk:"{truk} released from {line}", antreanBongkarKosong:"No truck waiting",
     riwayatHariIni:"Today", judulStatus:"Status", judulLine:"Line",
     riwayatDari:"From", riwayatSampai:"To",
     riwayatKemarin:"Yesterday", riwayat7Hari:"7 days", riwayatBulanIni:"This month", riwayatBulanLalu:"Last month",
@@ -3897,7 +3954,7 @@ const KAMUS = {
     sinkronTersambung:"Connected", sinkronTerputus:"Disconnected since {jam}", sinkronMenunggu:"{n} waiting",
     sinkronTidakDipakai:"Not used", sinkronMemeriksa:"Checking", sinkronBelum:"Never",
     sinkronTakTerbaca:"not readable", sinkronTerakhir:"Last synced",
-    labelNetoTimbangan:"Weighing data", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
+    timbangTiket:"{tiket} tickets · {tara} awaiting tare",
     timbangHariIni:"Today", timbangTidakDipakai:"Not connected", timbangMemeriksa:"Checking…",
     timbangPutus:"Scale offline", timbangError:"Scale error", timbangStabil:"Stable",
     timbangBergerak:"Moving", timbangTerbaca:"Live",
@@ -4336,6 +4393,7 @@ function terapkanBahasa() {
   gambarInfoSistem(infoVersi, infoLisensi);
   segarkanPilih();
   terapkanTema();
+  terapkanMenuSamping();
 }
 
 $("bahasa").addEventListener("click", async () => {
@@ -4368,6 +4426,46 @@ $("tema").addEventListener("click", () => {
   simpan("tema", tema);
   terapkanTema();
 });
+
+// Side menu (spec 2026-10-07 §5.1): hidden to give the cameras more room, kept per browser
+// (F10). No letter shortcut: the QR scanner types into the page and could fire it mid-scan.
+let menuSamping = baca("menuSamping", "buka") === "tutup" ? "tutup" : "buka";
+function terapkanMenuSamping() {
+  const tutup = menuSamping === "tutup";
+  document.body.classList.toggle("menu-tutup", tutup);
+  const tombol = $("menu-samping");
+  tombol.setAttribute("aria-expanded", String(!tutup));
+  tombol.dataset.tLb = tutup ? "menuTampilkan" : "menuSembunyikan";
+  tombol.setAttribute("aria-label", t(tombol.dataset.tLb));
+  aturTinggiKamera();
+}
+$("menu-samping").addEventListener("click", () => {
+  menuSamping = menuSamping === "tutup" ? "buka" : "tutup";
+  simpan("menuSamping", menuSamping);
+  terapkanMenuSamping();
+});
+
+// The PLC pill in the header: how many lines have a PLC that answers, from each line's status
+// as the server sends it. No coil configured on any live line = no PLC on this PC.
+function ringkasPlc(lines) {
+  const dipasang = (l) => l.plc && l.plc.piston_requested !== null && l.plc.piston_requested !== undefined;
+  const jalan = lines.filter((l) => l.plc && l.plc.reachable && dipasang(l)).length;
+  if (!jalan && lines.length && lines.every((l) => l.plc && l.plc.reachable && !dipasang(l))) {
+    return { keadaan: "tidak_dipakai", teks: t("sinkronTidakDipakai") };
+  }
+  return { keadaan: jalan === lines.length ? "tersambung" : "terputus", teks: `${jalan}/${lines.length}` };
+}
+
+// Under the view title: the work date and the company on the licence; then the PLC pill.
+function tulisKepala(s) {
+  const tgl = hariKerja ? new Date(`${hariKerja}T00:00:00`) : null;
+  $("hari-kerja").textContent = tgl && !Number.isNaN(tgl.getTime())
+    ? tgl.toLocaleDateString(lokal(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
+  $("perusahaan").textContent = (s.lisensi && s.lisensi.perusahaan) || "";
+  const plc = ringkasPlc(s.lines || []);
+  $("pil-plc").dataset.keadaan = plc.keadaan;
+  $("pil-plc").querySelector(".jam").textContent = plc.teks;
+}
 
 // ── dropdown ───────────────────────────────────────────────────────────
 // A real listbox, not a <select>. Its rows are sized for a gloved hand and read
@@ -4637,8 +4735,16 @@ function terapkanTab() {
     b.setAttribute("aria-selected", String(aktif));
     const panel = $("sec-" + b.dataset.tab);
     if (panel) panel.hidden = !aktif;
+    // The view title in the header names the open view (spec §5.1).
+    const kata = b.querySelector("[data-t]");
+    if (aktif && kata) {
+      $("judul-tampilan").dataset.t = kata.dataset.t;
+      $("judul-tampilan").textContent = t(kata.dataset.t);
+    }
   });
+  document.body.dataset.tab = tab;
   jagaFokusScan();
+  aturTinggiKamera();
 }
 
 // Support-only tabs are not part of the 2 s poll (the stores run their own
@@ -4764,6 +4870,19 @@ const KOLOM_SAH = ["auto", "1", "2", "3"];
 let kolom = KOLOM_SAH.includes(baca("kolom", "auto")) ? baca("kolom", "auto") : "auto";
 let urutan = [];
 try { urutan = JSON.parse(baca("urutan", "[]")) || []; } catch (e) { urutan = []; }
+
+// First screen without scrolling (spec §5.2): the camera box takes what the window has left
+// after the header, the summary row and the part of a card below the camera. Measured, not
+// guessed, because ribbons come and go. Wide screens only; below 1100 px the page just flows.
+function aturTinggiKamera() {
+  const kartu = $("lines").querySelector(".card");
+  const feed = kartu && kartu.querySelector(".feed");
+  if (!feed || tab !== "grading") return;
+  const atas = $("lines").getBoundingClientRect().top + window.scrollY;
+  const tetap = Math.round(atas + (kartu.offsetHeight - feed.offsetHeight) + 14);
+  document.documentElement.style.setProperty("--tinggi-tetap", `${tetap}px`);
+}
+window.addEventListener("resize", aturTinggiKamera);
 
 function terapkanKolom() {
   $("lines").style.gridTemplateColumns =
@@ -6017,7 +6136,20 @@ function isiTally(lines) {
   // memang biner, dan baris lama tanpa kelas akan menyeret rasio ke nol.
   const rasio = total ? (acc / total) * 100 : 0;
   $("tot-rate").textContent = total ? Math.round(rasio) + "%" : KOSONG;
-  $("bar-acc").style.width = rasio + "%";
+  tulisKalauBeda($("bar-kelas"), htmlBarKelas({ ripe: jml("ripe"), unripe: jml("unripe"), jk: jml("jk") }));
+}
+
+// The class bar (spec 2026-10-07 §4): Ripe, Unripe, JK as shares of their counts. TP marks a
+// bunch, it is not a class of its own, so it is not a segment. No bunches = an empty bar.
+function lebarKelas(ripe, unripe, jk) {
+  const n = [ripe, unripe, jk].map((v) => Math.max(0, Number(v) || 0));
+  const total = n[0] + n[1] + n[2];
+  return total ? n.map((v) => Math.round((v / total) * 1000) / 10) : [0, 0, 0];
+}
+function htmlBarKelas(l) {
+  const [r, u, j] = lebarKelas(l.ripe, l.unripe, l.jk);
+  return `<span class="ripe" style="width:${r}%"></span><span class="unripe" style="width:${u}%"></span>`
+    + `<span class="jk" style="width:${j}%"></span>`;
 }
 
 // Angka tally yang berubah bergulir seperti odometer (user 2026-10-03, gaya NumberFlow).
@@ -6070,6 +6202,64 @@ function kolomOdometer(dari, ke) {
   }
   return html;
 }
+
+// The live weight as an odometer (spec 2026-10-07 §4, §5.2): five digit columns at least,
+// leading zeros dimmed; the thousands separator and "kg" are drawn by CSS (`data-c`), so
+// `textContent` stays exactly `kg(v) + " kg"` through `.odo-baca` (what a screen reader and
+// the tests read). The odometer stays on screen between changes: no jump back to plain text.
+// Not a whole number of zero or more (decimals, a negative tare) or no reading = plain text.
+function tulisBerat(el, v) {
+  const ada = v !== null && v !== undefined;
+  const teks = ada ? `${kg(v)} kg` : KOSONG;
+  if (el._berat === teks) return;
+  const angka = ada && Number.isInteger(Number(v)) && Number(v) >= 0 ? Number(v) : null;
+  const lama = el._beratAngka;
+  el._berat = teks;
+  el._beratAngka = angka === null ? undefined : angka;
+  if (angka === null) {
+    el.textContent = teks;
+    return;
+  }
+  const dari = lama === undefined || document.hidden || gerakDikurangi() ? angka : lama;
+  el.innerHTML = `<span class="odo-baca">${esc(teks)}</span><span class="odo odo-berat" aria-hidden="true"`
+    + ` style="--arah:${angka >= dari ? 1 : -1}">${odometerBerat(dari, angka)}</span>`;
+}
+function odometerBerat(dari, ke) {
+  const n = Math.max(5, String(dari).length, String(ke).length);
+  const kolom = kolomOdometer(String(dari).padStart(n, "0"), String(ke).padStart(n, "0"))
+    .match(/<span class="odo-d"[^>]*><\/span>/g) || [];
+  const pemisah = (1000).toLocaleString(lokal()).charAt(1);
+  const nyala = n - String(ke).length;
+  return kolom.map((k, i) => {
+    const redup = i < nyala ? " redup" : "";
+    const sisa = n - i - 1;
+    return k.replace('class="odo-d"', `class="odo-d${redup}"`)
+      + (sisa > 0 && sisa % 3 === 0 ? `<span class="odo-pisah${redup}" data-c="${pemisah}"></span>` : "");
+  }).join("") + '<span class="odo-satuan" data-c="kg"></span>';
+}
+
+// The last 24 readings (one a second) as a small bar trace, kept on the screen only. A bar is
+// green while the server called that reading stable; the newest one is white.
+const JEJAK_TIMBANG_N = 24;
+let jejakTimbang = [];
+function catatJejak(jejak, r, n = JEJAK_TIMBANG_N) {
+  const titik = { kg: r && typeof r.kg === "number" ? r.kg : null, keadaan: (r && r.keadaan) || "putus" };
+  return [...jejak, titik].slice(-n);
+}
+function htmlJejak(jejak, n = JEJAK_TIMBANG_N) {
+  const puncak = Math.max(30000, ...jejak.map((p) => p.kg || 0));
+  const kosong = Array.from({ length: Math.max(0, n - jejak.length) }, () => ({ kg: null, keadaan: "" }));
+  return [...kosong, ...jejak].map((p, i, semua) => {
+    const tinggi = p.kg === null ? 0 : Math.max(3, Math.round((Math.max(0, p.kg) / puncak) * 100));
+    const kelas = i === semua.length - 1 ? "kini" : p.keadaan === "stabil" ? "stabil" : "";
+    return `<span class="${kelas}" style="height:${tinggi}%"></span>`;
+  }).join("");
+}
+// One hint line per server state: what the operator can do with this reading.
+const SARAN_TIMBANG = {
+  tidak_dipakai: "timbangSaranTidakDipakai", memeriksa: "timbangSaranMemeriksa", putus: "timbangSaranPutus",
+  error: "timbangSaranError", stabil: "timbangSaranStabil", bergerak: "timbangSaranBergerak", terbaca: "timbangSaranTerbaca",
+};
 
 // ── Last Sync ──────────────────────────────────────────────────────────
 // Dua baris di strip "Hari ini": AutoERP dan Cloud Photo (permintaan 2026-09-27).
@@ -6165,7 +6355,12 @@ function gambarTimbanganLive(r) {
   const kata = $("timbang-keadaan");
   kata.dataset.t = KATA_TIMBANG_LIVE[keadaan];
   kata.textContent = t(KATA_TIMBANG_LIVE[keadaan]);
-  $("timbang-kg").textContent = r && r.kg !== null && r.kg !== undefined ? `${kg(r.kg)} kg` : KOSONG;
+  tulisBerat($("timbang-kg"), r && r.kg !== undefined ? r.kg : null);
+  const saran = $("timbang-saran");
+  saran.dataset.t = SARAN_TIMBANG[keadaan];
+  saran.textContent = t(SARAN_TIMBANG[keadaan]);
+  jejakTimbang = catatJejak(jejakTimbang, { kg: r ? r.kg : null, keadaan });
+  tulisKalauBeda($("timbang-jejak"), htmlJejak(jejakTimbang));
 }
 
 // Tiap detik selama timbangan dipasang. Selama belum (`tidak_dipakai`) cukup tiap 30
@@ -7406,15 +7601,22 @@ function umumkanPelepasanOtomatis(daftar, otomatis) {
 // di tab Status (kiriman line ke konsol). Cuma tampil saat saklar nyala: saklar mati
 // berarti layar sama seperti sebelum fitur ini (D13), dan dropdown per line tetap cara
 // manualnya. Jalur Tugaskan sekarang / Lewati tetap ada di server.
+// Since 2026-10-07 the right half of the truck card (spec §5.2): a head with the count, then
+// the queue as an ordered list. Shown, even empty, while automatic assignment is on.
 function htmlAntreanBongkar(daftar, aktif) {
-  if (!aktif || !daftar || !daftar.length) return "";
-  return `<span class="lb">${esc(t("antreanBongkarOtomatis"))}</span>` + daftar.map((a) =>
-    `<span class="antrean-truk" data-id="${esc(a.weighing_id)}" data-plat="${esc(a.plate_number)}">
-       <b>${esc(a.plate_number)}</b>
+  if (!aktif) return "";
+  const isi = daftar || [];
+  const kepala = `<div class="antrean-kepala"><span class="lb">${esc(t("antreanBongkarOtomatis"))}</span>`
+    + `<b class="antrean-jumlah">${isi.length}</b></div>`;
+  if (!isi.length) return kepala + `<p class="muted antrean-kosong">${esc(t("antreanBongkarKosong"))}</p>`;
+  return kepala + "<ol>" + isi.map((a, i) =>
+    `<li class="antrean-truk" data-id="${esc(a.weighing_id)}" data-plat="${esc(a.plate_number)}">
+       <b class="antrean-no">${i + 1}</b>
+       <b class="antrean-plat">${esc(a.plate_number)}</b>
        <span class="muted">${esc(teksMenit(a.menit) || "0 mnt")}</span>
-       <button data-aksi="pasang">${esc(t("btnTugaskanSekarang"))}</button>
-       <button class="bahaya" data-aksi="lewati">${esc(t("btnLewati"))}</button>
-     </span>`).join("");
+       <span class="antrean-aksi"><button data-aksi="pasang">${esc(t("btnTugaskanSekarang"))}</button>
+       <button class="bahaya" data-aksi="lewati">${esc(t("btnLewati"))}</button></span>
+     </li>`).join("") + "</ol>";
 }
 
 function gambarAntreanBongkar(daftar, setelan) {
@@ -7422,6 +7624,58 @@ function gambarAntreanBongkar(daftar, setelan) {
   const html = htmlAntreanBongkar(daftar, Boolean(setelan && setelan.aktif));
   el.hidden = !html;
   tulisKalauBeda(el, html);
+}
+
+// The truck on the lines (spec 2026-10-07 §5.2). Automatic: one truck on every line (rule 36).
+// Manual: one per line, possibly different, so grouped per truck, lines in the server's order.
+function trukDiLine(lines) {
+  const per = new Map();
+  lines.forEach((l) => {
+    const a = l.assignment;
+    if (!a) return;
+    const g = per.get(a.truck_id) || { a, lines: [] };
+    g.lines.push(l);
+    per.set(a.truck_id, g);
+  });
+  return [...per.values()];
+}
+function htmlTrukDiLine(lines) {
+  const grup = trukDiLine(lines);
+  if (!grup.length) {
+    return `<span class="lb">${esc(t("trukDiLineJudulKosong"))}</span><strong class="truk-kosong">${esc(t("trukDiLineKosong"))}</strong>`;
+  }
+  return `<span class="lb"><i class="titik-hidup"></i>${esc(t("trukDiLineJudul"))}</span>` + grup.map(({ a, lines: ls }) => `
+    <div class="truk-grup" data-truk="${esc(a.truck_id)}" data-lines="${esc(ls.map((l) => l.line_code).join(","))}">
+      <div class="truk-grup-atas"><b class="plat">${dash(a.plate_number)}</b>
+        <button class="bahaya" data-aksi="lepas-truk">${esc(t("btnLepas"))}</button></div>
+      <span class="truk-sup">${dash(a.supplier_name)}</span>
+      <span class="truk-ket">${dash(a.source_label)} · ${esc(t("trukDiLineDi").replace("{line}", ls.map((l) => l.name || l.line_code).join(", ")))}</span>
+    </div>`).join("");
+}
+
+// Lepas on the truck card = the plain Lepas on every line holding that truck, one after the
+// other, through the same endpoint as the line card's Lepas. A line that refuses gets its own
+// failure toast; Lepas paksa stays in that line card's menu.
+async function lepasTruk(tombol) {
+  const grup = tombol.closest(".truk-grup");
+  const plat = grup.querySelector(".plat").textContent;
+  const kode = grup.dataset.lines.split(",").filter(Boolean);
+  await denganSibuk(tombol, async () => {
+    const dilepas = [];
+    let dipasang = [];
+    for (const line of kode) {
+      try {
+        const r = await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
+        dilepas.push(namaKartuLine(line));
+        if (r && r.dipasang && r.dipasang.length) dipasang = r.dipasang;
+      } catch (e) {
+        toastGagal(gagalKarena("gagalLepas", e));
+      }
+    }
+    await refresh();
+    if (dilepas.length) toastSukses(t("sukLepasTruk").replace("{truk}", plat).replace("{line}", dilepas.join(", ")));
+    umumkanPasang(dipasang);
+  });
 }
 
 // Nama line seperti di kartunya ("Line 1"), bukan kode internal.
@@ -7477,6 +7731,11 @@ $("antrean-bongkar").addEventListener("click", async (ev) => {
       toastGagal(alasan(e));
     }
   });
+});
+
+$("truk-di-line").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest('button[data-aksi="lepas-truk"]');
+  if (tombol) lepasTruk(tombol);
 });
 
 // ── banner langganan ────────────────────────────────────────────────────
@@ -7660,12 +7919,14 @@ async function refresh() {
     if (s.work_date) hariKerja = s.work_date;
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
+    tulisKepala(s);
     namaLineKartu = Object.fromEntries(s.lines.map((l) => [l.line_code, l.name || l.line_code]));
     gambarPembaruan(s.pembaruan);
     aturSlipCetak(s.slip_cetak);
     aturCutoffShift(s.cutoff_shift);
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
+    tulisKalauBeda($("truk-di-line"), htmlTrukDiLine(s.lines));
     // `=== true`: an older server has no field, and that reads as off.
     tampilkanKolomScan(s.scanner_qr === true);
     selarasUrutan(s.lines);
