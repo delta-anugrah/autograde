@@ -17,12 +17,12 @@ def test_kotak_kamera_mengikuti_bentuk_gambar(halaman):
         """() => {
             const f = document.querySelector('#lines .card[data-line="line-1"] .feed');
             const r = f && f.getBoundingClientRect();
-            return r && r.height > 0 && Math.abs(r.width / r.height - 1.2) < 0.03;
+            return r && r.height > 0 && Math.abs(r.width / r.height - 1.2) < 0.012;
         }"""
     )
     kotak = feed.bounding_box()
     gambar = feed.locator("img").bounding_box()
-    assert abs(kotak["width"] / kotak["height"] - 1.2) < 0.03, kotak
+    assert abs(kotak["width"] / kotak["height"] - 1.2) < 0.012, kotak
     assert gambar == kotak, "the picture must fill the box it sits in, edge to edge"
 
 

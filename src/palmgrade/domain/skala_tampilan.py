@@ -1,6 +1,7 @@
 """Where a detection box lands, and how thick it is drawn, on a frame of another size.
 
-Batch 6.3: the operator stream is 1280x720 while the camera frame is 1224x1024 at Lampung
+Batch 6.3: the operator stream fits inside 1280x720 (861x720 since 2026-10-07, the camera's own
+ratio) while the camera frame is 1224x1024 at Lampung
 (binning 2x2 in `config/camera/hikrobot.mfs`; 2448x2048 without it).
 `DisplayWorker` shrinks the frame FIRST and draws on the small one, so the boxes found on
 the sensor frame are scaled here, together with the style `.env` wrote for the sensor frame.
@@ -57,7 +58,8 @@ def garis_berskala(garis: int, mendatar: bool, skala: tuple[float, float]) -> in
     """
     if garis <= 0 or skala == TANPA_SKALA:
         return garis
-    return round(garis * (skala[1] if mendatar else skala[0]))
+    # Never rounded away: detection still uses a small line, so the screen must show it.
+    return max(1, round(garis * (skala[1] if mendatar else skala[0])))
 
 
 def kotak_berskala(

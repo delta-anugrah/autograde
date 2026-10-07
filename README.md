@@ -548,7 +548,7 @@ Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disim
 
 **Graceful startup**: app tetap jalan meskipun kamera belum terhubung saat startup. `health.detail.camera_connected` akan `false`, dan `FrameCaptureWorker` otomatis retry sampai kamera terdeteksi. Begitu kamera dicolok (dan MVS di-close), `camera_connected` berubah jadi `true` tanpa restart container.
 
-**MJPEG stream**: default encode di 1280×720 (dikontrol via `STREAM_WIDTH`/`STREAM_HEIGHT`). Frame asli Hikrobot 4K tetap disimpan ke disk; resize hanya untuk stream.
+**MJPEG stream**: gambar dimuatkan ke dalam kotak 1280×720 (`STREAM_WIDTH`/`STREAM_HEIGHT`) dengan rasio asli kamera, mis. 861×720 untuk kamera 1224×1024 (sejak 2026-10-07). Frame asli Hikrobot 4K tetap disimpan ke disk; resize hanya untuk stream.
 
 ---
 

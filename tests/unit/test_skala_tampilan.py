@@ -133,3 +133,9 @@ def test_garis_tegak_diskalakan_lebar_garis_mendatar_tinggi():
     assert garis_berskala(360, True, skala) == 360
     assert garis_berskala(0, False, skala) == 0, "0 = no line, and stays no line"
     assert garis_berskala(640, False, TANPA_SKALA) == 640
+
+
+def test_garis_kecil_tidak_hilang_dari_gambar_sesudah_diskala():
+    """A flat line at 1 on a 2000x500 source (scale 0.44) must stay a line on screen: detection
+    still uses it, so drawing nothing would hide a working capture line."""
+    assert garis_berskala(1, True, (1.0, 320 / 720)) == 1

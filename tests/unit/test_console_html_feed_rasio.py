@@ -47,3 +47,25 @@ def test_kartu_yang_digambar_ulang_memakai_rasio_yang_diingat():
     assert "gayaRasioFeed(l.line_code)" in _fungsi("kartuLine")
     gaya = _fungsi("gayaRasioFeed")
     assert "rasioFeed.get(" in gaya and "aspect-ratio:" in gaya
+
+
+def _kamus(bahasa: str) -> str:
+    kamus = HTML.split("const KAMUS = {", 1)[1].split("\n};", 1)[0]
+    return re.search(rf"^  {bahasa}: \{{(.*?)^  \}},", kamus, re.S | re.M).group(1)
+
+
+def _teks(bahasa: str, kunci: str) -> str:
+    return re.search(rf'\b{kunci}:"([^"]*)"', _kamus(bahasa)).group(1)
+
+
+def test_petunjuk_roi_dan_garis_tidak_lagi_menyebut_piksel_video():
+    """The picture is 861x720 on the Lampung camera since 2026-10-07, but the stored numbers stay
+    on the 1280x720 settings grid. A hint that says "pixels on the video" makes a technician
+    read 430 off the picture for the middle, which lands a third of the way in, silently."""
+    for kunci in ("bantuKotak", "bantuGarisTegak", "bantuGarisMendatar"):
+        assert "Piksel" not in _teks("id", kunci), kunci
+        assert "Pixels" not in _teks("en", kunci), kunci
+    assert "1280" in _teks("id", "bantuKotak") and "seluruh gambar" in _teks("id", "bantuKotak")
+    assert "1280" in _teks("en", "bantuKotak") and "whole picture" in _teks("en", "bantuKotak")
+    assert "1280" in _teks("id", "bantuGarisTegak") and "720" in _teks("id", "bantuGarisMendatar")
+    assert "1280" in _teks("en", "bantuGarisTegak") and "720" in _teks("en", "bantuGarisMendatar")

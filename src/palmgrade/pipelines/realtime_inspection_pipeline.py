@@ -112,10 +112,10 @@ class RealtimeInspectionPipeline:
     ) -> tuple[int, int, int, int] | None:
         """Kotak ROI seperti yang terlihat di layar, atau `None` kalau tidak sah.
 
-        `ROI_*` memang ditulis dalam ruang stream (operator mengalibrasinya dari
-        gambar di browser), jadi di sini tidak ada penskalaan — yang menskalakan
-        ke ruang sensor adalah `FrameProcessingWorker._roi_box_for`, karena di
-        sanalah deteksi benar-benar berjalan.
+        `ROI_*` ditulis dalam ruang setelan `width` x `height` (operator mengalibrasinya dari
+        gambar di browser) dan dikembalikan di ruang itu juga. `draw_roi` memetakannya ke
+        gambar stream (rasio kamera sejak 2026-10-07); ke ruang sensor dipetakan oleh
+        `FrameProcessingWorker._roi_box_for`, karena di sanalah deteksi benar-benar berjalan.
         """
         # `roi` = the box set from the console (`RuntimeState.roi_override`); None = `.env`.
         s = self.settings
