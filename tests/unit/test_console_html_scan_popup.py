@@ -126,3 +126,97 @@ def test_mintaberat_tidak_lagi_menyentuh_kotak_bruto_dan_bar_tara():
     blok = HTML[HTML.index("async function mintaBerat") : HTML.index("function galatPopupScan")]
     for terlarang in ("tanyaTara(", 'pilihNilai($("plat-timbang")', '$("bruto")'):
         assert terlarang not in blok
+
+
+# --- The weight box's key handling, run through node with a fake clock --------------------
+
+_DASAR_KUNCI = """
+let sekarang = 1000000; Date.now = () => sekarang;
+let jam = []; let nomorJam = 0;
+const setTimeout = (f, ms) => { const id = ++nomorJam; jam.push({ id, f, pada: sekarang + ms }); return id; };
+const clearTimeout = (id) => { jam = jam.filter((x) => x.id !== id); };
+const maju = (ms) => { sekarang += ms; for (const x of jam.filter((j) => j.pada <= sekarang)) { jam = jam.filter((j) => j !== x); x.f(); } };
+let timerPopupScan = null;
+const kolom = { value: "", blur() {} };
+let popupBerat = { plat: "B 1995 SME", langkah: "timbang_isi", ketik: "", pada: 0, awal: "", cepat: false, rusak: false, menyimpan: false };
+const $ = () => kolom;
+const galat = [], disimpan = [], terkirim = [], ditutup = [];
+const galatPopupScan = (m) => galat.push(m);
+const simpanBeratPopup = () => disimpan.push(kolom.value);
+const kirimScanOtomatis = (q) => terkirim.push(q);
+const tutupPopupScan = () => { ditutup.push(sekarang); popupBerat = null; };
+const samaPlat = (a, b) => String(a).replace(/\\s+/g, "").toUpperCase() === String(b).replace(/\\s+/g, "").toUpperCase();
+const tekan = (key) => {
+  const ev = { key, ctrlKey: false, altKey: false, metaKey: false, preventDefault() { this.dicegah = true; } };
+  tombolPopupBerat(ev);
+  // What the browser does when the key was not stopped: a digit lands in the box.
+  if (!ev.dicegah && key.length === 1) kolom.value += key;
+  return ev;
+};
+const ketik = (teks, jeda) => { for (const c of teks) { tekan(c); sekarang += jeda; } };
+"""
+
+
+def _kunci(aksi: str, ekspresi: str):
+    return jalankan(
+        ["tombolPopupBerat"], ekspresi, tambahan=konstanta_kunci() + _DASAR_KUNCI + aksi,
+    )
+
+
+def konstanta_kunci() -> str:
+    from konsol_js import konstanta
+
+    return konstanta("JEDA_KETIK_SCANNER_MS", "JEDA_ENTER_SCANNER_MS", "JEDA_RUSAK_MS", "DURASI_POPUP_BERAT_DIAM_MS")
+
+
+_KELUAR = "({ nilai: kolom.value, galat, disimpan, terkirim })"
+
+
+@butuh_node
+def test_scan_yang_macet_lalu_sambung_tidak_jadi_berat():
+    # "B 19", a 600 ms stall, "95 SME" + Enter: the digits 19 and 95 never become a weight.
+    h = _kunci('ketik("B 19", 10); sekarang += 600; ketik("95 SME", 10); tekan("Enter");', _KELUAR)
+    assert h == {"nilai": "", "galat": ["Scan tidak terbaca, ulangi scan"], "disimpan": [], "terkirim": []}
+
+
+@butuh_node
+def test_scan_macet_dengan_sisa_angka_saja_tidak_jadi_berat():
+    h = _kunci('ketik("BE 12", 10); sekarang += 600; ketik("34", 10); tekan("Enter");', _KELUAR)
+    assert h == {"nilai": "", "galat": ["Scan tidak terbaca, ulangi scan"], "disimpan": [], "terkirim": []}
+
+
+@butuh_node
+def test_scan_macet_tidak_menyentuh_berat_yang_sudah_diketik_orang():
+    # A person typed 30000 slowly, then a broken scan: the box goes back to 30000 exactly.
+    h = _kunci('ketik("30000", 200); sekarang += 600; ketik("BE 12", 10); sekarang += 600;'
+               ' ketik("34", 10); tekan("Enter");', _KELUAR)
+    assert h["nilai"] == "30000" and h["disimpan"] == [] and h["galat"] == ["Scan tidak terbaca, ulangi scan"]
+
+
+@butuh_node
+def test_ketikan_lambat_tetap_jadi_berat():
+    h = _kunci('ketik("30000", 200); tekan("Enter");', _KELUAR)
+    assert h == {"nilai": "30000", "galat": [], "disimpan": ["30000"], "terkirim": []}
+
+
+@butuh_node
+def test_plat_lain_utuh_dikirim_dan_plat_sama_menyimpan():
+    h = _kunci('ketik("30000", 200); sekarang += 600; ketik("BE 77 ZZ", 10); tekan("Enter");', _KELUAR)
+    assert h["terkirim"] == ["BE 77 ZZ"] and h["nilai"] == "30000"
+    h = _kunci('ketik("30000", 200); sekarang += 600; ketik("B 1995 SME", 10); tekan("Enter");', _KELUAR)
+    assert h["disimpan"] == ["30000"] and h["terkirim"] == [] and h["nilai"] == "30000"
+
+
+@butuh_node
+def test_popup_berat_menutup_sendiri_60_detik_sesudah_tombol_terakhir():
+    skrip = 'tekan("3"); maju(59_000); const sebelum = ditutup.length; tekan("0"); maju(59_000);' \
+            ' const tengah = ditutup.length; maju(1_001); '
+    h = _kunci(skrip, "[sebelum, tengah, ditutup.length]")
+    assert h == [0, 0, 1], "every key restarts the 60 s; closes only after 60 s without one"
+
+
+def test_simpan_hanya_menyentuh_popup_yang_sama_dan_kosong_ada_kalimat():
+    simpan = HTML[HTML.index("async function simpanBeratPopup") :]
+    simpan = simpan[: simpan.index("\n}\n")]
+    assert simpan.count("popupBerat === p") == 2
+    assert 'galatPopupScan(t("scanBeratKosong"))' in simpan

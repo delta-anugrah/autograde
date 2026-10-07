@@ -382,7 +382,7 @@ def test_scanning_the_same_qr_in_the_popup_saves_the_typed_weight(halaman, konso
     masuk(halaman, OPERATOR)
     _daftar(halaman, nomor)
     _sampai_popup_berat(halaman, nomor)
-    halaman.keyboard.type("30000")
+    halaman.keyboard.type("30000", delay=150)  # a person's pace, not a scanner burst
     halaman.wait_for_timeout(600)  # a person scans after typing, never inside the same burst
     halaman.keyboard.type(nomor.lower())  # the plate holds digits: they must not become weight
     halaman.keyboard.press("Enter")
@@ -442,3 +442,22 @@ def test_a_failed_read_shows_a_red_popup(halaman):
     popup = halaman.locator("#scan-popup")
     expect(popup).to_have_attribute("data-jenis", "gagal")
     expect(popup).to_contain_text(kamus(halaman, "scanTakTerbaca"))
+
+
+def test_a_scan_that_stalls_never_becomes_a_weight(halaman, konsol, browser_name):
+    nomor = plat(browser_name, 1706)
+    masuk(halaman, OPERATOR)
+    _daftar(halaman, nomor)
+    try:
+        _sampai_popup_berat(halaman, nomor)
+        halaman.keyboard.type("BE 12", delay=10)
+        halaman.wait_for_timeout(600)
+        halaman.keyboard.type("34", delay=10)
+        halaman.keyboard.press("Enter")
+        expect(halaman.locator("#scan-popup-galat")).to_have_text(kamus(halaman, "scanTakTerbaca"))
+        expect(halaman.locator("#scan-popup-berat")).to_have_value("")
+        halaman.keyboard.press("Enter")
+        expect(halaman.locator("#scan-popup-galat")).to_have_text(kamus(halaman, "scanBeratKosong"))
+        assert _pesan_berat_tersimpan(halaman, konsol, nomor) == []
+    finally:
+        _batal_kedatangan(halaman, konsol, nomor)

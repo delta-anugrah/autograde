@@ -3544,7 +3544,7 @@ const KAMUS = {
     scanLangkahDatang:"datang", scanLangkahIsi:"timbang isi", scanLangkahKosong:"timbang kosong",
     scanLangkahKeluar:"keluar", scanInternal:"Internal", scanDipasang:"Dipasang ke {line}",
     scanKetikBeratPopup:"Ketik beratnya lalu Enter, atau scan QR truk ini lagi",
-    scanBeratMinimum:"Berat minimal 1.000 kg, cek lagi angkanya", scanBeratLabel:"Berat (kg)",
+    scanBeratMinimum:"Berat minimal 1.000 kg, cek lagi angkanya", scanBeratKosong:"Ketik beratnya dulu", scanBeratLabel:"Berat (kg)",
     konfirmasiScanJudul:"Catat {langkah} {plat}?",
     konfirmasiScan:"Langkah sebelumnya truk ini baru {menit} menit lalu. Scan QR-nya sekali lagi untuk Catat. Kalau QR-nya cuma terbaca dua kali, pilih Batal.",
     btnCatatScan:"Catat",
@@ -4106,7 +4106,7 @@ const KAMUS = {
     scanLangkahDatang:"arrival", scanLangkahIsi:"weigh-in", scanLangkahKosong:"weigh-out",
     scanLangkahKeluar:"leave", scanInternal:"Internal", scanDipasang:"Assigned to {line}",
     scanKetikBeratPopup:"Type the weight and press Enter, or scan this truck's QR again",
-    scanBeratMinimum:"Weight must be at least 1,000 kg, check the figure", scanBeratLabel:"Weight (kg)",
+    scanBeratMinimum:"Weight must be at least 1,000 kg, check the figure", scanBeratKosong:"Type the weight first", scanBeratLabel:"Weight (kg)",
     konfirmasiScanJudul:"Record {langkah} for {plat}?",
     konfirmasiScan:"This truck's previous step was only {menit} min ago. Scan its QR once more to record. If the QR was just read twice, choose Cancel.",
     btnCatatScan:"Record",
@@ -6753,7 +6753,7 @@ async function mintaBerat(h) {
   });
   popupBerat = {
     plat: h.plate_number, langkah: h.langkah, weighing: h.weighing || null, supplier: h.supplier || "",
-    ketik: "", pada: 0, awal: "", menyimpan: false,
+    ketik: "", pada: 0, awal: "", cepat: false, rusak: false, menyimpan: false,
   };
   const kolom = $("scan-popup-berat");
   kolom.value = "";
@@ -6767,20 +6767,31 @@ function galatPopupScan(teks) {
 }
 
 // Typed by hand or arriving as a scan: letters never enter the box, so a scanned plate cannot
-// become a weight. Digits do enter, so a person sees what they type; when a run of keys turns
-// out to hold a letter the box goes back to what it held before the run began.
-$("scan-popup-berat").addEventListener("keydown", (ev) => {
+// become a weight. Digits do enter, so a person sees what they type; a run of keys (gaps up to
+// `JEDA_ENTER_SCANNER_MS`) that turns out to be a scan puts the box back to what it held before
+// the run. A scan that stalls and continues is a broken read: the first part is rolled back
+// when the next run starts, and what follows within `JEDA_RUSAK_MS` is thrown away too (its
+// digits would otherwise be taken for a weight). `p.rusak` marks that state.
+function tombolPopupBerat(ev) {
   const p = popupBerat;
   if (!p) return;
   // Any key keeps the popup: it only goes after 60 s without one.
   clearTimeout(timerPopupScan);
   timerPopupScan = setTimeout(tutupPopupScan, DURASI_POPUP_BERAT_DIAM_MS);
   const kolom = $("scan-popup-berat");
+  const sekarang = Date.now();
+  if (p.rusak && sekarang - p.pada > JEDA_RUSAK_MS) { p.rusak = false; p.ketik = ""; }
   if (ev.key === "Escape") { ev.preventDefault(); tutupPopupScan(); return; }
   if (ev.key === "Enter") {
     ev.preventDefault();
     const larian = p.ketik;
     p.ketik = "";
+    if (p.rusak) {
+      p.rusak = false;
+      kolom.value = p.awal;
+      galatPopupScan(t("scanTakTerbaca"));
+      return;
+    }
     if (/[A-Za-z]/.test(larian)) {
       kolom.value = p.awal;
       if (larian.trim().length < 3) return;
@@ -6792,18 +6803,31 @@ $("scan-popup-berat").addEventListener("keydown", (ev) => {
     return;
   }
   if (ev.key.length !== 1 || ev.ctrlKey || ev.altKey || ev.metaKey) return;
-  const sekarang = Date.now();
-  if (!p.ketik || sekarang - p.pada > JEDA_ENTER_SCANNER_MS) { p.ketik = ""; p.awal = kolom.value; }
+  const jeda = sekarang - p.pada;
+  if (!p.ketik || jeda > JEDA_ENTER_SCANNER_MS) {
+    // A new run. The one before it, if it never ended in Enter and looked like a scan, goes.
+    if (p.ketik && !p.rusak && (/[A-Za-z]/.test(p.ketik) || (p.ketik.length >= 3 && p.cepat))) {
+      kolom.value = p.awal;
+      p.rusak = true;
+    } else if (!p.rusak) {
+      p.awal = kolom.value;
+    }
+    p.ketik = "";
+    p.cepat = true;
+  } else if (jeda > JEDA_KETIK_SCANNER_MS) {
+    p.cepat = false;
+  }
   p.ketik += ev.key;
   p.pada = sekarang;
-  if (!/[0-9.,]/.test(ev.key)) ev.preventDefault();
-});
+  if (p.rusak || !/[0-9.,]/.test(ev.key)) ev.preventDefault();
+}
+$("scan-popup-berat").addEventListener("keydown", tombolPopupBerat);
 
 async function simpanBeratPopup() {
   const p = popupBerat;
   if (!p || p.menyimpan) return;
   const teks = $("scan-popup-berat").value.trim().replace(",", ".");
-  if (!teks) return;
+  if (!teks) { galatPopupScan(t("scanBeratKosong")); return; }
   const angka = Number(teks);
   if (!Number.isFinite(angka) || angka < MINIMUM_BERAT_KG) {
     galatPopupScan(t("scanBeratMinimum"));
@@ -6815,16 +6839,20 @@ async function simpanBeratPopup() {
     const kosong = p.langkah === "timbang_kosong";
     const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
       kosong ? muatanTara(p.weighing, teks) : muatanBruto(p.plat, teks)) });
-    popupScanSukses({ hasil: "tersimpan", langkah: p.langkah, plate_number: p.plat, supplier: p.supplier,
-                      kg: angka, dummy: false, dipasang: r.dipasang });
-    pesanScan("");
+    // Only while it is still this popup: a scan of the next truck may have replaced it while the
+    // save was on its way, and its result must not overwrite that newer popup.
+    if (popupBerat === p) {
+      popupScanSukses({ hasil: "tersimpan", langkah: p.langkah, plate_number: p.plat, supplier: p.supplier,
+                        kg: angka, dummy: false, dipasang: r.dipasang });
+      pesanScan("");
+    }
     umumkanPasang(r.dipasang, true);
     await muatTimbangan();
     await refresh();
   } catch (e) {
     // The popup stays with its number: the operator fixes it without retyping.
     p.menyimpan = false;
-    galatPopupScan(alasan(e));
+    if (popupBerat === p) galatPopupScan(alasan(e));
   }
 }
 
