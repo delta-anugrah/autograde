@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-07 · console · Final review fixes for Update now and the scan popup (branch feat/update-now-scan-popup)
+## 2026-10-07 · console · Final review fixes for Update now and the scan popup (PR #255)
 Changed:        Update now refuses with 409 `pembaruan_lepas_gagal` before releasing anything when a
                 line holding a truck is already unreadable in the last status poll, names the lines
                 released before a mid-way failure (`params.dilepas`, screen key
@@ -36,7 +36,7 @@ Not validated:  the new scan timing rules with the real Cashcow scanner; Update 
                 factory PC.
 Next:           PR to staging.
 
-## 2026-10-07 · console · Update now releases trucks, dummy scale, scan from any tab (branch feat/update-now-scan-popup)
+## 2026-10-07 · console · Update now releases trucks, dummy scale, scan from any tab (PR #255)
 Changed:        Dummy scale: support switch in Settings > Mode Developer (`/api/console/dev/timbangan-dummy`,
                 `sync_state` key `setelan_timbangan_dummy`); scans save 30,000 kg (isi) / 10,000 kg
                 (kosong) with `dummy: true`, still sent to AutoERP, orange band `#pita-dummy` on every
