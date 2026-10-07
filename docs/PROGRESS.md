@@ -18,6 +18,31 @@ Next:           ...
 
 ---
 
+## 2026-10-08 · console · New look: split sign-in, Timbangan and the other views (PR 4+5)
+Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a Lampung camera still (JPEG 54 KB as
+                a CSS data URI, scripts/tanam_foto_masuk.py, assets/masuk/masuk.jpg), one detection box, three
+                facts; form with account chips (initials, name, email, aria-pressed via tandaiOperator, two to a
+                row, own scroll), labels, note, ID / EN buttons reusing #bahasa; hero gone below 900 px. Timbangan
+                (§5.3): title row with two tiles (#tot-neto, #tot-tiket), step arrows in a 24 px gap, forms as
+                cards. Other views (§5.5): brand-blue selection (sub-tabs, Rekap quick ranges), inner boxes with a
+                hairline, plates in tables as plate chips (chipPlat), Rekap summary JK violet; undefined tokens
+                --r, --aksen, --kartu fixed (Setelan fields were square). Review #256 minors: hidden rail out of
+                the Tab order, truck card and queue buttons 44 px and wrapping at 1366 px, Esc closes the more
+                menu, no row flash on a filter change, grading filter tests no longer fail after the penugasan
+                tests. No endpoint, payload or rule change.
+Validated:      ruff check . → All checks passed. pytest tests/unit → 5454 passed, 28 skipped. Browser chromium →
+                202 passed; firefox → 202 passed. Final review (fable): 0 critical, 2 important fixed with tests
+                (photo squashed at 960x1080, many accounts pushed Masuk below 768 px). Screenshots light/dark at
+                1366, 1440, 1920 from the local demo (sawit/scripts/demo-konsol).
+Not validated:  Lampung kiosk Firefox; real cameras and a real PLC scale (demo used video lines and a simulated
+                scale); a mill with many synced AutoERP accounts at the gate (tested with 9 fake accounts).
+Decisions:      No logo and no live numbers on the sign-in (owner removed the logo 2026-10-07; a still is not
+                data). Akun buttons keep their equal width (operator request 2026-09-29). Table plates reuse
+                the .plat chip component.
+Next:           Owner looks at the screenshots and the demo, then merge to staging. Deferred minors: focus after
+                Esc, nowrap assertion for table plates, KAMUS key for the gate's language label, token radii on
+                the gate.
+
 ## 2026-10-07 · console · New look: fonts, tokens, left rail, Grading in one screen (PR 2+3)
 Changed:        console.html restyle and re-layout (spec sawit/docs/superpowers/specs/2026-10-07-autograde-konsol-baru-design.md
                 §4, §5.1, §5.2). Embedded fonts (scripts/tanam_font.py, assets/fonts, OFL); tokens --merek, class colours
