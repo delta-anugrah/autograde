@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-08 · console · New look: split sign-in, Timbangan and the other views (PR 4+5)
+## 2026-10-08 · console · New look: split sign-in, Timbangan and the other views (PR #257)
 Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a Lampung camera still (JPEG 54 KB as
                 a CSS data URI, scripts/tanam_foto_masuk.py, assets/masuk/masuk.jpg), one detection box, three
                 facts; form with account chips (initials, name, email, aria-pressed via tandaiOperator, two to a
