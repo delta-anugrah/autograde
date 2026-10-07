@@ -287,12 +287,14 @@ def _tugaskan_line_1(halaman, nomor: str) -> None:
 def test_scan_dari_tab_grading_mencatat_tanpa_pindah_tab(halaman, konsol):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "grading")
-    halaman.keyboard.type(_PLAT_BERSPASI, delay=10)  # scanner speed
-    halaman.keyboard.press("Enter")
-    expect(halaman.locator('#tabs [data-tab="grading"]')).to_have_attribute("aria-selected", "true")
-    # Task 6 replaces this toast with the popup; until then the success toast proves the scan landed.
-    expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukDatang"))
-    _batal_kedatangan(halaman, konsol, "B1995SME")
+    try:
+        halaman.keyboard.type(_PLAT_BERSPASI, delay=10)  # scanner speed
+        halaman.keyboard.press("Enter")
+        expect(halaman.locator('#tabs [data-tab="grading"]')).to_have_attribute("aria-selected", "true")
+        # Task 6 replaces this toast with the popup; until then the success toast proves the scan landed.
+        expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukDatang"))
+    finally:
+        _batal_kedatangan(halaman, konsol, "B1995SME")
 
 
 def test_scan_plat_berspasi_tidak_memicu_reject(halaman, konsol, browser_name):
@@ -301,11 +303,13 @@ def test_scan_plat_berspasi_tidak_memicu_reject(halaman, konsol, browser_name):
     _tugaskan_line_1(halaman, nomor)
     tombol = halaman.locator('#lines .card[data-line="line-1"] button.reject')
     expect(tombol).to_be_enabled()
-    halaman.keyboard.type(_PLAT_BERSPASI, delay=10)
-    halaman.keyboard.press("Enter")
-    expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukDatang"))
-    expect(tombol).not_to_have_class(re.compile(r"\bkedip\b"))
-    _batal_kedatangan(halaman, konsol, "B1995SME")
+    try:
+        halaman.keyboard.type(_PLAT_BERSPASI, delay=10)
+        halaman.keyboard.press("Enter")
+        expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukDatang"))
+        expect(tombol).not_to_have_class(re.compile(r"\bkedip\b"))
+    finally:
+        _batal_kedatangan(halaman, konsol, "B1995SME")
 
 
 def test_spasi_ditahan_lalu_1_tetap_reject(halaman, browser_name):
@@ -316,7 +320,7 @@ def test_spasi_ditahan_lalu_1_tetap_reject(halaman, browser_name):
     # The fake line has no reject endpoint (502 would fail the page-error guard); the flash is the proof.
     halaman.route("**/manual-reject", lambda r: r.fulfill(status=200, content_type="application/json", body="{}"))
     halaman.keyboard.down("Space")
-    halaman.wait_for_timeout(300)  # auto-repeat keydowns must not look like a scanner burst
+    halaman.wait_for_timeout(300)  # a person's slow Space then 1; auto-repeat is pinned in the node test
     halaman.keyboard.press("1")
     halaman.keyboard.up("Space")
     expect(tombol).to_have_class(re.compile(r"\bkedip\b"))

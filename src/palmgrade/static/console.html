@@ -3497,6 +3497,7 @@ const KAMUS = {
     phTara:"Tara (kg)",
     taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
     scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    scanTakTerbaca:"Scan tidak terbaca, ulangi scan",
     scanTrukNonaktif:"Truk ini sudah dinonaktifkan, tidak bisa ditimbang:",
     // Satu kolom scan (2026-10-06): server memilih langkahnya dari keadaan truk.
     lbScanOtomatis:"Scan QR truk", phScanOtomatis:"Arahkan scanner ke QR truk",
@@ -4056,6 +4057,7 @@ const KAMUS = {
     phTara:"Tare (kg)",
     taraMinimum:"Tare must be at least 1,000 kg, check the figure",
     scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    scanTakTerbaca:"Scan not read, scan again",
     scanTrukNonaktif:"This truck is deactivated and cannot be weighed:",
     lbScanOtomatis:"Scan truck QR", phScanOtomatis:"Point the scanner at the truck QR",
     scanKetikBruto:"Scale not ready. Type the gross weight of {plat}, then Enter",
@@ -6304,39 +6306,59 @@ $("lines").addEventListener("click", async (ev) => {
   }
 });
 
-// A scan from any tab but Timbangan (that tab keeps its focused field). A HID scanner types a
-// character every 5-20 ms and a person at best every ~80 ms, so 50 ms tells them apart. Keys are
-// never swallowed, only collected; a burst ending in Enter is the QR. `ledakanScan()` lets the
-// Space+N and P+N shortcuts stay quiet while one is typed (the plate `B 1995 SME` holds " 1").
-// Held keys (`ev.repeat`) never count: holding Space is a person.
-const JEDA_KETIK_SCANNER_MS = 50;
-const penangkapScan = { teks: "", pada: 0, cepat: false };
+// A scan from any tab. The listener runs on every tab; on Timbangan it stays quiet because the
+// focused scan field makes the focus check below clear the buffer. A HID scanner types a
+// character every 5-20 ms and Bluetooth can spike; a person needs 100 ms or more between keys and
+// never types 3+ keys then Enter outside an input on these tabs, so 100 ms tells them apart.
+// Keys are never swallowed, only collected. Enter ends a scan when it comes within
+// `JEDA_ENTER_SCANNER_MS` of the last character of a run of 3+ fast characters. Such a run broken
+// by a slow gap and continued is a failed read (`rusak`): the next Enter shows an error instead
+// of sending half a plate. `ledakanScan()` keeps Space+N and P+N quiet while a scan is typed
+// (the plate `B 1995 SME` holds " 1"; the buffer is "B 1" by then). Held keys (`ev.repeat`)
+// never count: holding Space is a person.
+const JEDA_KETIK_SCANNER_MS = 100;
+const JEDA_ENTER_SCANNER_MS = 500;
+const JEDA_RUSAK_MS = 1000;
+const penangkapScan = { teks: "", pada: 0, cepat: false, rusak: false };
 let scannerQrAktif = false;
 
 function ledakanScan() {
-  return penangkapScan.cepat && penangkapScan.teks.length >= 2;
+  const rusak = penangkapScan.rusak && Date.now() - penangkapScan.pada <= JEDA_RUSAK_MS;
+  return rusak || (penangkapScan.cepat && penangkapScan.teks.length >= 3);
 }
 
 function tangkapScan(ev) {
-  const bersih = () => { penangkapScan.teks = ""; penangkapScan.cepat = false; };
+  const sekarang = Date.now();
+  const bersih = () => {
+    penangkapScan.teks = ""; penangkapScan.cepat = false; penangkapScan.rusak = false;
+    penangkapScan.pada = sekarang;
+  };
   const el = ev.target;
   if (ev.key === "Shift") return;  // a scanner presses it inside a burst for capitals
   if (!scannerQrAktif || ev.repeat || ev.ctrlKey || ev.altKey || ev.metaKey) return bersih();
   if (!$("gerbang").hidden || !$("tirai-pembaruan").hidden || document.querySelector("dialog[open]")) return bersih();
   if (el && el.closest && el.closest("input, textarea, select, [contenteditable], .pilih")) return bersih();
-  const sekarang = Date.now();
-  const cepat = sekarang - penangkapScan.pada <= JEDA_KETIK_SCANNER_MS;
+  const selang = sekarang - penangkapScan.pada;
+  if (penangkapScan.rusak && selang > JEDA_RUSAK_MS) penangkapScan.rusak = false;
   if (ev.key === "Enter") {
     const teks = penangkapScan.teks.trim();
-    const dikirim = cepat && penangkapScan.cepat && teks.length >= 3;
+    const rusak = penangkapScan.rusak;
+    const dikirim = !rusak && teks.length >= 3 && selang <= JEDA_ENTER_SCANNER_MS;
     bersih();
-    if (dikirim) { ev.preventDefault(); kirimScanOtomatis(teks); }
+    if (rusak) { ev.preventDefault(); toastGagal(t("scanTakTerbaca")); }
+    else if (dikirim) { ev.preventDefault(); kirimScanOtomatis(teks); }
     return;
   }
   if (ev.key.length !== 1) return bersih();
-  if (!cepat) penangkapScan.teks = "";
+  if (penangkapScan.rusak) { penangkapScan.pada = sekarang; return; }
+  if (selang > JEDA_KETIK_SCANNER_MS && penangkapScan.teks.length >= 3) {
+    penangkapScan.teks = ""; penangkapScan.cepat = false; penangkapScan.rusak = true;
+    penangkapScan.pada = sekarang;
+    return;
+  }
+  if (selang > JEDA_KETIK_SCANNER_MS) penangkapScan.teks = "";
   penangkapScan.teks += ev.key;
-  penangkapScan.cepat = cepat;
+  penangkapScan.cepat = true;
   penangkapScan.pada = sekarang;
 }
 document.addEventListener("keydown", tangkapScan, true);
