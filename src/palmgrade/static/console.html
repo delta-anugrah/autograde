@@ -6355,13 +6355,21 @@ $("lines").addEventListener("click", async (ev) => {
 // Keys are never swallowed, only collected. Enter ends a scan when it comes within
 // `JEDA_ENTER_SCANNER_MS` of the last character of a run of 3+ fast characters. Such a run broken
 // by a slow gap and continued is a failed read (`rusak`): the next Enter shows an error instead
-// of sending half a plate. `ledakanScan()` keeps Space+N and P+N quiet while a scan is typed
-// (the plate `B 1995 SME` holds " 1"; the buffer is "B 1" by then). Held keys (`ev.repeat`)
-// never count: holding Space is a person.
+// of sending half a plate. A fast run that starts less than `JEDA_RUSAK_MS` after a key that is
+// not part of it is a failed read too: the scanner stalled after "B" and the rest ("E 1234 XY")
+// must not go out as a plate. An Enter that sends nothing still is a scanner's when 3+ printable
+// keys came within `JEDA_KETUKAN_MS` (slow or late keys): it is held back and a failed read shown,
+// so it never presses the focused button. A person pressing Enter on a button after Space+1
+// (two keys) or after nothing is untouched. `ledakanScan()` keeps Space+N and P+N quiet while a
+// scan is typed (the plate `B 1995 SME` holds " 1"; the buffer is "B 1" by then). Held keys
+// (`ev.repeat`) never count: holding Space is a person.
 const JEDA_KETIK_SCANNER_MS = 100;
 const JEDA_ENTER_SCANNER_MS = 500;
 const JEDA_RUSAK_MS = 1000;
-const penangkapScan = { teks: "", pada: 0, cepat: false, rusak: false };
+const JEDA_KETUKAN_MS = 1500;
+// `ketukan`: times of the recent printable keys; `mulai`: when the current run started;
+// `sebelum`: the last printable key before that run (null = none).
+const penangkapScan = { teks: "", pada: 0, cepat: false, rusak: false, ketukan: [], mulai: 0, sebelum: null };
 let scannerQrAktif = false;
 
 function ledakanScan() {
@@ -6373,7 +6381,7 @@ function tangkapScan(ev) {
   const sekarang = Date.now();
   const bersih = () => {
     penangkapScan.teks = ""; penangkapScan.cepat = false; penangkapScan.rusak = false;
-    penangkapScan.pada = sekarang;
+    penangkapScan.pada = sekarang; penangkapScan.ketukan = []; penangkapScan.sebelum = null;
   };
   const el = ev.target;
   if (ev.key === "Shift") return;  // a scanner presses it inside a burst for capitals
@@ -6384,21 +6392,30 @@ function tangkapScan(ev) {
   if (penangkapScan.rusak && selang > JEDA_RUSAK_MS) penangkapScan.rusak = false;
   if (ev.key === "Enter") {
     const teks = penangkapScan.teks.trim();
-    const rusak = penangkapScan.rusak;
+    const putus = teks.length >= 3 && penangkapScan.sebelum !== null
+      && penangkapScan.mulai - penangkapScan.sebelum < JEDA_RUSAK_MS;
+    const rusak = penangkapScan.rusak || putus;
     const dikirim = !rusak && teks.length >= 3 && selang <= JEDA_ENTER_SCANNER_MS;
+    const ketikBaru = penangkapScan.ketukan.filter((w) => sekarang - w <= JEDA_KETUKAN_MS).length >= 3;
     bersih();
-    if (rusak) { ev.preventDefault(); popupScanGagal(t("scanTakTerbaca")); }
-    else if (dikirim) { ev.preventDefault(); kirimScanOtomatis(teks); }
+    if (dikirim) { ev.preventDefault(); kirimScanOtomatis(teks); }
+    else if (rusak || ketikBaru) { ev.preventDefault(); popupScanGagal(t("scanTakTerbaca")); }
     return;
   }
   if (ev.key.length !== 1) return bersih();
+  const terakhir = penangkapScan.ketukan.length ? penangkapScan.ketukan[penangkapScan.ketukan.length - 1] : null;
+  penangkapScan.ketukan = [...penangkapScan.ketukan.filter((w) => sekarang - w <= JEDA_KETUKAN_MS), sekarang];
   if (penangkapScan.rusak) { penangkapScan.pada = sekarang; return; }
   if (selang > JEDA_KETIK_SCANNER_MS && penangkapScan.teks.length >= 3) {
     penangkapScan.teks = ""; penangkapScan.cepat = false; penangkapScan.rusak = true;
     penangkapScan.pada = sekarang;
     return;
   }
-  if (selang > JEDA_KETIK_SCANNER_MS) penangkapScan.teks = "";
+  if (selang > JEDA_KETIK_SCANNER_MS || !penangkapScan.teks) {
+    penangkapScan.teks = "";
+    penangkapScan.mulai = sekarang;
+    penangkapScan.sebelum = terakhir;
+  }
   penangkapScan.teks += ev.key;
   penangkapScan.cepat = true;
   penangkapScan.pada = sekarang;

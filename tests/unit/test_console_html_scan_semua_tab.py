@@ -80,9 +80,50 @@ def test_tanda_gagal_hilang_sesudah_1_detik_diam():
 
 
 @butuh_node
-def test_ketikan_orang_150_ms_tidak_mengirim_dan_enter_tidak_ditahan():
+def test_tiga_tombol_150_ms_lalu_enter_ditahan_dan_gagal():
+    # Late or slow scanner keys outside an input: the Enter must not press the focused button.
     assert _jalankan('ketik("abc", 150); const e = tekan("Enter");'
+                     + _keluar("[kirim, gagal, e.dicegah === true]")) == [[], ["scanTakTerbaca"], True]
+
+
+@butuh_node
+def test_enter_terlambat_sesudah_ledakan_ditahan_dan_gagal():
+    assert _jalankan('ketik("AB 12", 10); ahora += 800; const e = tekan("Enter");'
+                     + _keluar("[kirim, gagal, e.dicegah === true]")) == [[], ["scanTakTerbaca"], True]
+
+
+@butuh_node
+def test_enter_saja_di_tombol_tidak_ditahan():
+    assert _jalankan('ahora = 5000; const e = tekan("Enter");'
                      + _keluar("[kirim, gagal, e.dicegah === true]")) == [[], [], False]
+
+
+@butuh_node
+def test_dua_tombol_lalu_enter_tidak_ditahan():
+    # Space+1 by hand, then Enter on a button: two keys are a person, not a scan.
+    assert _jalankan('tekan(" "); ahora += 40; tekan("1"); ahora += 300; const e = tekan("Enter");'
+                     + _keluar("[kirim, gagal, e.dicegah === true]")) == [[], [], False]
+
+
+@butuh_node
+def test_tombol_lama_tidak_dihitung_untuk_enter():
+    assert _jalankan('ketik("abc", 150); ahora += 1600; const e = tekan("Enter");'
+                     + _keluar("[kirim, gagal, e.dicegah === true]")) == [[], [], False]
+
+
+@butuh_node
+def test_scan_macet_sesudah_satu_huruf_bukan_plat_sepotong():
+    # "B" stalls, "E 1234 XY" follows at scanner speed: never sent as the plate "E 1234 XY".
+    assert _jalankan('tekan("B"); ahora += 300; ketik("E 1234 XY", 10); const e = tekan("Enter");'
+                     + _keluar("[kirim, gagal, e.dicegah === true]")) == [[], ["scanTakTerbaca"], True]
+    assert _jalankan('ketik("BE", 10); ahora += 600; ketik(" 1234 XY", 10); tekan("Enter");'
+                     + _keluar("[kirim, gagal]")) == [[], ["scanTakTerbaca"]]
+
+
+@butuh_node
+def test_tombol_lebih_dari_1_detik_sebelum_scan_tidak_merusak():
+    assert _jalankan('tekan("x"); ahora += 1100; ketik("E 1234 XY", 10); tekan("Enter");'
+                     + _keluar("[kirim, gagal]")) == [["E 1234 XY"], []]
 
 
 @butuh_node
