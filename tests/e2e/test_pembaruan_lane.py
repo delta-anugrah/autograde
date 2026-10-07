@@ -52,6 +52,10 @@ class _StubConsole:
     def assignments(self) -> dict:
         return self.store.assignments()
 
+    def line_status(self) -> dict:
+        """The last line poll: empty = no line known to be down (Update now pre-check)."""
+        return {}
+
     async def assign_truck(self, line_code: str, truck_id: str) -> dict:
         self.store.set_assignment(line_code, "a-1", truck_id)
         return {"assignment_id": "a-1", "truck_id": truck_id, "line_code": line_code}
