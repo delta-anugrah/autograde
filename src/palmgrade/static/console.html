@@ -3637,7 +3637,7 @@ const KAMUS = {
     pembaruanBerjalan:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
     pembaruanTersambungLagi:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
     pembaruanBelumTerpasang:"Pembaruan dari layar belum dipasang di PC ini. Panggil teknisi untuk memasangnya.",
-    pembaruanDimulai:"Pemasangan dimulai", gagalPasangPembaruan:"Gagal memulai pemasangan",
+    gagalPasangPembaruan:"Gagal memulai pemasangan",
     pembaruanHasilOk:"Versi {versi} sudah terpasang.",
     pembaruanHasilBalik:"Versi {versi} gagal dinyalakan, sistem kembali ke {lama}. Panggil teknisi.",
     pembaruanHasilGagal:"Versi {versi} belum terpasang, sistem tetap di {lama}. Coba tekan lagi sebentar lagi.",
@@ -4188,7 +4188,7 @@ const KAMUS = {
     pembaruanBerjalan:"Installing the new version. The screen will reconnect by itself.",
     pembaruanTersambungLagi:"Installing the new version. The screen will reconnect by itself.",
     pembaruanBelumTerpasang:"Updating from the screen is not set up on this PC. Call a technician to set it up.",
-    pembaruanDimulai:"Installation started", gagalPasangPembaruan:"Could not start the installation",
+    gagalPasangPembaruan:"Could not start the installation",
     pembaruanHasilOk:"Version {versi} is installed.",
     pembaruanHasilBalik:"Version {versi} failed to start, so the system went back to {lama}. Call a technician.",
     pembaruanHasilGagal:"Version {versi} was not installed, the system stays on {lama}. Try again in a moment.",
@@ -7142,6 +7142,8 @@ function tutupSandi() { lihatSandi(false); }
 
 async function bukaGerbang() {
   $("gerbang").hidden = false;
+  // The marker survives: the first poll after login brings the curtain back.
+  tutupTirai();
   aturSisaSesi(null);
   $("operator-aktif").hidden = true;
   $("keluar").hidden = true;
@@ -9384,62 +9386,94 @@ const KUNCI_PASANG = "autograde.pasang";
 const BATAS_PENANDA_MS = 25 * 60 * 1000;   // BATAS_TUNGGU_S (1200 s) plus margin
 let lineTerakhir = [];                     // s.lines from the last poll, for the question
 
-function bacaPenandaPasang() {
+// In-memory copy: without sessionStorage the curtain still lasts until the reload (or the limit).
+let penandaMemori = null;
+
+function penandaPasang() {
   try {
     const p = JSON.parse(sessionStorage.getItem(KUNCI_PASANG) || "null");
-    if (!p || !p.target || Date.now() - Number(p.pada) > BATAS_PENANDA_MS) {
-      if (p) hapusPenandaPasang();
-      return null;
-    }
-    return p;
-  } catch (e) { return null; }
+    if (p && p.target) return p;
+  } catch (e) { /* storage unavailable: use the copy in memory */ }
+  return penandaMemori;
+}
+
+function penandaBasi(p) {
+  return !Number.isFinite(Number(p.pada)) || Date.now() - Number(p.pada) > BATAS_PENANDA_MS;
+}
+
+function bacaPenandaPasang() {
+  const p = penandaPasang();
+  if (!p) return null;
+  if (penandaBasi(p)) { hapusPenandaPasang(); return null; }
+  return p;
 }
 
 function tulisPenandaPasang(target) {
-  try { sessionStorage.setItem(KUNCI_PASANG, JSON.stringify({ target, pada: Date.now() })); } catch (e) { /* tanpa storage: toast sukses dilewati */ }
+  penandaMemori = { target, pada: Date.now() };
+  try { sessionStorage.setItem(KUNCI_PASANG, JSON.stringify(penandaMemori)); } catch (e) { /* the memory copy stays */ }
 }
 
 function hapusPenandaPasang() {
-  try { sessionStorage.removeItem(KUNCI_PASANG); } catch (e) { /* tidak ada yang dihapus */ }
+  penandaMemori = null;
+  try { sessionStorage.removeItem(KUNCI_PASANG); } catch (e) { /* nothing to remove */ }
 }
 
-// Keys do nothing while the curtain is up (Tab, Enter, the scanner's keystrokes).
+// Keys do nothing while the curtain is up (Tab, Enter, the scanner's keystrokes), except
+// while the login gate is open: it sits above the curtain and its fields must be typeable.
 function tahanTombolTirai(ev) {
+  if (!$("gerbang").hidden) return;
   if (!$("tirai-pembaruan").hidden) { ev.preventDefault(); ev.stopPropagation(); }
 }
 document.addEventListener("keydown", tahanTombolTirai, true);
 
 function tampilkanTirai(target) {
   $("tirai-teks").textContent = t("tiraiPasang").replace("{versi}", target);
-  // A focused field behind the curtain would keep `amanMuatUlang()` false.
-  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-  $("tirai-pembaruan").hidden = false;
+  if ($("tirai-pembaruan").hidden) {
+    // A focused field behind the curtain would keep `amanMuatUlang()` false.
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    $("tirai-pembaruan").hidden = false;
+  }
 }
 
 function tutupTirai() {
   $("tirai-pembaruan").hidden = true;
 }
 
-// Every poll: the version the page was loaded with equals the marker target = installed
-// (success toast); a failed result for that target = failure toast; otherwise the curtain
-// stays up, also after a reload in the middle. A page still on the OLD version waits: its
-// own reload is about to bring the new page, which shows the toast.
-function cekHasilTirai(s) {
-  const p = bacaPenandaPasang();
-  if (!p) { tutupTirai(); return; }
+// What the poll says about an install in progress: "berhasil" only when this page was loaded
+// with the new version AND the launcher's verdict is ok (the new image answers for up to 90 s
+// before a rollback), "gagal" on a failed verdict for this target, otherwise "tunggu". A page
+// still on the OLD version waits: its own reload brings the new page, which shows the toast.
+function putusanTirai(penanda, s, versiHalamanIni) {
   const hasil = s && s.pembaruan && s.pembaruan.hasil;
-  if (s && s.versi === p.target && versiHalaman === s.versi) {
-    hapusPenandaPasang();
-    tutupTirai();
-    toastSukses(t("pembaruanBerhasil").replace("{versi}", p.target));
-  } else if (hasil && hasil.target === p.target && ["rolled_back", "failed", "timeout", "nothing"].includes(hasil.state)) {
-    hapusPenandaPasang();
-    tutupTirai();
-    toastGagal(teksHasilPembaruan(hasil));
-  } else {
-    tampilkanTirai(p.target);
-  }
+  const untukIni = Boolean(hasil && hasil.target === penanda.target);
+  if (untukIni && ["rolled_back", "failed", "timeout", "nothing"].includes(hasil.state)) return "gagal";
+  if (untukIni && hasil.state === "ok" && s.versi === penanda.target && versiHalamanIni === s.versi) return "berhasil";
+  return "tunggu";
 }
+
+function akhiriTirai(penanda, putusan, s) {
+  hapusPenandaPasang();
+  tutupTirai();
+  if (putusan === "berhasil") toastSukses(t("pembaruanBerhasil").replace("{versi}", penanda.target));
+  else toastGagal(teksHasilPembaruan((s && s.pembaruan && s.pembaruan.hasil) || { state: "timeout", target: penanda.target }));
+}
+
+function cekHasilTirai(s) {
+  const penanda = penandaPasang();
+  if (!penanda) { tutupTirai(); return; }
+  if (penandaBasi(penanda)) { akhiriTirai(penanda, "gagal", null); return; }
+  const putusan = putusanTirai(penanda, s, versiHalaman);
+  if (putusan === "tunggu") tampilkanTirai(penanda.target);
+  else akhiriTirai(penanda, putusan, s);
+}
+
+// The console may never come back: the poll cannot say so, so a timer closes the curtain
+// with the timeout sentence once the marker is older than the limit.
+setInterval(() => {
+  if ($("tirai-pembaruan").hidden) return;
+  const penanda = penandaPasang();
+  if (!penanda || penandaBasi(penanda)) akhiriTirai(penanda || { target: "" }, "gagal", null);
+}, 30000);
 
 // A reload in the middle of an install: the curtain is up again before the first poll answers.
 {

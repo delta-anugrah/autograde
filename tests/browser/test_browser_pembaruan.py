@@ -130,6 +130,26 @@ def test_update_now_rolled_back_drops_the_curtain_with_a_failure_toast(halaman, 
     expect(halaman.locator("#tirai-pembaruan")).to_be_hidden()
 
 
+def test_curtain_gives_way_to_the_login_gate_and_returns_after_login(halaman, konsol, folder_update):
+    """The gate sits above the curtain: its fields must take keys, and the marker must survive."""
+    masuk(halaman, OPERATOR)
+    _tekan_pasang(halaman)
+    halaman.click("#konfirmasi-ya")
+    expect(halaman.locator("#tirai-pembaruan")).to_be_visible()
+
+    assert halaman.request.post(f"{konsol.url}/api/console/logout").ok
+    expect(halaman.locator("#gerbang")).to_be_visible()
+    expect(halaman.locator("#tirai-pembaruan")).to_be_hidden()
+    halaman.fill("#gerbang-sandi", "abc")
+    assert halaman.input_value("#gerbang-sandi") == "abc"
+
+    halaman.fill("#gerbang-email", OPERATOR[0])
+    halaman.fill("#gerbang-sandi", OPERATOR[1])
+    halaman.click("#gerbang-masuk")
+    expect(halaman.locator("#gerbang")).to_be_hidden()
+    expect(halaman.locator("#tirai-pembaruan")).to_be_visible()
+
+
 def test_update_now_cancel_sends_nothing(halaman, konsol, folder_update):
     masuk(halaman, OPERATOR)
     _tekan_pasang(halaman)

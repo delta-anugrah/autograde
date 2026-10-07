@@ -216,3 +216,54 @@ def test_tirai_bukan_dialog_dan_menahan_aksi():
     for nama in ("tampilkanTirai", "tutupTirai", "cekHasilTirai"):
         assert f"function {nama}(" in HTML, nama
     assert "autograde.pasang" in HTML
+
+
+def _tirai(ekspresi: str):
+    stub = (
+        "const KUNCI_PASANG = 'autograde.pasang'; const BATAS_PENANDA_MS = 25*60*1000; let penandaMemori = null;"
+        " const sessionStorage = {getItem(){ throw new Error('x'); }, setItem(){ throw new Error('x'); },"
+        " removeItem(){ throw new Error('x'); }};"
+    )
+    nama = ["penandaPasang", "penandaBasi", "bacaPenandaPasang", "tulisPenandaPasang", "hapusPenandaPasang", "putusanTirai"]
+    return jalankan(nama, ekspresi, tambahan=stub)
+
+
+PENANDA = "{target:'v1.22.1', pada: Date.now()}"
+
+
+def _putusan(versi: str, hasil: str, versi_halaman: str = "v1.22.1") -> str:
+    return _tirai(f"putusanTirai({PENANDA}, {{versi:'{versi}', pembaruan:{{hasil:{hasil}}}}}, '{versi_halaman}')")
+
+
+@butuh_node
+def test_putusan_versi_cocok_tanpa_vonis_masih_menunggu():
+    """The new image answers for up to 90 s before a rollback: the version alone is not success."""
+    assert _putusan("v1.22.1", "null") == "tunggu"
+    assert _putusan("v1.22.1", "{state:'ok', target:'v1.22.0'}") == "tunggu"
+
+
+@butuh_node
+def test_putusan_ok_berhasil_hanya_di_halaman_versi_baru():
+    ok = "{state:'ok', target:'v1.22.1'}"
+    assert _putusan("v1.22.1", ok) == "berhasil"
+    assert _putusan("v1.22.1", ok, versi_halaman="v1.22.0") == "tunggu"
+    assert _putusan("v1.22.0", ok) == "tunggu"
+
+
+@butuh_node
+def test_putusan_gagal_untuk_vonis_gagal():
+    for state in ("rolled_back", "failed", "timeout", "nothing"):
+        assert _putusan("v1.22.0", f"{{state:'{state}', target:'v1.22.1'}}") == "gagal", state
+
+
+@butuh_node
+def test_penanda_bertahan_di_memori_saat_storage_error():
+    assert _tirai("(tulisPenandaPasang('v1.22.1'), bacaPenandaPasang().target)") == "v1.22.1"
+    assert _tirai("(tulisPenandaPasang('v1.22.1'), hapusPenandaPasang(), bacaPenandaPasang())") is None
+
+
+@butuh_node
+def test_penanda_pada_bukan_angka_dianggap_basi():
+    assert _tirai("(penandaMemori = {target:'v1', pada:'abc'}, bacaPenandaPasang())") is None
+    assert _tirai("(penandaMemori = {target:'v1', pada: Date.now() - 26*60*1000}, bacaPenandaPasang())") is None
+    assert _tirai("(penandaMemori = {target:'v1', pada: Date.now()}, bacaPenandaPasang().target)") == "v1"
