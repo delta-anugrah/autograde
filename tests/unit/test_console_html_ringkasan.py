@@ -103,3 +103,10 @@ def test_kartu_ringkasan_punya_bagian_baru():
     tally = re.search(r'<section id="tally">(.*?)</section>', HTML, re.S).group(1)
     for id_ in ("bar-kelas", "timbang-saran", "timbang-jejak", "truk-di-line", "antrean-bongkar"):
         assert f'id="{id_}"' in tally, id_
+
+
+def test_tiga_kartu_ringkasan_sejajar_kartu_line():
+    # Owner 2026-10-07: the three summary cards share the width equally, aligned with the line
+    # cards: the same grid template and gap as `#lines`.
+    assert re.search(r"#tally\s*\{[^}]*display:grid;[^}]*grid-template-columns:repeat\(auto-fit,minmax\(min\(320px,100%\),1fr\)\);[^}]*gap:12px", HTML)
+    assert not re.search(r"\.ringkas-hari\s*\{\s*flex:", HTML)

@@ -219,7 +219,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Strip foto cuma diambil saat `tab === "grading"` dan tab browser terlihat; Lepas di kartu
   truk dijaga `lepasTrukBerjalan` (tekan kedua ditolak walau kartunya digambar ulang).
 - `#tally` = tiga `.ringkas`: hari (`#tot-all`, `#tot-rate`, `#bar-kelas` dari `htmlBarKelas`),
-  `#timbang` (ikut tema lewat `--timbang-bg/fg/garis/jejak*`, isi bar dan titik kelas pakai `--ripe-isi` dkk, `#timbang-jejak` 24 bacaan `catatJejak`/`htmlJejak`,
+  `#tally` = grid yang sama dengan `#lines` (tiga kolom sejajar kartu line). `#timbang` (ikut tema lewat `--timbang-bg/fg/garis/jejak*`, isi bar dan titik kelas pakai `--ripe-isi` dkk, `#timbang-jejak` 24 bacaan `catatJejak`/`htmlJejak`,
   `#timbang-saran` dari `SARAN_TIMBANG[keadaan]`), dan truk (`#truk-di-line` dari
   `htmlTrukDiLine`, Lepas = `lepasTruk` = `release-truck` per line berurutan; `#antrean-bongkar`
   tampil selama penugasan otomatis nyala, kosong pun). `#tot-neto`/`#tot-tiket` di `#sec-timbangan`.
