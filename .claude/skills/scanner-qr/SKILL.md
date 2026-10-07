@@ -57,10 +57,14 @@ The paper manual lists no suffix (Enter) and no keyboard-language setting.
 - Since 2026-10-07 a capture-phase key catcher on `document` (`tangkapScan`) reads the scanner
   on every tab, so no field needs the focus: at most 100 ms between characters, Enter within
   500 ms of the last one, at least 3 characters. A fast run that breaks off is a failed read
-  ("Scan tidak terbaca, ulangi scan"), never sent half. The field `#scan-otomatis` still keeps
+  ("Scan tidak terbaca, ulangi scan"), never sent half; so is a fast run that starts less than
+  1 s after a key outside it (a scan that stalled after "B"). An Enter that sends nothing is
+  held back with the same popup when 3+ keys came within 1.5 s, so a late scanner Enter never
+  presses a focused button. The field `#scan-otomatis` still keeps
   the focus on the Timbangan tab (`jagaFokusScan`) and still takes a plate typed by hand.
 - Space+N (Manual Reject) and P+N (piston) are guarded by `ledakanScan()`: only 3 or more fast
-  characters count as a scan, so the plate `B 1995 SME` does not fire Space+1.
+  characters count as a scan, so the plate `B 1995 SME` does not fire Space+1. Both shortcuts
+  also work while the weight popup's box has the focus, and the digit never enters the box.
 - It submits **only on Enter**. This scanner **does send Enter**
   after a scan: verified 2026-10-06 over Bluetooth on a Mac (all four steps worked).
 - The server picks the step from the truck's state (`POST /api/console/scan/auto`, rule 20):

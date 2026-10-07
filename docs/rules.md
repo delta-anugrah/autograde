@@ -1458,7 +1458,9 @@ end of this file.
     "tidak layak"), dan baris itu ditandai `dummy: true` di jawaban scan. Datanya **tetap
     dikirim ke AutoERP** (keputusan user 2026-10-07): dummy cuma menggantikan angkanya, bukan
     jalurnya, jadi matikan sebelum kerja sungguhan. Pita oranye `#pita-dummy` di semua tab
-    mengingatkannya, dan kotak timbangan live menulis **Dummy**.
+    mengingatkannya. Kotak timbangan live menulis **Dummy** hanya selama tidak ada timbangan
+    terpasang (`tidak_dipakai`); dengan timbangan terpasang kotak itu tetap menulis keadaan
+    timbangannya, tetapi scan tetap menyimpan berat dummy.
 
 ---
 
