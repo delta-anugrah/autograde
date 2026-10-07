@@ -269,7 +269,7 @@ MODEL_FILE=best.pt
 CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
 
-# Stream (MJPEG — tidak mempengaruhi hasil simpan)
+# Kotak stream MJPEG (gambar dimuatkan dengan rasio asli kamera; juga grid angka ROI/garis capture; tidak mempengaruhi hasil simpan)
 STREAM_WIDTH=1280
 STREAM_HEIGHT=720
 ```

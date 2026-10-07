@@ -95,7 +95,7 @@ ditanya.
   bawaan publik `supersecret123` (line sudah lama begitu; konsol ikut sejak v1.20.0, batch 1). Isi `openssl rand -hex 32` di `.env`,
   nilai yang sama untuk keempat container, lalu `autograde restart`.
 - **Janjang difoto di titik mana:** saat kotaknya **menyentuh garis capture**, garis biru
-  bertanda `CAPTURE`, diatur dari tab **Setelan** (piksel, ruang stream; `0` = tanpa garis,
+  bertanda `CAPTURE`, diatur dari tab **Setelan** (angka pada skala setelan 1280×720 yang direntangkan ke seluruh gambar, bukan piksel video; `0` = tanpa garis,
   janjang difoto begitu masuk ROI). ROI menjawab *di mana*, garis menjawab *kapan*. Arah
   conveyor (`tegak`/`mendatar`) menentukan garisnya tegak atau melintang. Berlaku tanpa
   restart. "Capture terlalu cepat" → **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
