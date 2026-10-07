@@ -232,6 +232,9 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   jadi klik membuka `#foto-modal`), `.counts`, `.bar-kelas`, Reject + piston, `details.lagi`
   (menu ⋯: `.truk`, `.assign`, `.ord`; klik di luar atau Esc menutupnya, `tutupMenuLagi`). Tes browser yang klik
   Tugaskan/Lepas/geser memanggil `buka_menu_line(kartu)` dulu (`tests/browser/langkah.py`).
+- Pendengar `load`/`error` di `#lines` (fase capture) cuma untuk gambar di `.feed`: kartu juga
+  memuat strip foto, dan foto strip dulu menimpa `rasioFeed` serta bisa menandai kartu `putus`
+  (ketemu dari CI #257, bergantung urutan tes; `test_a_strip_photo_never_sets_the_camera_shape`).
 - Tinggi kamera: `aturTinggiKamera` mengukur sisa jendela ke `--tinggi-tetap`; `#lines .feed`
   `max-height` di layar ≥1100 px, jadi layar pertama Grading tanpa scroll.
 - Tabel Grading: baris teratas halaman 1 berkedip sekali (`tr.baris-baru`) kalau janjang baru;
