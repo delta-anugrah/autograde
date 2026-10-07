@@ -9,11 +9,28 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from langkah import OPERATOR, kamus, masuk
 from playwright.sync_api import expect
 
 # A 1x1 PNG: a real picture the browser decodes, from no server at all.
 PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+
+@pytest.fixture(autouse=True)
+def _tanpa_pengumuman_pelepasan(halaman):
+    """The console is shared by the session's tests: releases made by earlier tests (penugasan)
+    are announced again as warning toasts at sign-in, and they covered the truck picker (review
+    #256: the truck filter test failed when run right after the penugasan tests). These tests
+    are about the table, so the announcements are left out of `/api/console/state`."""
+
+    def jawab(route):
+        r = route.fetch()
+        isi = r.json()
+        isi["auto_releases"] = []
+        route.fulfill(response=r, json=isi)
+
+    halaman.route("**/api/console/state", jawab)
 
 
 def _baris(nomor: int, line: str, *, thumb: str | None) -> dict:
