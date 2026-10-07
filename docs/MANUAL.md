@@ -184,7 +184,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   Photo yang tertinggal sampai satu jam itu normal selama titiknya hijau. Arahkan kursor ke
   baris untuk rinciannya (Cloud Photo: jam upload tiap line). Selama terputus tidak ada data
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
-- **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
+- **Tiga kartu line**, satu per kamera, dengan stream langsung (gambarnya utuh dengan bentuk asli
+  kamera, tidak dipotong dan tidak gepeng; kotaknya mengikuti bentuk gambar), status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
 - **Lepas paksa** (merah tua, di tempat **Lepas**) muncul kalau line itu sama sekali tidak
   menjawab konsol padahal masih memegang truk. Layar bertanya dulu. Truknya dilepas **di konsol
