@@ -1382,11 +1382,14 @@ end of this file.
     pemasangan truk yang timbang isi tetap di antrean bongkar, **Tugaskan sekarang** ditolak 409
     `pembaruan_berjalan`, dan tiap line yang ditugaskan otomatis lewat `menugaskan` seperti
     tombol manual (`PenugasanOtomatis.pakai_penjaga_pembaruan`, dipasang di
-    `console_deps.get_console_service` dengan singleton yang sama). Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa dan
-    tulis penanda; assign memegangnya cuma untuk mendaftar diri (`menugaskan`), lalu memanggil
-    line TANPA kunci, dan line yang assign-nya belum dijawab ikut menolak install. Jadi tidak ada
-    celah antara "tidak ada truk" dan penanda mendarat, dan line mati (10 detik) tidak membuat
-    assign di line lain antre. Server mengirim kode line, layar
+    `console_deps.get_console_service` dengan singleton yang sama). Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa, setiap
+    `release_truck`, dan tulis penanda; assign memegangnya cuma untuk mendaftar diri
+    (`menugaskan`), lalu memanggil line TANPA kunci, dan line yang assign-nya belum dijawab ikut
+    menolak install. Jadi tidak ada celah antara "tidak ada truk" dan penanda mendarat. Harganya:
+    selama Update now menunggu line yang diam (sampai batas waktu klien line), assign dan
+    penugasan otomatis di line lain antre di belakangnya. Kalau `status.json` berubah antara
+    `periksa` dan `pasang` (versi di-stage ulang), truk sudah terlepas dan pemasangan ditolak 409
+    `pembaruan_tidak_ada` (jarang, tidak berbahaya). Server mengirim kode line, layar
     menulis nama di kartunya (`namaLineDari`). `rolled_back` menyembunyikan versi itu sampai
     versi yang lebih baru di-stage; `failed` berarti belum dicoba (kunci launcher, promote
     dilewat, skrip terhenti) dan ditawarkan lagi. Penanda tanpa jawaban 20 menit

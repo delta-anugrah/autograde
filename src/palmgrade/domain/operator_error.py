@@ -75,8 +75,9 @@ INPUT_TIDAK_SAH = "input_tidak_sah"
 PENUGASAN_TANPA_LINE = "penugasan_tanpa_line"
 BUKAN_ANTREAN = "bukan_antrean"
 LINE_SEMUA_TERPAKAI = "line_semua_terpakai"
-# Batch 4.6, the Update now button (operator and support). `pembaruan_ada_truk` carries
-# param `line` ("L1, L3"): the operator has to know which truck to release first.
+# Batch 4.6, the Update now button (operator and support). `pembaruan_ada_truk` now only
+# means an assign still waiting for its line (Update now releases the other trucks itself);
+# it carries param `line` ("L1, L3").
 PEMBARUAN_ADA_TRUK = "pembaruan_ada_truk"
 PEMBARUAN_TIDAK_ADA = "pembaruan_tidak_ada"
 PEMBARUAN_BERJALAN = "pembaruan_berjalan"

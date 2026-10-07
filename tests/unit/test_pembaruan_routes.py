@@ -179,11 +179,22 @@ def test_ditolak_karena_alasan_lain_tidak_melepas_truk(rakit):
     assert not (folder / PERMINTAAN).exists()
 
 
+def test_pemasangan_berjalan_tidak_melepas_truk(rakit):
+    aplikasi, store, folder, konsol = rakit
+    op = _masuk(aplikasi, store, "op@pks.test", "operator")
+    assert op.post("/api/console/update/install", json={"target": "v1.22.1"}).status_code == 202
+    store.set_assignment("L2", "a-2", "T-2")
+    res = op.post("/api/console/update/install", json={"target": "v1.22.1"})
+    assert (res.status_code, res.json()["detail"]["code"]) == (409, "pembaruan_berjalan")
+    assert konsol.dilepas == []
+
+
 def test_assign_yang_masih_berjalan_tetap_menolak(rakit):
     aplikasi, store, folder, konsol = rakit
     op = _masuk(aplikasi, store, "op@pks.test", "operator")
     penjaga = aplikasi.dependency_overrides[get_pembaruan_service]()
     # The real context manager, entered on a loop of its own: inside it the line has not answered.
+    # Safe because the lock is uncontended here, so it never binds to this loop.
     loop = asyncio.new_event_loop()
     masuk = penjaga.menugaskan("L3")
     loop.run_until_complete(masuk.__aenter__())
