@@ -34,6 +34,32 @@ def skala_ke(frame_width: int, frame_height: int, target_width: int, target_heig
     return target_width / frame_width, target_height / frame_height
 
 
+def ukuran_muat(lebar: int, tinggi: int, kotak_lebar: int, kotak_tinggi: int) -> tuple[int, int]:
+    """The largest size with the frame's own ratio that fits inside the stream box (2026-10-07).
+
+    The stream used to be forced to the box itself (`STREAM_WIDTH` x `STREAM_HEIGHT`), so the
+    1224x1024 Lampung camera showed about 1.49x too wide and a 4:3 webcam 1.33x. Now the picture
+    keeps its ratio: 1224x1024 -> 861x720, 640x480 -> 960x720, 1920x1080 -> 1280x720. A frame
+    with no size gets the box, as before.
+    """
+    if lebar <= 0 or tinggi <= 0 or kotak_lebar <= 0 or kotak_tinggi <= 0:
+        return kotak_lebar, kotak_tinggi
+    if lebar * kotak_tinggi >= tinggi * kotak_lebar:  # wider than the box: the width decides
+        return kotak_lebar, max(1, round(tinggi * kotak_lebar / lebar))
+    return max(1, round(lebar * kotak_tinggi / tinggi)), kotak_tinggi
+
+
+def garis_berskala(garis: int, mendatar: bool, skala: tuple[float, float]) -> int:
+    """The capture line from settings space to the picture it is drawn on.
+
+    An upright line is an x and moves with the width, a flat one is a y and moves with the
+    height. `0` stays `0`: no line.
+    """
+    if garis <= 0 or skala == TANPA_SKALA:
+        return garis
+    return round(garis * (skala[1] if mendatar else skala[0]))
+
+
 def kotak_berskala(
     x1: int, y1: int, x2: int, y2: int, skala: tuple[float, float]
 ) -> tuple[int, int, int, int]:
