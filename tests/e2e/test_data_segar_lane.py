@@ -125,7 +125,7 @@ def test_two_polls_with_nothing_new_write_the_grading_table_once(rakitan):
     assert pertama["total"] == 2 and ketiga["total"] == 3
 
     ditulis = jalankan(
-        ["waktu", "selFoto", "barisRecent", "tulisKalauBeda"],
+        ["chipPlat", "waktu", "selFoto", "barisRecent", "tulisKalauBeda"],
         "(() => { const hasil = [];"
         f" for (const r of {json.dumps([pertama, kedua, ketiga])}) {{"
         "   tulisKalauBeda(sel, r.items.map(barisRecent).join(\"\")); hasil.push(sel.ditulis); }"

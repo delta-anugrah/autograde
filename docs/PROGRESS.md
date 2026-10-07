@@ -30,7 +30,8 @@ Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a L
                 the Tab order, truck card and queue buttons 44 px and wrapping at 1366 px, Esc closes the more
                 menu, no row flash on a filter change, grading filter tests no longer fail after the penugasan
                 tests. No endpoint, payload or rule change.
-Validated:      ruff check . → All checks passed. pytest tests/unit → 5454 passed, 28 skipped. Browser chromium →
+Validated:      ruff check . → All checks passed. pytest tests/unit → 5454 passed, 28 skipped; tests/e2e → 426 passed, 20
+                skipped; tests/integration → 192 passed. Browser chromium →
                 202 passed; firefox → 202 passed. Final review (fable): 0 critical, 2 important fixed with tests
                 (photo squashed at 960x1080, many accounts pushed Masuk below 768 px). Screenshots light/dark at
                 1366, 1440, 1920 from the local demo (sawit/scripts/demo-konsol).

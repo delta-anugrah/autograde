@@ -102,7 +102,7 @@ def test_baris_dari_jawaban_sungguhan_tergambar_di_layar(pabrik):
         'const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));\n'
         'const tagHasil = (s, kelas) => `<span class="tag">${esc(kelas || s)}</span>`;\n'
         'const waktu = (iso) => String(iso); let riwayatOffset = 0; let slipCetak = false;\n'
-        + "\n".join(fungsi(n) for n in ("tanggalRiwayat", "rasioRiwayat", "barisRiwayatTruk",
+        + "\n".join(fungsi(n) for n in ("chipPlat", "tanggalRiwayat", "rasioRiwayat", "barisRiwayatTruk",
                                         "selFoto", "barisRiwayatJanjang"))
         + f"\nconsole.log(JSON.stringify([{json.dumps(per_truk)}.map(barisRiwayatTruk),"
         + f" {json.dumps(per_janjang)}.map(barisRiwayatJanjang)]));"
