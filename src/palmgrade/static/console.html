@@ -363,7 +363,9 @@
                      letter-spacing:-.02em; text-wrap:balance; }
   .gerbang-teks p { margin:0; font-size:1.06rem; line-height:1.55; color:var(--hero-muted); text-wrap:pretty; }
   /* The still keeps the camera's own 6:5 (spec §6): the frame takes the photo's ratio. */
-  .gerbang-bingkai { position:relative; height:min(42vh, 30rem); max-width:100%; aspect-ratio:6 / 5;
+  /* The width decides and the height follows: a fixed height with a clamped width squashed
+     the photo on a half-screen window (review PR 4+5). */
+  .gerbang-bingkai { position:relative; width:min(100%, calc(min(42vh, 30rem) * 1.2)); aspect-ratio:6 / 5;
                      border-radius:20px; overflow:hidden; border:1px solid var(--hero-garis);
                      box-shadow:0 30px 60px rgba(0,0,0,.5); }
   #gerbang-foto { position:absolute; inset:0; background:var(--foto-masuk) center / 100% 100% no-repeat; }
@@ -392,7 +394,10 @@
   .gerbang-kepala .lb { font-size:.95rem; font-weight:500; color:var(--muted); }
   /* Known accounts as buttons: they fill the email field, because typing an address
      on an outdoor touchscreen is slow. The password is still required. */
-  .gerbang-nama { display:flex; flex-direction:column; gap:8px; }
+  /* Two to a row when the form has room, and a mill with many accounts scrolls the list,
+     not the page: Masuk stays on the first screen (review PR 4+5). */
+  .gerbang-nama { display:grid; grid-template-columns:repeat(auto-fill, minmax(11rem, 1fr)); gap:8px;
+                  max-height:min(30vh, 14rem); overflow-y:auto; }
   .gerbang-nama:empty { display:none; }
   .gerbang-op { min-height:58px; display:flex; align-items:center; justify-content:flex-start; gap:12px;
                 padding:8px 14px 8px 10px; border-radius:14px; border:1.5px solid var(--line);

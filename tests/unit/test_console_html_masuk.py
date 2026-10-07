@@ -99,3 +99,13 @@ def test_typing_or_picking_marks_the_chip():
 def test_language_buttons_on_the_gate_reuse_the_header_switch():
     assert re.search(r'id="gerbang-bahasa"', _gerbang())
     assert re.search(r'\$\("bahasa"\)\.click\(\)', HTML)
+
+
+def test_account_chips_share_rows_when_there_is_room():
+    aturan = re.search(r"\.gerbang-nama \{([^}]*)\}", HTML).group(1)
+    assert "display:grid" in aturan and "auto-fill" in aturan
+
+
+def test_photo_frame_takes_its_height_from_its_width():
+    aturan = re.search(r"\.gerbang-bingkai \{([^}]*)\}", HTML).group(1)
+    assert "aspect-ratio:6 / 5" in aturan and re.search(r"(?<!-)height:", aturan) is None

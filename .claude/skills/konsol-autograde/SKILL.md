@@ -162,7 +162,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Satu komponen sub-tab (user 2026-10-05): `<div class="line-sub-bar"><div class="sub-tab" id=...
   role="group">` dengan `button[data-sub]` + `aria-pressed`, dipakai Setelan, Line, Status, dan
   tampilan Rekap (`.sub-tab.riwayat-tampilan`). Garis bawah, bukan tombol: yang terbuka
-  `box-shadow:inset 0 -4px 0 var(--acc)`. `.line-sub-bar` tanpa padding samping, jadi barnya
+  teks `--merek` dan garis bawah 3 px `inset 0 -3px 0 var(--merek)` (biru merek, sejak PR 5). `.line-sub-bar` tanpa padding samping, jadi barnya
   selebar isi panelnya (dijaga `test_sub_tab_bars_span_their_panel`); tiap bar cuma
   menyetel jumlah kolomnya. Sub-tab baru: pola `SUB_*` + `terapkanSub*` + `simpan/baca` seperti
   `SUB_SETELAN`. Jangan pakai `.log-level` untuk sub-tab: itu tombol saring.

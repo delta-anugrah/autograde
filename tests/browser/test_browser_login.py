@@ -64,3 +64,23 @@ def test_the_gates_language_switch_translates_and_keeps_the_gate(halaman):
     # Still signs in after the switch.
     masuk(halaman, OPERATOR)
     expect(halaman.locator("#keluar")).to_be_visible()
+
+
+def test_the_photo_keeps_its_ratio_on_a_half_screen_window(halaman):
+    """Review PR 4+5: at 960 x 1080 the frame's width was clamped while its height stayed, and
+    the photo was squashed about 20 % (spec §6: never stretched)."""
+    halaman.set_viewport_size({"width": 960, "height": 1080})
+    foto = halaman.locator("#gerbang-foto")
+    expect(foto).to_be_visible()
+    kotak = foto.bounding_box()
+    assert abs(kotak["width"] / kotak["height"] - 1.2) < 0.02, kotak
+
+
+def test_many_accounts_keep_masuk_on_the_first_screen(halaman):
+    """Review PR 4+5: one chip per row pushed Masuk below 768 px from seven accounts on."""
+    akun = [{"email": f"op{i}@pks.test", "full_name": f"Operator {i}", "role": "operator"} for i in range(1, 10)]
+    halaman.route("**/api/console/operators", lambda r: r.fulfill(json={"items": akun}))
+    halaman.set_viewport_size({"width": 1366, "height": 768})
+    halaman.reload()
+    expect(halaman.locator("#gerbang-nama .gerbang-op")).to_have_count(9)
+    expect(halaman.locator("#gerbang-masuk")).to_be_in_viewport()

@@ -482,7 +482,7 @@ Totalnya sama; cuma tanggalnya yang beda.
 
 | Bagian | Isi |
 |---|---|
-| Saringan | **Dari / Sampai** (tanggal kerja, paling panjang 31 hari), tombol cepat **Hari ini / Kemarin / 7 hari / Bulan ini / Bulan lalu** (yang sedang dipakai menyala hijau), **Line**, **Plat** (cukup sebagian, mis. `1234`), lalu **Tampilkan** |
+| Saringan | **Dari / Sampai** (tanggal kerja, paling panjang 31 hari), tombol cepat **Hari ini / Kemarin / 7 hari / Bulan ini / Bulan lalu** (yang sedang dipakai menyala biru), **Line**, **Plat** (cukup sebagian, mis. `1234`), lalu **Tampilkan** |
 | Ringkasan | janjang, Ripe, Unripe, JK, TP, rasio Ripe, jumlah truk, jumlah hari, dan neto periode itu. Neto tidak dihitung kalau disaring per line (neto itu berat truk) |
 | Tiga tampilan | **Per hari** (satu baris per hari kerja, tombol **Lihat truk**), **Per truk** (tampilan bawaan: satu baris per truk per hari, tombol **Lihat janjang**), **Per janjang** (seperti tab Grading, dengan foto dan saringan **Hasil**: Ripe/Unripe/JK/TP) |
 | **Unduh CSV** | semua baris tampilan dan saringan yang sedang aktif, bukan cuma halaman yang terlihat; kepala kolom mengikuti bahasa layar, jam dalam jam pabrik. Dibuka langsung di Excel/LibreOffice. Kalau Excel dengan setelan wilayah Indonesia menaruh semuanya di satu kolom, buka lewat **Data → From Text/CSV** dan pilih pemisah koma |
