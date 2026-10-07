@@ -67,7 +67,8 @@ def test_truck_card_buttons_fit_their_card_at_1366(halaman):
         expect(tombol.first).to_be_visible()
         for i in range(tombol.count()):
             b = tombol.nth(i).bounding_box()
-            assert b["height"] >= 44, (pemilih, i)
+            # Sub-pixel layout: Firefox on CI measured a 44 px button at 43.99998.
+            assert b["height"] >= 43.5, (pemilih, i)
             assert b["x"] >= kotak["x"] - 0.5 and b["x"] + b["width"] <= kotak["x"] + kotak["width"] + 0.5, (pemilih, b, kotak)
             # One line of text: a label broken over two lines reads as two buttons.
             assert b["height"] < 60, (pemilih, b)
