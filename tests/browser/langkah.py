@@ -62,6 +62,8 @@ def buka_tab(page: Page, nama: str) -> None:
 def buka_menu_line(kartu) -> None:
     """Opens a line card's "more" menu (Tugaskan, Lepas, card order) when the card has one and
     it is closed (spec 2026-10-07 §5.2)."""
+    # The first poll after signing in draws the cards again, which closes an open menu.
+    kartu.page.wait_for_function("() => typeof dipasang !== 'undefined' && dipasang")
     lagi = kartu.locator("details.lagi")
     if lagi.count() and lagi.get_attribute("open") is None:
         lagi.locator("summary").click()

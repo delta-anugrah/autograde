@@ -6,7 +6,7 @@ re-renders the three card pickers at once (the 60 s truck poll would come later)
 
 from __future__ import annotations
 
-from langkah import OPERATOR, buka_tab, kamus, masuk, plat
+from langkah import OPERATOR, buka_menu_line, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
 
@@ -20,6 +20,7 @@ def test_a_truck_assigned_on_line_1_reaches_the_line_and_the_card(halaman, lines
 
     buka_tab(halaman, "grading")
     kartu = halaman.locator('#lines .card[data-line="line-1"]')
+    buka_menu_line(kartu)
     kartu.locator(".pilih-tombol").click()
     kartu.locator('[role="option"]', has_text=nomor).click()
     kartu.locator('[data-aksi="tugaskan"]').click()

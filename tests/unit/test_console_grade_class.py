@@ -45,7 +45,7 @@ def test_line_cards_update_by_name_not_by_position(html):
 
 def test_every_count_cell_has_a_matching_grid_column(html):
     """Five figures in a three-column grid overflows the card silently."""
-    assert "grid-template-columns:repeat(5,1fr)" in html
+    assert "grid-template-columns:repeat(5, minmax(0, 1fr))" in html
 
 
 def test_the_recap_empty_row_spans_the_widened_table(html):

@@ -136,7 +136,9 @@
   #pil-plc[data-keadaan="tersambung"] .titik { background:var(--acc); }
   #pil-plc[data-keadaan="terputus"] .titik { background:var(--warn); }
   #pil-plc .jam { font-family:var(--angka); color:var(--muted); font-weight:600; }
-  .jam.pil { gap:0 6px; }
+  /* Grid, not a wrapping flex row: a wrapping row is as wide as all its items in one line. */
+  .jam.pil { display:inline-grid; grid-template-columns:auto auto; align-items:baseline; gap:0 6px; padding:4px 14px; }
+  .jam.pil #segar { grid-column:1 / -1; line-height:1.2; }
   .jam.pil #jam { font:600 1.45rem/1.2 var(--angka); letter-spacing:0; }
   h1 { font-size:1.5rem; margin:0; font-weight:800; letter-spacing:-.015em;
        display:flex; align-items:center; gap:10px; }
@@ -344,13 +346,15 @@
 
   /* ---- pagination ---- */
   .grading-saring { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-bottom:12px; }
+  .kepala-panel .grading-saring { margin-bottom:0; }
+  @media (min-width:1100px) { .kepala-panel .grading-saring { flex-wrap:nowrap; } }
   .grading-saring .pilih { flex:0 1 14rem; min-width:10rem; }
   .grading-saring .lb + .pilih { margin-right:8px; }
   .halaman { display:flex; flex-wrap:wrap; align-items:center; gap:12px;
              padding:12px 0 0; }
   .halaman .pilih { flex:0 0 7rem; }
   /* Pushes the buttons to the far end, so the pair sits where a thumb reaches. */
-  .halaman-tombol { margin-left:auto; display:flex; gap:8px; }
+  .halaman-tombol { margin-left:auto; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; max-width:100%; }
   .halaman-tombol button { min-height:2.8rem; }
   .halaman-tombol button:disabled { opacity:.45; cursor:default; }
   /* Nomor halaman. Lebar minimum dijaga supaya "7" dan "653" sama besar dan deretannya
@@ -359,8 +363,8 @@
   .halaman-nomor .halaman-no { min-width:2.8rem; padding:0 8px; font-variant-numeric:tabular-nums; }
   /* Halaman sekarang: disabled, jadi opacity bawaan akan membuatnya paling pudar
      justru saat dia yang harus paling jelas. */
-  .halaman-nomor .halaman-no[aria-current="true"] { opacity:1; background:var(--acc);
-     color:var(--on-acc); border-color:var(--acc); }
+  .halaman-nomor .halaman-no[aria-current="true"] { opacity:1; background:var(--merek);
+     color:var(--merek-ink); border-color:var(--merek); }
   .halaman-celah { padding:0 2px; color:var(--muted); }
 
   /* ---- tab Riwayat ---- */
@@ -676,7 +680,7 @@
   .timbang-atas { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   #timbang .lb { color:var(--muted); }
   .timbang-angka { display:flex; align-items:flex-end; gap:14px; min-width:0; }
-  #timbang-kg { flex:none; font:600 3.25rem/1 var(--angka); text-shadow:0 0 24px rgba(58,160,255,.38); }
+  #timbang-kg { flex:none; font:600 3.25rem/1 var(--angka); }
   .odo-berat .redup { opacity:.16; }
   .odo-pisah::before, .odo-satuan::before { content:attr(data-c); }
   .odo-satuan { margin-left:6px; font-size:.4em; color:rgba(234,242,252,.6); align-self:flex-end; }
@@ -717,7 +721,7 @@
   .sinkron-baris.tersambung .titik { background:var(--acc); }
   .sinkron-baris.terputus .titik { background:var(--warn); }
   .sinkron-baris b { font-weight:600; }
-  .sinkron-baris .jam { font-family:var(--angka); font-weight:600; color:var(--muted); }
+  .sinkron-baris .jam { display:inline; font-family:var(--angka); font-weight:600; color:var(--muted); }
   .sinkron-baris.tidak_dipakai .jam, .sinkron-baris.memeriksa .jam { font-family:inherit;
                                                                     font-weight:400; color:var(--muted); }
   .sinkron-baris .ket { color:var(--warn); font-size:.75rem; font-weight:600; }
@@ -729,19 +733,20 @@
   /* ---- camera panels ---- */
   /* terapkanKolom() overrides this inline; this value holds until JS runs, and
      whenever the operator picks "Auto". */
-  #lines { margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
-           gap:16px; padding:0 var(--pad) 6px; }
-  .card { background:var(--card); border:1px solid var(--line-kuat);
-          border-radius:var(--r-md); box-shadow:var(--tinggi-1);
+  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));
+           gap:12px; padding:0 var(--pad) 12px; }
+  .card { background:var(--card); border:1px solid var(--line);
+          border-radius:var(--r-kartu); box-shadow:var(--bayang-kartu);
           display:flex; flex-direction:column; }
-  .card h2 { font-size:.95rem; font-weight:700; margin:0; padding:5px 7px 5px 13px;
-             letter-spacing:.04em; border-bottom:1px solid var(--line);
-             display:flex; align-items:center; gap:8px; }
+  .card h2 { font-size:.95rem; font-weight:700; margin:0; padding:8px 14px;
+             border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
   .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  /* Without align-items the two buttons stretch to the header's full height,
-     so the glyphs sit high against the ONLINE text beside them. */
-  .card h2 .ord { display:flex; align-items:center; gap:4px; }
-  .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
+  /* Line cards (spec 2026-10-07 §5.2): the name chip lies over the top-left of the camera. */
+  #lines .card { position:relative; }
+  #lines .card > .feed + h2 { position:absolute; top:12px; left:12px; z-index:6; max-width:calc(100% - 24px);
+             padding:6px 12px 6px 10px; border:0; border-radius:999px; background:rgba(4,8,14,.66);
+             backdrop-filter:blur(6px); color:#F2F6FB; font-size:.85rem; pointer-events:none; }
+  #lines .card > .feed + h2 .nama { flex:none; }
 
   /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
   .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
@@ -910,8 +915,10 @@
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
      card so one class drives both the header and the feed. */
-  .sinyal { display:flex; align-items:center; gap:6px; font-size:.68rem; font-weight:700;
-            letter-spacing:.1em; text-transform:uppercase; color:var(--acc); }
+  .sinyal { display:flex; align-items:center; gap:6px; font-size:.7rem; font-weight:800;
+            letter-spacing:.06em; text-transform:uppercase; color:var(--acc); }
+  #lines .card > .feed + h2 .sinyal { color:#3DDC97; }
+  #lines .card.putus > .feed + h2 .sinyal { color:#FF6B7D; }
   .sinyal::before { content:""; width:.5rem; height:.5rem; border-radius:50%; background:var(--acc); }
   .sinyal .off, .card.putus .sinyal .on { display:none; }
   .card.putus .sinyal { color:var(--rej); }
@@ -924,7 +931,12 @@
      the line keeps the camera's own shape since 2026-10-07 (861x720 for the 1224x1024 camera).
      16:9 is only the shape before that first frame. `contain` so nothing is ever cut;
      `max-height` so a portrait photo source cannot push the rest of the screen away. */
-  .feed { position:relative; aspect-ratio:16/9; max-height:72vh; background:#000; }
+  .feed { position:relative; aspect-ratio:16/9; max-height:72vh; background:var(--inset); }
+  #lines .feed { border-radius:var(--r-kartu) var(--r-kartu) 0 0; overflow:hidden; }
+  /* First screen without scrolling (spec §5.2): `aturTinggiKamera` measures what the window
+     has left for the camera. The ratio stays the picture's own; `contain` leaves bars, never
+     a cut. Below 1100 px the page simply flows. */
+  @media (min-width:1100px) { #lines .feed { max-height:max(220px, calc(100vh - var(--tinggi-tetap, 470px))); } }
   .feed img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
   /* Chrome only renders ::after on a BROKEN image. This covers the broken icon
      and its grey border in the gap before cekKamera() marks the box. */
@@ -981,27 +993,52 @@
   /* Tanpa gerak, bar 40% yang diam terbaca "40% selesai": dibuat penuh dan redup. */
   @media (prefers-reduced-motion:reduce) { .restart-bar::before { width:100%; opacity:.6; } }
 
-  /* Bounded cells, not numbers on one surface: at distance the tinted block is
-     read before the figure inside it. Equal columns because with flex the
-     spacing follows digit count, so once a figure passes a hundred they collide.
-     Lima kolom sejak model jadi 4 kelas (Ripe/Unripe/JK/TP + Total). Angkanya
-     ikut mengecil di aturan `.counts b` di bawah — tetap dua kali tinggi teks
-     biasa, masih terbaca dari seberang area bongkar. */
-  .counts { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--line);
-            border-block:1px solid var(--line); font-variant-numeric:tabular-nums; }
-  .counts > span { display:block; background:var(--card); padding:9px 6px 11px; text-align:center; }
-  .counts .acc { background:var(--acc-bg); }
-  .counts .rej { background:var(--rej-bg); }
-  /* The only thing that must be readable from across the unloading area. */
-  .counts b { display:block; font-family:var(--angka); font-weight:700; line-height:1;
-              letter-spacing:-.02em; font-size:clamp(1.5rem, 2.6vw, 2.2rem); }
-  .counts .lb { display:block; margin-bottom:5px; }
-  .counts .tp { background:var(--warn-bg); }
-  .counts .acc b, .counts .acc .lb { color:var(--acc); }
-  .counts .rej b, .counts .rej .lb { color:var(--rej); }
-  .counts .tp b, .counts .tp .lb { color:var(--warn); }
+  /* Photo strip (spec §5.2): the line's last four bunches, a frame in the class colour. */
+  .strip { display:flex; align-items:center; gap:10px; padding:12px 14px 0; min-width:0; }
+  .strip-foto { flex:1 1 auto; min-width:0; display:flex; gap:6px; overflow:hidden; min-height:48px; align-items:center; }
+  .strip-foto .muted { font-size:.8rem; }
+  .strip-item { flex:none; height:48px; aspect-ratio:6/5; padding:0; min-height:0; border-radius:9px; overflow:hidden;
+                border:2px solid var(--line-kuat); background:var(--inset); cursor:zoom-in; }
+  .strip-item[data-kelas="ripe"] { border-color:var(--ripe); }
+  .strip-item[data-kelas="unripe"] { border-color:var(--unripe); }
+  .strip-item[data-kelas="jk"] { border-color:var(--jk); }
+  .strip-foto img { width:100%; height:100%; display:block; object-fit:contain; border:0; border-radius:0; }
+  .strip-item.baru { animation:strip-masuk .7s cubic-bezier(.2,.8,.2,1); }
+  @keyframes strip-masuk { from { transform:translateX(-16px) scale(.7); opacity:0; } }
+  .strip-akhir { flex:none; display:flex; flex-direction:column; align-items:flex-end; }
+  .strip-akhir small { color:var(--muted2); font-size:.75rem; font-weight:600; }
+  .strip-jam { font:600 1.1rem var(--angka); }
+  /* Today's counts for the line: a dot in the class colour beside the word, the figure under
+     it; read from across the unloading area, so the figures are the largest thing here. */
+  .counts { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px; padding:10px 14px 0;
+            font-variant-numeric:tabular-nums; }
+  .counts > span { display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .counts .lb { display:flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; }
+  .counts > span:not(.total) .lb::before { content:""; flex:none; width:8px; height:8px; border-radius:3px; background:var(--muted); }
+  .counts > span.acc .lb::before { background:var(--ripe); }
+  .counts > span.rej .lb::before { background:var(--unripe); }
+  .counts > span.jk .lb::before { background:var(--jk); }
+  .counts > span.tp .lb::before { background:var(--tp); }
+  .counts .total { align-items:flex-end; }
+  .counts b { display:block; font-family:var(--angka); font-weight:600; line-height:1.05;
+              font-size:clamp(1.5rem, 2.2vw, 2.5rem); }
+  .counts .total b { font-weight:700; }
+  .card .bar-kelas { height:6px; gap:3px; margin:8px 14px 0; }
 
-  .body { padding:12px 14px 14px; display:grid; gap:10px; }
+  .body { padding:10px 14px 14px; display:grid; gap:10px; }
+  /* "More" menu of a line card: the manual controls, out of the operator's daily path. */
+  details.lagi { position:relative; flex:none; }
+  details.lagi > summary { list-style:none; display:grid; place-items:center; width:50px; min-height:52px;
+                           border-radius:14px; border:1px solid var(--line-kuat); background:var(--panel2);
+                           color:var(--muted); cursor:pointer; }
+  details.lagi > summary::-webkit-details-marker { display:none; }
+  details.lagi[open] > summary { color:var(--merek); border-color:var(--merek); }
+  .lagi-isi { position:absolute; right:0; bottom:calc(100% + 8px); z-index:30; width:min(380px, 84vw);
+              display:flex; flex-direction:column; gap:10px; padding:14px; background:var(--card);
+              border:1px solid var(--line-kuat); border-radius:14px; box-shadow:var(--tinggi-2); }
+  .lagi-isi .ord { display:flex; align-items:center; gap:8px; }
+  .lagi-isi .ord .lb { flex:1; }
+  .lagi-isi .ord button { min-width:52px; }
   /* isiTruk() builds the inner span, and it carries its own state class - a
      line counting bunches with no truck assigned is an error worth shouting
      about (§13), so the empty case is amber and says so in words. */
@@ -1089,14 +1126,15 @@
      2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek.
      `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
      bukan mendorong tombol tetangganya. */
-  .aksi-line { display:flex; gap:8px; }
+  .aksi-line { display:flex; align-items:stretch; gap:10px; }
+  .aksi-line button.reject, .aksi-line button.piston { min-height:52px; border-radius:14px; }
   .slot-piston > button, .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px;
                         display:flex; align-items:center; justify-content:center; }
   /* Setengah kartu itu sempit: spasi huruf dan petunjuk pintas dibuat lebih
      rapat supaya "REJECT MANUAL" + pintasnya masih satu baris di layar 1680 px
      ke atas. Di layar lebih sempit labelnya turun baris di dalam tombolnya. */
-  .aksi-line .pintas { margin-left:6px; padding:1px 4px; font-size:.62rem; }
-  button.reject { text-transform:uppercase; letter-spacing:.03em;
+  .aksi-line .pintas { margin-left:8px; }
+  button.reject { border-width:1.5px; font-size:.95rem; font-weight:800;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* The keyboard hint is printed on the button, so the shortcut never has to be
      remembered - and it follows the panel order the operator arranged. */
@@ -1113,7 +1151,7 @@
      wrong until this is pressed again". Disabled (line unreachable / PLC or
      coil not configured / waiting for confirmation) keeps its plain shape -
      button:disabled already dims it, so there is no state to add here. */
-  button.piston { text-transform:uppercase; letter-spacing:.03em; }
+  button.piston { font-size:.9rem; }
   button.piston.terbuka { background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   button.piston.kedip { animation:kedip .45s ease; }
   /* Merah penuh, dibaca dari jarak jalan yang sama dengan angka ACC/REJ -
@@ -1729,6 +1767,17 @@
   #rekap td.rej { color:var(--rej); font-weight:700; }
   td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
   td img { height:52px; border-radius:var(--r-xs); border:1px solid var(--line-kuat); display:block; }
+  /* Grading table photos keep the picture's own ratio (spec §6.3). */
+  #recent button.foto { width:62px; aspect-ratio:6/5; border-radius:9px; overflow:hidden; background:var(--inset); }
+  button.foto img { width:100%; height:100%; object-fit:contain; border:0; border-radius:0; }
+  /* The table head of the Grading view: title and hint left, filters right. */
+  .kepala-panel { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .kepala-panel h2 { margin:0; font-size:1.15rem; font-weight:800; }
+  .kepala-panel-judul { display:flex; flex-direction:column; gap:2px; }
+  .kepala-panel-judul .muted { font-size:.82rem; }
+  /* A new row on page 1 flashes once in the logo blue. */
+  @keyframes baris-baru { from { background:var(--merek-tint); } }
+  tr.baris-baru { animation:baris-baru 1.6s ease-out; }
   /* Pemicu foto: tombol, bukan tautan — tujuannya membuka lapisan di halaman
      ini, bukan menavigasi ke mana pun. Dibuat setipis mungkin supaya thumbnail
      tetap terlihat persis seperti sebelumnya. */
@@ -1990,17 +2039,22 @@
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
-  <!-- Batch 5.10: the server always filtered by line and truck; now the screen can ask. -->
-  <div class="grading-saring">
-    <span class="lb" data-t="saringLine">Line</span>
-    <div class="pilih" id="grading-line" data-nilai="">
-      <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
-      <div class="pilih-panel" role="listbox" hidden></div>
-    </div>
-    <span class="lb" data-t="saringTruk">Truk</span>
-    <div class="pilih" id="grading-truk" data-nilai="">
-      <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
-      <div class="pilih-panel" role="listbox" hidden></div>
+  <!-- Below the cameras (spec 2026-10-07 §5.2): today's grading results, with their filters. -->
+  <div class="kepala-panel">
+    <div class="kepala-panel-judul"><h2 data-t="judulHasilGrading">Hasil grading hari ini</h2>
+      <span class="muted" data-t="ketHasilGrading">Ketuk foto untuk ukuran penuh</span></div>
+    <!-- Batch 5.10: the server always filtered by line and truck; now the screen can ask. -->
+    <div class="grading-saring">
+      <span class="lb" data-t="saringLine">Line</span>
+      <div class="pilih" id="grading-line" data-nilai="">
+        <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+        <div class="pilih-panel" role="listbox" hidden></div>
+      </div>
+      <span class="lb" data-t="saringTruk">Truk</span>
+      <div class="pilih" id="grading-truk" data-nilai="">
+        <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+        <div class="pilih-panel" role="listbox" hidden></div>
+      </div>
     </div>
   </div>
   <div class="tabel">
@@ -3247,6 +3301,9 @@ const KAMUS = {
     menuSembunyikan:"Sembunyikan menu samping", menuTampilkan:"Tampilkan menu samping",
     tipMenuSamping:"Sembunyikan atau tampilkan menu, kamera dapat ruang lebih", relSupport:"Support",
     labelJanjangHariIni:"Janjang hari ini", labelTimbangSekarang:"Timbangan sekarang",
+    judulHasilGrading:"Hasil grading hari ini", ketHasilGrading:"Ketuk foto untuk ukuran penuh",
+    stripTerakhir:"Janjang terakhir", stripKosong:"Belum ada foto hari ini", menuLineLagi:"Menu lain {line}",
+    urutanKartu:"Urutan kartu",
     timbangSaranStabil:"Angka diam, siap disimpan lewat scan", timbangSaranBergerak:"Angka masih bergerak, tunggu diam",
     timbangSaranTerbaca:"Terbaca, PLC tidak mengirim tanda stabil", timbangSaranTidakDipakai:"Register PLC timbangan belum diisi",
     timbangSaranPutus:"Tidak ada bacaan baru dari PLC", timbangSaranError:"PLC melaporkan error timbangan",
@@ -3810,6 +3867,9 @@ const KAMUS = {
     menuSembunyikan:"Hide the side menu", menuTampilkan:"Show the side menu",
     tipMenuSamping:"Hide or show the menu to give the cameras more room", relSupport:"Support",
     labelJanjangHariIni:"Bunches today", labelTimbangSekarang:"Scale now",
+    judulHasilGrading:"Today's grading results", ketHasilGrading:"Tap a photo for full size",
+    stripTerakhir:"Last bunch", stripKosong:"No photos yet today", menuLineLagi:"More for {line}",
+    urutanKartu:"Card order",
     timbangSaranStabil:"Steady, ready to save with a scan", timbangSaranBergerak:"Still moving, wait until it settles",
     timbangSaranTerbaca:"Reading, the PLC sends no steady flag", timbangSaranTidakDipakai:"Scale PLC register not set yet",
     timbangSaranPutus:"No fresh reading from the PLC", timbangSaranError:"The PLC reports a scale error",
@@ -4945,6 +5005,7 @@ function gantiSaringGrading() {
 $("grading-line").addEventListener("pilih", gantiSaringGrading);
 $("grading-truk").addEventListener("pilih", gantiSaringGrading);
 
+let barisAtasGrading = "";
 async function muatGrading() {
   const per = Number(gradingPer);
   try {
@@ -4960,6 +5021,10 @@ async function muatGrading() {
     // same rows asked for every photo again and swallowed a tap on one.
     tulisKalauBeda($("recent"), r.items.length
       ? r.items.map(barisRecent).join("") : barisKosong(7, adaSaringan() ? "kosongGradingSaring" : "kosongGrading"));
+    // A new bunch on top of page 1 flashes its row once (spec §4), never on the first fill.
+    const atas = gradingOffset === 0 && r.items.length ? (r.items[0].image_url || r.items[0].timestamp) : "";
+    if (barisAtasGrading && atas && atas !== barisAtasGrading && !gerakDikurangi()) $("recent").firstElementChild?.classList.add("baris-baru");
+    barisAtasGrading = atas;
     segarkanHalaman();
   } catch (e) { /* the gate is already up on 401; the screen keeps working */ }
 }
@@ -5811,38 +5876,48 @@ function kartuLine(l, sekarang = Date.now()) {
   const opsi = opsiTrukKartu();
   // line_code only rides along as data-line and is read via dataset - it never
   // enters an onclick attribute, so there is no JS string context to inject.
+  // Spec 2026-10-07 §5.2: camera on top (the name chip lies over it), ribbons, the strip of
+  // the line's last photos, today's counts and their class bar, then Reject and Piston. The
+  // manual controls (truck picker, Tugaskan, Lepas, card order) sit in the "more" menu.
   return `<div class="card${aiMati(l) ? " ai-mati" : ""}${frameBerhenti(l) ? " frame-berhenti" : ""}" data-line="${esc(l.line_code)}">
+    ${feed ? `<div class="feed"${gayaRasioFeed(l.line_code)}><img src="${feed}" alt=""><div class="feed-putus"><span>${esc(t("kameraPutus"))}</span>${tombolSambungUlang(l)}</div><div class="slot-restart"></div></div>` : ""}
     <h2><span class="nama">${esc(l.name)}</span>
       <span class="sinyal">
         <span class="on" data-t="statusOnline">Online</span>
         <span class="off" data-t="statusOffline">Offline</span>
       </span>
-      <span class="ord">
-        <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
-        <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
-      </span>
     </h2>
     <div class="slot-pita-piston">${pitaPiston(l)}</div>
     ${pitaKunciDitolak(l)}
     <div class="slot-ai">${pitaAi(l)}</div>
-    ${feed ? `<div class="feed"${gayaRasioFeed(l.line_code)}><img src="${feed}" alt=""><div class="feed-putus"><span>${esc(t("kameraPutus"))}</span>${tombolSambungUlang(l)}</div><div class="slot-restart"></div></div>` : ""}
+    <div class="strip"><div class="strip-foto"></div>
+      <span class="strip-akhir"><small>${esc(t("stripTerakhir"))}</small><b class="strip-jam">${KOSONG}</b></span></div>
     <div class="counts">
       <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
       <span class="rej"><span class="lb">${esc(t("clsUnripe"))}</span><b data-k="unripe">${l.unripe || 0}</b></span>
-      <span class="rej"><span class="lb">${esc(t("clsJk"))}</span><b data-k="jk">${l.jk || 0}</b></span>
+      <span class="jk"><span class="lb">${esc(t("clsJk"))}</span><b data-k="jk">${l.jk || 0}</b></span>
       <span class="tp"><span class="lb">${esc(t("clsTp"))}</span><b data-k="tp">${l.tp || 0}</b></span>
-      <span><span class="lb">Total</span><b data-k="total">${l.total}</b></span>
+      <span class="total"><span class="lb">Total</span><b data-k="total">${l.total}</b></span>
     </div>
+    <div class="bar-kelas" aria-hidden="true">${htmlBarKelas(l)}</div>
     <div class="body">
-      <div class="truk">${isiTruk(l.assignment)}</div>
-      <div class="assign">
-        ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
-        <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
-        <span class="slot-lepas">${tombolLepas(l)}</span>
-      </div>
       <div class="aksi-line">
         <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
         <span class="slot-piston">${tombolPiston(l)}</span>
+        <details class="lagi">
+          <summary aria-label="${esc(t("menuLineLagi").replace("{line}", l.name || l.line_code))}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></summary>
+          <div class="lagi-isi">
+            <div class="truk">${isiTruk(l.assignment)}</div>
+            <div class="assign">
+              ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
+              <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
+              <span class="slot-lepas">${tombolLepas(l)}</span>
+            </div>
+            <span class="ord"><span class="lb">${esc(t("urutanKartu"))}</span>
+              <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
+              <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button></span>
+          </div>
+        </details>
       </div>
     </div>
   </div>`;
@@ -6119,6 +6194,54 @@ function barisRecent(r, i) {
   </tr>`;
 }
 
+// ── Photo strip per line (spec 2026-10-07 §5.2) ───────────────────────
+// The line's four newest bunches of today. Each is a `button.foto`, so a tap opens #foto-modal
+// through the listener the table already uses.
+const STRIP_N = 4;
+function judulFoto(r) {
+  return `${waktu(r.timestamp)} · ${String(r.line_code || "").toUpperCase()} · ${r.grade_class || r.ripeness_status || ""}`;
+}
+function stripPerLine(items, kode, n = STRIP_N) {
+  return (items || []).filter((r) => r.line_code === kode && r.image_url).slice(0, n);
+}
+function htmlStrip(daftar) {
+  return daftar.map((r) => {
+    const kecil = r.thumb_url || r.image_url;
+    const cadangan = r.thumb_url ? ` data-penuh="${esc(r.image_url)}"` : "";
+    return `<button type="button" class="foto strip-item" data-kelas="${esc(String(r.grade_class || "").toLowerCase())}"`
+      + ` data-foto="${esc(r.image_url)}" data-judul="${esc(judulFoto(r))}"><img src="${esc(kecil)}"${cadangan} alt="" loading="lazy"></button>`;
+  }).join("");
+}
+// A new photo at the head slides in once (not on the first fill, not under reduced motion).
+function gambarStrip(items) {
+  if (!items) return;
+  $("lines").querySelectorAll(".card").forEach((kartu) => {
+    const daftar = stripPerLine(items, kartu.dataset.line);
+    const wadah = kartu.querySelector(".strip-foto");
+    const atas = daftar.length ? daftar[0].image_url : "";
+    const lama = kartu.dataset.stripAtas;
+    tulisKalauBeda(wadah, daftar.length ? htmlStrip(daftar) : `<span class="muted">${esc(t("stripKosong"))}</span>`);
+    kartu.querySelector(".strip-jam").textContent = daftar.length ? waktu(daftar[0].timestamp).split(" ").pop() : KOSONG;
+    if (lama && atas && lama !== atas && !gerakDikurangi()) wadah.firstElementChild.classList.add("baru");
+    kartu.dataset.stripAtas = atas;
+  });
+}
+// One small request per line (four rows), not the table's page: page 1 of a busy day can
+// hold a single line, and the table may be filtered or on another page (ruling 2026-10-07).
+async function ambilStrip(kodeLines) {
+  try {
+    const hasil = await Promise.all(kodeLines.map((kode) =>
+      api(`/api/console/history?${paramGrading(STRIP_N, 0, { line: kode, truk: "" })}`)));
+    return hasil.flatMap((r) => r.items);
+  } catch (e) {
+    return null;
+  }
+}
+// A tap anywhere outside an open "more" menu closes it, like the dropdowns.
+document.addEventListener("click", (ev) => {
+  document.querySelectorAll("details.lagi[open]").forEach((d) => { if (!d.contains(ev.target)) d.open = false; });
+});
+
 // Yard total across every line, for the glance that never reaches a card.
 function isiTally(lines) {
   const jml = (k) => lines.reduce((n, l) => n + (l[k] || 0), 0);
@@ -6320,7 +6443,7 @@ function isiSinkron(s) {
   [["sinkron-erp", s.autoerp], ["sinkron-cloud", s.cloud]].forEach(([id, data]) => {
     const el = $(id);
     const b = barisSinkron(data, sekarang);
-    el.className = `sinkron-baris ${b.kelas}`;
+    el.className = `sinkron-baris pil ${b.kelas}`;
     el.querySelector(".jam").textContent = b.jam;
     const ket = el.querySelector(".ket");
     ket.textContent = b.ket;
@@ -7960,6 +8083,7 @@ async function refresh() {
         c.querySelectorAll(".counts b[data-k]").forEach((el) => {
           tulisAngka(el, l[el.dataset.k] || 0);
         });
+        tulisKalauBeda(c.querySelector(".bar-kelas"), htmlBarKelas(l));
         perbaruiKartu(c, l);
       });
       segarkanPilihTruk();
@@ -7972,6 +8096,9 @@ async function refresh() {
     // the default size but cannot say how many pages exist - so the count comes from
     // /history, which is also the only source once the operator asks for more than 20.
     if (gradingOffset === 0) await muatGrading();
+    // Each card's photo strip asks for that line's newest four, whatever the table shows.
+    gambarStrip(await ambilStrip(s.lines.map((l) => l.line_code)));
+    aturTinggiKamera();
     segarkanTombol();
     pesan("");
     catatSegar(true);

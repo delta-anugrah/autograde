@@ -228,11 +228,13 @@ def test_skip_asks_first_and_takes_the_truck_out_of_the_queue(halaman, konsol, b
 def test_lepas_on_the_last_line_puts_the_next_truck_on(halaman, konsol, browser_name, penugasan_bersih):
     a, b = _a_di_line_b_antre(halaman, konsol, browser_name, 1108, 1109)
     toasts = halaman.locator("#toasts")
+    buka_menu_line(_kartu(halaman, "line-1"))
     _kartu(halaman, "line-1").locator('[data-aksi="lepas"]').click()
     expect(toasts).to_contain_text(kamus(halaman, "sukLepas").replace("{line}", _nama(halaman, "line-1")))
     expect(_antre(halaman, b)).to_be_visible()
     expect(toasts).not_to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
 
+    buka_menu_line(_kartu(halaman, "line-2"))
     _kartu(halaman, "line-2").locator('[data-aksi="lepas"]').click()
     expect(toasts).to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
     expect(halaman.locator("#antrean-bongkar .antrean-truk")).to_have_count(0)

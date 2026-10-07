@@ -279,6 +279,7 @@ const tombolPiston = () => "";
 const tombolSambungUlang = () => "";
 const tombolLepas = () => "";
 const gayaRasioFeed = () => "";
+const htmlBarKelas = () => "";
 """
 
 
