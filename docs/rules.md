@@ -1370,10 +1370,14 @@ end of this file.
     rename), penunggu systemd di host (sawit `autograde-update.path` +
     `autograde-update.service`, dipasang `pasang-penunggu-update.sh`) menjalankan
     `autograde _update-now` dan menjawab `result.json`. Tombol hanya muncul kalau `watcher` true
-    dan versi `staged` lebih baru dari `APP_VERSION` konsol. **Ditolak 409
-    `pembaruan_ada_truk` selama ada truk di-assign di line mana pun**, termasuk truk yang lupa
-    dilepas sejak hari kerja lalu (sumber `assignments`): pemasangan me-restart konsol dan
-    ketiga line. Truk di line yang mati dilepas lewat **Lepas paksa** (aturan 13). Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
+    dan versi `staged` lebih baru dari `APP_VERSION` konsol. **Pasang melepas sendiri
+    truk di line mana pun** (2026-10-07), termasuk truk yang lupa dilepas sejak hari kerja lalu
+    (sumber `assignments`), karena pemasangan me-restart konsol dan ketiga line. Urutannya di
+    bawah `pembaruan.kunci`: semua penolakan lain dulu (`periksa`), lalu `release_truck` per line
+    (tanpa mengisi line lagi), lalu penanda. Line yang tidak menjawab menghentikan pemasangan:
+    409 `pembaruan_lepas_gagal` (`params.line`), tanpa penanda; pakai **Lepas paksa** (aturan 13)
+    di line itu lalu tekan Pasang lagi. Assign yang masih menunggu line tetap ditolak 409
+    `pembaruan_ada_truk`. Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
     berjalan. Penugasan otomatis (aturan 36) memakai kunci yang sama (2026-10-03): selama
     pemasangan truk yang timbang isi tetap di antrean bongkar, **Tugaskan sekarang** ditolak 409
     `pembaruan_berjalan`, dan tiap line yang ditugaskan otomatis lewat `menugaskan` seperti

@@ -47,6 +47,7 @@ class _StubConsole:
 
     def __init__(self, store: ConsoleStore) -> None:
         self.store = store
+        self.dilepas: list[str] = []
 
     def assignments(self) -> dict:
         return self.store.assignments()
@@ -55,7 +56,8 @@ class _StubConsole:
         self.store.set_assignment(line_code, "a-1", truck_id)
         return {"assignment_id": "a-1", "truck_id": truck_id, "line_code": line_code}
 
-    async def release_truck(self, line_code: str) -> dict:
+    async def release_truck(self, line_code: str, *, kirim: bool = True) -> dict:
+        self.dilepas.append(line_code)
         self.store.set_assignment(line_code, "a-1", "")
         return {"line_code": line_code}
 
@@ -75,14 +77,15 @@ def konsol(tmp_path):
     pembaruan = PembaruanService(folder, lambda: "v1.22.0", lambda: JAM)
     app = FastAPI()
     app.include_router(console_router)
-    app.dependency_overrides[get_console_service] = lambda: _StubConsole(store)
+    stub = _StubConsole(store)
+    app.dependency_overrides[get_console_service] = lambda: stub
     app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
     app.dependency_overrides[get_dev_service] = lambda: DevService(log)
     app.dependency_overrides[get_pembaruan_service] = lambda: pembaruan
     for email, peran in (("op@pks.test", "operator"), ("support@pks.test", "support")):
         store.upsert_operator_manual({"email": email, "full_name": email, "password_hash": hash_password(SANDI)})
         store.set_role(store.operator_by_email(email)["id"], peran)
-    yield app, folder
+    yield app, folder, stub
     logging.getLogger().removeHandler(sink)
 
 
@@ -97,22 +100,24 @@ def _pesan_log(support: TestClient) -> list[str]:
     return [baris["message"] for baris in support.get("/api/console/dev/log").json()["items"]]
 
 
-def test_alur_ditolak_dengan_truk_lalu_terpasang_dan_tercatat_sekali(konsol):
-    app, folder = konsol
+def test_alur_truk_dilepas_oleh_pasang_lalu_terpasang_dan_tercatat_sekali(konsol):
+    app, folder, stub = konsol
     op = _masuk(app, "op@pks.test")
     support = _masuk(app, "support@pks.test")
 
-    # 1. A truck from the morning is still on line-2: refused, nothing for the watcher.
+    # 1. A truck from the morning is still on line-2: Pasang releases it itself (once, so its
+    #    visit is queued for AutoERP once), then the marker lands for the watcher, the screen
+    #    says "installing" and assign is held off.
     assert op.post("/api/console/lines/line-2/assign-truck", json={"truck_id": "t-1"}).status_code == 200
     res = op.post("/api/console/update/install", json={"target": "v1.22.1"})
-    assert res.status_code == 409
-    assert res.json()["detail"]["code"] == "pembaruan_ada_truk"
-    assert res.json()["detail"]["params"]["line"] == "line-2"
-    assert not (folder / PERMINTAAN).exists()
-
-    # 2. Released: the marker lands, the screen says "installing", assign is held off.
-    assert op.post("/api/console/lines/line-2/release-truck").status_code == 200
-    assert op.post("/api/console/update/install", json={"target": "v1.22.1"}).status_code == 202
+    assert res.status_code == 202
+    assert [d["line_code"] for d in res.json()["dilepas"]] == ["line-2"]
+    assert stub.dilepas == ["line-2"]
+    assert stub.assignments()["line-2"]["truck_id"] == ""
+    assert (folder / PERMINTAAN).exists()
+    # A second press while installing is refused and releases nothing more.
+    assert op.post("/api/console/update/install", json={"target": "v1.22.1"}).status_code == 409
+    assert stub.dilepas == ["line-2"]
     minta = json.loads((folder / PERMINTAAN).read_text())
     assert (minta["target"], minta["by"]) == ("v1.22.1", "op@pks.test")
     assert op.get("/api/console/update").json()["berjalan"] is True

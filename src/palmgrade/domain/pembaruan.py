@@ -18,6 +18,7 @@ from .operator_error import (
     PEMBARUAN_ADA_TRUK,
     PEMBARUAN_BELUM_TERPASANG,
     PEMBARUAN_BERJALAN,
+    PEMBARUAN_LEPAS_GAGAL,
     PEMBARUAN_TIDAK_ADA,
     OperatorError,
 )
@@ -74,6 +75,14 @@ class PembaruanAdaTruk(OperatorError):
 
     def __init__(self, bertruk: list[str]) -> None:
         super().__init__(PEMBARUAN_ADA_TRUK, "Masih ada truk di-assign", line=", ".join(bertruk))
+
+
+class PembaruanLepasGagal(OperatorError):
+    """Update now could not release the truck on this line (the line did not answer): the
+    install stops, because installing with a truck still on the line loses its bunches."""
+
+    def __init__(self, line_code: str) -> None:
+        super().__init__(PEMBARUAN_LEPAS_GAGAL, "Truk di line tidak bisa dilepas", line=line_code)
 
 
 class PembaruanTidakAda(OperatorError):
