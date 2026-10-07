@@ -29,7 +29,8 @@ butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 #: Penanda kunci yang sah di sebuah handler. `denganSibuk(` untuk semua tombol;
 #: sisanya penjaga lama yang sudah terbukti: kolom scan (bukan tombol, dibaca
 #: scanner), gerbang login, dialog uji PLC yang mengosongkan `ujiUntuk`.
-PENANDA_KUNCI = ("denganSibuk(", 'classList.add("sibuk")', "scanSibuk", "gerbangSibuk", "ujiUntuk")
+#: `p.menyimpan` = popup ketik berat dari scan: satu simpan sekaligus, Enter kedua diabaikan.
+PENANDA_KUNCI = ("denganSibuk(", 'classList.add("sibuk")', "scanSibuk", "gerbangSibuk", "ujiUntuk", "p.menyimpan")
 
 
 def _fungsi_async(nama: str) -> str:

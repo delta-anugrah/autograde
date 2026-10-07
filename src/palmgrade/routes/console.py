@@ -27,7 +27,7 @@ from ..domain.operator_error import (
     InvalidInput,
     OperatorError,
 )
-from ..domain.pembaruan import PembaruanBelumTerpasang, PembaruanBerjalan, line_bertruk
+from ..domain.pembaruan import PembaruanBerjalan
 from ..domain.pilihan_model import ModelTidakSah
 from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
@@ -37,7 +37,6 @@ from ..schemas.console_schema import (
     AutoAssignBody,
     LoginBody,
     ManualTruckBody,
-    PasangBody,
     ScanBody,
     WeighingBody,
 )
@@ -81,6 +80,7 @@ from .console_gerbang import antrean_bongkar_router, gerbang_router, scanner_rou
 from .console_kamera import kamera_router
 from .console_keadaan import keadaan_router
 from .console_lepas_paksa import lepas_paksa_router
+from .console_pembaruan import pembaruan_router
 from .console_sesi import pasang_cookie_sesi, sesi_router
 from .console_shift import shift_router
 from .console_slip import slip_router
@@ -453,32 +453,7 @@ async def piston(
 router.include_router(kamera_router)  # Sambung ulang kamera on every line card
 
 
-# ── pembaruan (batch 4.6): operator AND support ─────────────────────────
-# The console only writes a marker; the host watcher installs. No Docker in here.
-
-
-@router.get("/api/console/update")
-async def update_status(pembaruan: Pembaruan, operator: Operator) -> dict:
-    return (await run_in_threadpool(pembaruan.keadaan)).as_dict()
-
-
-@router.post("/api/console/update/install", status_code=202)
-async def update_install(
-    payload: PasangBody, service: Service, pembaruan: Pembaruan, operator: Operator
-) -> dict:
-    async with pembaruan.kunci:
-        assignments = await run_in_threadpool(service.assignments)
-        # An assign still waiting for its line is not in `assignments` yet, but will be.
-        bertruk = sorted(set(line_bertruk(assignments)) | set(pembaruan.line_sedang_ditugaskan()))
-        try:
-            return await run_in_threadpool(pembaruan.pasang, payload.target or "", bertruk, operator["email"])
-        except PembaruanBelumTerpasang as exc:
-            raise _operator_error(503, exc) from exc
-        except OperatorError as exc:
-            raise _operator_error(409, exc) from exc
-        except OSError as exc:
-            # Folder mounted read-only or disk full: the marker never landed, nothing runs.
-            raise _operator_error(500, exc) from exc
+router.include_router(pembaruan_router)  # Update now (rule 38): status + install
 
 
 # ── developer lanes (support only) ───────────────────────────────────────
