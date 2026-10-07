@@ -60,6 +60,50 @@ Decisions:      Owner 2026-10-07: camera and media never cropped or stretched; J
                 browsers stay light; Timbangan board not built.
 Next:           Merge #254, then PR 2 of the new console (tokens, embedded fonts, components).
                 At Lampung: screenshot capture line/ROI before upgrading, compare after.
+## 2026-10-07 · console · Final review fixes for Update now and the scan popup (PR #255)
+Changed:        Update now refuses with 409 `pembaruan_lepas_gagal` before releasing anything when a
+                line holding a truck is already unreadable in the last status poll, names the lines
+                released before a mid-way failure (`params.dilepas`, screen key
+                `pembaruanSudahDilepas`), and maps any unexpected release error to the same 409.
+                Weight popup: Space+N / P+N are the shortcuts there too and never type a digit; a tap
+                on the popup keeps its box focused. Key catcher: a late scanner Enter after 3+ keys in
+                1.5 s is held back with "Scan tidak terbaca", and a fast run starting under 1 s after a
+                stray key is a failed read (no partial plate). Curtain timeout toast names the version
+                shown; `#pita-dummy` radius `--r-sm`. Docs: rules 38 and 39, MANUAL (+ PDF),
+                backend-overview, skills scanner-qr and konsol-autograde.
+Validated:      pytest tests/unit → 5320 passed, 28 skipped; tests/e2e → 424 passed, 20 skipped;
+                tests/integration → 192 passed; make test-browser chromium → 184 passed; firefox →
+                184 passed (first run each); ruff → All checks passed.
+Not validated:  the new scan timing rules with the real Cashcow scanner; Update now pre-check on the
+                factory PC.
+Next:           PR to staging.
+
+## 2026-10-07 · console · Update now releases trucks, dummy scale, scan from any tab (PR #255)
+Changed:        Dummy scale: support switch in Settings > Mode Developer (`/api/console/dev/timbangan-dummy`,
+                `sync_state` key `setelan_timbangan_dummy`); scans save 30,000 kg (isi) / 10,000 kg
+                (kosong) with `dummy: true`, still sent to AutoERP, orange band `#pita-dummy` on every
+                tab (5e00a96f, b8bf4915). Update now: install route moved to
+                `routes/console_pembaruan.py`, releases every assigned truck first, 409
+                `pembaruan_lepas_gagal` when a line does not answer; screen confirms with trucks and
+                lines, full-screen curtain `#tirai-pembaruan` until the reload, success toast only on the
+                watcher's ok verdict, 25 min marker (4f47838e, e8458bfc, a36c0f50, d5ffd132). Scan:
+                key catcher `tangkapScan` on every tab, popup `#scan-popup` (4 s / 8 s), weight popup
+                with a field when the scale is not ready (2348723b, 530613a7, 1893509d, ade49a4c,
+                d56880cd: a fast hand-typed weight is never taken for a scan). Docs: rules 20, 21, 38,
+                39, CLAUDE.md index, coding-standard F12, backend-overview, MANUAL 2.25 (+ PDF),
+                skills scanner-qr and konsol-autograde; dead KAMUS keys `scanKetikBruto` and
+                `scanKetikTara` removed.
+Validated:      pytest tests/unit → 5305 passed, 28 skipped; tests/e2e → 424 passed, 20 skipped;
+                tests/integration → 192 passed; make test-browser chromium → 182 passed; firefox →
+                182 passed on the 4th full run (3 earlier runs each had 1 failure under heavy
+                machine load, a different test or the same one that passes alone: test_browser_timbangan
+                twice, test_browser_sesi_geser once); ruff → All checks passed; MANUAL.pdf rebuilt
+                (47 pages).
+Not validated:  with the real scanner and at Lampung; the docs-sweep agent (the controller runs it).
+Risks:          the scan key catcher is tuned to 100 ms / 500 ms; a slower scanner shows "Scan tidak
+                terbaca" and needs a look at the scanner's inter-character delay.
+Next:           Final review, push, PR to staging, release, then one visit at Lampung with the scanner
+                from a non-Timbangan tab and with Update now while a truck is on a line.
 
 ## 2026-10-06 · console · Answer the "Catat?" question by scanning again (PR #252)
 Changed:        While the repeat-scan question is open, a capture keydown listener takes the

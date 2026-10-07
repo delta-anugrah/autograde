@@ -12,7 +12,7 @@ from fastapi import APIRouter
 
 from ..domain.operator_error import InvalidInput, OperatorError
 from ..domain.pembaruan import PembaruanBerjalan
-from ..schemas.console_schema import ArrivalBody, DepartureBody, ScannerQrBody, ScanOtomatisBody
+from ..schemas.console_schema import ArrivalBody, DepartureBody, ScannerQrBody, ScanOtomatisBody, TimbanganDummyBody
 from .console_deps import Gate, Operator, ScanAuto, Service, Support, _operator_error
 
 gerbang_router = APIRouter(tags=["console"])
@@ -106,3 +106,15 @@ def dev_scanner_baca(service: Service, operator: Support) -> dict:
 def dev_scanner_simpan(service: Service, operator: Support, payload: ScannerQrBody) -> dict:
     """Support only, logged WARNING with who. Plain `def` (rule 30): one SQLite write."""
     return service.simpan_scanner_qr(bool(payload.aktif), diubah_oleh=operator["email"])
+
+
+@scanner_router.get("/api/console/dev/timbangan-dummy")
+def dev_timbangan_dummy_baca(service: Service, operator: Support) -> dict:
+    """Timbangan dummy switch: whether scans save 30,000 / 10,000 kg instead of the live scale."""
+    return {"aktif": service.timbangan_dummy()}
+
+
+@scanner_router.post("/api/console/dev/timbangan-dummy")
+def dev_timbangan_dummy_simpan(service: Service, operator: Support, payload: TimbanganDummyBody) -> dict:
+    """Support only, logged WARNING with who. Plain `def` (rule 30): one SQLite write."""
+    return service.simpan_timbangan_dummy(bool(payload.aktif), diubah_oleh=operator["email"])

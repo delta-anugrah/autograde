@@ -141,8 +141,20 @@ def test_isi_permintaan_sesuai_kontrak():
 
 
 def test_kode_baru_terdaftar():
-    for kode in ("pembaruan_ada_truk", "pembaruan_tidak_ada", "pembaruan_berjalan", "pembaruan_belum_terpasang"):
+    for kode in (
+        "pembaruan_ada_truk",
+        "pembaruan_tidak_ada",
+        "pembaruan_berjalan",
+        "pembaruan_belum_terpasang",
+        "pembaruan_lepas_gagal",
+    ):
         assert kode in CODES
+
+
+def test_lepas_gagal_menyebut_line_yang_tidak_menjawab():
+    detail = p.PembaruanLepasGagal("L2").as_detail()
+    assert detail["code"] == "pembaruan_lepas_gagal"
+    assert detail["params"] == {"line": "L2"}
 
 
 def test_versi_lebih_baru_sesudah_rollback_ditawarkan_lagi():

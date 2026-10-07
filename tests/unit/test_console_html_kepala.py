@@ -51,9 +51,9 @@ def test_judul_dan_label_tanpa_huruf_kapital_renggang():
 
 
 @butuh_node
-def test_syarat_lepas_truk_berwarna():
+def test_syarat_restart_berwarna():
     ikon = "const IKON_UNDUH = '<svg></svg>';"
     siap = "{terpasang:true, siap:'v1.23.0', berjalan:false, hasil:null}"
     html = jalankan(["tombolPasang", "teksHasilPembaruan", "htmlPembaruan"], f"htmlPembaruan({siap}, false)", tambahan=ikon)
-    assert 'class="pembaruan-syarat"' in html and "Lepas semua truk dulu" in html
+    assert 'class="pembaruan-syarat"' in html and "dilepas otomatis" in html
     assert "color:var(--warn)" in _aturan(".pembaruan-syarat")

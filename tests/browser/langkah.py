@@ -92,3 +92,10 @@ def setel_scanner(url: str, aktif: bool) -> None:
     with httpx.Client(base_url=url, timeout=10) as c:
         c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
         c.post("/api/console/dev/scanner-qr", json={"aktif": aktif}).raise_for_status()
+
+
+def setel_dummy(url: str, aktif: bool) -> None:
+    """The Timbangan dummy switch (support, 2026-10-07), set over HTTP like setel_scanner."""
+    with httpx.Client(base_url=url, timeout=10) as c:
+        c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
+        c.post("/api/console/dev/timbangan-dummy", json={"aktif": aktif}).raise_for_status()

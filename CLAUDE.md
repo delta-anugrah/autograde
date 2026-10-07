@@ -89,7 +89,7 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 17. Recap: grading and weighing are two sources, only placed side by side.
 18. Truck visit: one message, rebuilt every time, never patched (contract §4.C).
 19. Console login: email + password, two account sources, verified offline; the session slides 12 h from the last touch, polls never renew it.
-20. A QR scan carries the plate number and nothing else; one scan field records the truck's next step, decided on the server from its state, and shows only when support turns on the Scanner QR switch (default off).
+20. A QR scan carries the plate number and nothing else; one scan, read from any tab, records the truck's next step, decided on the server from its state, and answers in a popup that closes itself; the Scanner QR switch (support, default off) turns it on, and a weight the scale cannot give is typed in the popup.
 21. Developer lane: the backend guards, the screen only tidies.
 22. Licence: the factory verifies, AutoERP issues.
 23. Developer video recording never slows grading.
@@ -107,8 +107,8 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 35. Honest health and disk monitor: a connected camera that stops sending frames is a fault; free disk is watched on every line, with or without R2, and nothing is deleted; camera health without a temperature sensor is graded on the line (rate held low, frames lost, disconnects).
 36. Automatic line assignment: one truck on the lines until weighed out; the next waits in the unloading queue; on by default on every line since 2026-10-05, support can turn it off.
 37. Gate times (scan 1 arrive, scan 4 leave) stay on the factory PC and never go to AutoERP; scan 1 may be skipped; scan 4 before the weigh-out is refused; a cancelled arrival is kept as history; a weighed-out ticket with no scan 4 counts as finished after 24 h or when the truck returns, nothing written.
-38. Update now: the console never touches Docker, it only writes a marker in `UPDATE_DIR` for the host watcher; refused while any truck is assigned.
-39. Live scale: the console reads the weighbridge weight from a PLC word register on its own port and shows it; only the one scan field may save it as a ticket weight, and only when fit (stable, or the same kg for 2 s, at least 1,000 kg); a cut, stale or faulted reading shows a dash.
+38. Update now: the console never touches Docker, it only writes a marker in `UPDATE_DIR` for the host watcher; it releases every assigned truck first (a line that does not answer stops the install), and a full-screen curtain holds the screen until the reload.
+39. Live scale: the console reads the weighbridge weight from a PLC word register on its own port and shows it; only a scan may save it as a ticket weight, and only when fit (stable, or the same kg for 2 s, at least 1,000 kg); a cut, stale or faulted reading shows a dash. Support can switch on a dummy scale (30,000 / 10,000 kg, still sent to AutoERP, orange band on every tab).
 
 Conventions (full text in `docs/rules.md` § Conventions): process env vars beat `.env`
 (`override=False`); three image sources (`CAMERA_TYPE` = `hikrobot` / `opencv` / `photo`,
@@ -117,7 +117,7 @@ ROI and the capture line are stored in **settings space** (`STREAM_WIDTH×STREAM
 stream picture keeps the camera's own ratio inside it (861×720 for 1224×1024, 2026-10-07); the capture line (`GARIS_CAPTURE`,
 default 300, set from the console, `0` = off) decides **when** a bunch is photographed, ROI decides **where**;
 no confidence number on bunch labels (`mode_dev` shows it); toasts close by themselves within
-10 s; a restarted line is marked on its card; frame rate lives in `config/camera/hikrobot.mfs`;
+10 s (the weight-input popup is a form, the one exception: it closes at 60 s idle); a restarted line is marked on its card; frame rate lives in `config/camera/hikrobot.mfs`;
 `snake_case` files, `PascalCase` classes, `UPPER_SNAKE` env vars.
 
 Git: default branch `staging`, PR-only, squash to `staging`, merge commit to `main` (so `main`

@@ -572,14 +572,13 @@ def test_pertanyaan_scan_dijawab_dengan_scan_ulang():
     assert "scanUlang = { qr, dibuka: Date.now()" in badan and "scanUlang = null" in badan
 
 
-def test_timbangan_belum_siap_membuka_kotak_berat_yang_lama():
-    """Tanpa timbangan live (atau angkanya belum layak) layar membuka kotak yang sudah ada:
-    bruto untuk timbang isi (plat terpilih, kursor di bruto), bar tara untuk timbang kosong."""
-    badan = _badan("mintaBerat", '$("scan-otomatis").addEventListener')
-    assert "tanyaTara(h.weighing)" in badan
-    assert 'pilihNilai($("plat-timbang"), plat)' in badan and 'bruto").focus()' in badan
-    # Truck list on screen reloads every 60 s: a fresh truck is loaded before it is picked.
-    assert badan.index("muatTrucks()") < badan.index('pilihNilai($("plat-timbang")')
+def test_timbangan_belum_siap_membuka_popup_berat_bukan_kotak_di_tab():
+    """Tanpa timbangan live (atau angkanya belum layak) layar membuka popup ketik berat, dari tab
+    mana pun (2026-10-07); kotak bruto dan bar tara tidak disentuh. Rinciannya di
+    `test_console_html_scan_popup.py`."""
+    badan = _badan("mintaBerat", "function galatPopupScan")
+    assert 'jenis: "berat"' in badan and "popupBerat = {" in badan and 'scan-popup-berat' in badan
+    assert "tanyaTara(" not in badan and 'pilihNilai($("plat-timbang")' not in badan
 
 
 def test_enter_di_bruto_menimbang_isi():
@@ -587,11 +586,11 @@ def test_enter_di_bruto_menimbang_isi():
     assert '"Enter"' in blok and '$("masuk").click()' in blok
 
 
-def test_toast_sukses_menyebut_langkah_plat_dan_supplier():
-    fn = _fungsi("teksScan")
+def test_hasil_scan_menyebut_langkah_plat_dan_supplier_di_popup_bukan_toast():
+    fn = _fungsi("teksPopupScan")
     assert "h.plate_number" in fn and "h.supplier" in fn and "kg(h.kg)" in fn
     badan = _badan("tanganiScan", "async function mintaBerat")
-    assert "toastSukses(teksScan(" in badan and "toastPeringatan(" in badan
+    assert "tampilkanPopupScan(" in badan and "toastSukses(" not in badan
 
 
 def test_fokus_tidak_direbut_dari_kolom_lain_dialog_atau_daftar():
@@ -604,7 +603,7 @@ def test_fokus_tidak_direbut_dari_kolom_lain_dialog_atau_daftar():
 def test_kamus_kolom_scan_ada_di_dua_bahasa():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
-        for kunci in ("lbScanOtomatis", "phScanOtomatis", "scanKetikBruto", "scanKetikTara",
+        for kunci in ("lbScanOtomatis", "phScanOtomatis",
                       "konfirmasiScanJudul", "konfirmasiScan", "btnCatatScan", "scanBelumAda",
                       "scanTrukNonaktif", "scanGanda", "scanLangkahDatang", "scanLangkahIsi",
                       "scanLangkahKosong"):

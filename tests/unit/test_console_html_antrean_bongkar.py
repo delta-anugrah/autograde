@@ -66,6 +66,7 @@ const toasts = [];
 const toastSukses = (m) => toasts.push(["sukses", m]);
 const toastPeringatan = (m) => toasts.push(["peringatan", m]);
 const namaKartuLine = (k) => k.replace("line-", "Line ");
+let urutan = ["line-1", "line-2", "line-3"];
 const pelepasanSudahDiumumkan = new Set();
 """
 
@@ -216,7 +217,7 @@ def test_line_tertahan_diumumkan_dengan_plat_lama():
          "plate_lama": "BE 1 AA"},
         {"line_code": "line-3", "plate_number": "BE 2 BB", "terpasang": True},
     ])
-    toasts = _toast(f"umumkanPasang({daftar})", "umumkanPasang",
+    toasts = _toast(f"umumkanPasang({daftar})", "urutkanLineKartu", "umumkanPasang",
                     kunci=("sukDitugaskanOtomatis", "tugaskanGagalLine", "tugaskanTertahan"))
     assert toasts == [
         ["sukses", "BE 2 BB ditugaskan ke Line 1, Line 3"],
@@ -236,7 +237,7 @@ def test_pelepasan_tiga_line_satu_toast_saat_saklar_nyala():
     lagi": saklar nyala, menugaskan lagi menimpa truk berikutnya."""
     toasts = _toast(
         f"umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, true); umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, true)",
-        "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
+        "urutkanLineKartu", "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
     )
     assert toasts == [["peringatan", "Line 1, Line 2, Line 3 dilepas otomatis karena BE 1 AA sudah timbang kosong."]]
 
@@ -245,7 +246,7 @@ def test_pelepasan_tiga_line_satu_toast_saat_saklar_nyala():
 def test_pelepasan_per_line_seperti_dulu_saat_saklar_mati():
     toasts = _toast(
         f"umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, false)",
-        "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
+        "urutkanLineKartu", "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
     )
     assert [m for _, m in toasts] == [
         f"line-{i} dilepas otomatis karena BE 1 AA sudah timbang kosong. Tugaskan lagi kalau bongkarnya belum selesai."
