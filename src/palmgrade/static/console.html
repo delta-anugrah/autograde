@@ -477,19 +477,18 @@
   .riwayat-isian .pilih { width:11rem; }
   .riwayat-isian .pilih-tombol { min-height:2.6rem; }
   .riwayat-cepat { display:flex; flex-wrap:wrap; gap:6px; }
-  .riwayat-cepat button { min-height:2.6rem; padding:8px 12px; font-size:.85rem; }
-  /* Rentang yang sedang dipakai, dengan warna yang sama dengan Per hari / Per truk. */
-  .riwayat-cepat button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  .riwayat-cepat button { min-height:44px; padding:8px 14px; font-size:.85rem; border-radius:var(--r-pill); }
+  /* Rentang yang sedang dipakai: filter chip (spec §4), biru merek seperti sub-tab yang terpilih. */
+  .riwayat-cepat button.aktif { background:var(--merek-tint); color:var(--merek); border-color:var(--merek); }
   .riwayat-aksi { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
   .riwayat-aksi button { min-height:2.6rem; min-width:9rem; }
   .riwayat-maks { flex:1 1 100%; }
-  .riwayat-pesan { flex:1 1 100%; margin:0; padding:8px 10px; border-radius:var(--r);
+  .riwayat-pesan { flex:1 1 100%; margin:0; padding:8px 10px; border-radius:var(--r-sm);
                    background:var(--warn-bg); color:var(--warn); font-weight:700; }
   .riwayat-pesan:empty { display:none; }
   /* Angka periode, gaya yang sama dengan strip "Hari ini": dibaca sekali pandang. */
-  .riwayat-ringkasan { display:flex; flex-wrap:wrap; margin:12px 0 0; background:var(--card);
-                       border:1px solid var(--line-kuat); border-left:5px solid var(--acc);
-                       border-radius:var(--r-lg); }
+  .riwayat-ringkasan { display:flex; flex-wrap:wrap; margin:12px 0 0; background:var(--panel2);
+                       border:1px solid var(--line); border-radius:var(--r-md); }
   .riwayat-ringkasan:empty { display:none; }
   .riwayat-ringkasan .stat { padding:10px clamp(10px, 2vw, 18px) 12px; min-width:5rem;
                              border-right:1px solid var(--line); text-align:center; }
@@ -497,9 +496,11 @@
                                font-weight:700; line-height:1.15; font-variant-numeric:tabular-nums; }
   .riwayat-ringkasan .stat small { display:block; max-width:9rem; margin:2px auto 0;
                                    font-size:.7rem; color:var(--muted); }
-  .riwayat-ringkasan .stat.acc b { color:var(--acc); }
-  .riwayat-ringkasan .stat.rej b { color:var(--rej); }
-  .riwayat-ringkasan .stat.tp b { color:var(--warn); }
+  /* One colour per grading class, the same as the Grading view (JK violet, §9 Q1). */
+  .riwayat-ringkasan .stat.ripe b { color:var(--ripe); }
+  .riwayat-ringkasan .stat.unripe b { color:var(--unripe); }
+  .riwayat-ringkasan .stat.jk b { color:var(--jk); }
+  .riwayat-ringkasan .stat.tp b { color:var(--tp); }
   .riwayat-kepala-tabel { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
                           margin:14px 0 8px; }
   /* The three views are sub-tabs (2026-10-05): the full width, the range under them. */
@@ -971,7 +972,7 @@
   .akun-form-tombol { display:flex; gap:8px; flex-wrap:wrap; }
   .akun-form-tombol button { min-height:2.6rem; }
   .akun-form-catatan { margin:0; }
-  .akun-pesan { margin:0; padding:8px 10px; border-radius:var(--r);
+  .akun-pesan { margin:0; padding:8px 10px; border-radius:var(--r-sm);
                 background:var(--warn-bg); color:var(--warn); }
   .akun-pesan:empty { display:none; }
   /* Tombol per baris dibuat kecil: tabel ini dibaca, tombolnya jarang ditekan,
@@ -1486,8 +1487,9 @@
   /* Every view is one card (spec §4): radius 18, one hairline, soft shadow. */
   .panel { margin:0 var(--pad) 24px; padding:18px 20px 22px; background:var(--card);
            border:1px solid var(--line); border-radius:var(--r-kartu); box-shadow:var(--bayang-kartu); }
+  /* Inside a card: a tinted band with a hairline, not a second heavy outline (PR 5). */
   .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:14px;
-           background:var(--card); border:1px solid var(--line-kuat); border-bottom:none;
+           background:var(--panel2); border:1px solid var(--line); border-bottom:none;
            border-radius:var(--r-md) var(--r-md) 0 0; }
   /* `min-width:0`: an input's automatic minimum is its `size` attribute,
      20 characters, which otherwise overrides every basis below. */
@@ -1526,11 +1528,11 @@
   .sub-tab { display:grid; gap:0; }
   .sub-tab button { width:100%; min-width:0; min-height:2.8rem; padding:8px 12px;
                     background:none; color:var(--muted); border:0; border-radius:0;
-                    box-shadow:inset 0 -2px 0 var(--line); font-size:1rem; letter-spacing:.02em; }
-  .sub-tab button:hover:not(:disabled) { color:var(--fg); background:var(--zebra);
+                    box-shadow:inset 0 -2px 0 var(--line); font-size:1rem; letter-spacing:0; }
+  .sub-tab button:hover:not(:disabled) { color:var(--fg); background:var(--panel2);
                                          box-shadow:inset 0 -2px 0 var(--line-kuat); transform:none; }
   .sub-tab button.aktif, .sub-tab button.aktif:hover:not(:disabled) {
-    color:var(--fg); background:none; box-shadow:inset 0 -4px 0 var(--acc); }
+    color:var(--merek); background:none; box-shadow:inset 0 -3px 0 var(--merek); }
   /* Tab Log (batch 3.2/3.5): asal baris, waktu pertama, traceback, keadaan lapor Discord. */
   .log-asal { display:inline-block; margin-right:6px; padding:2px 6px; border-radius:var(--r-xs);
               background:var(--zebra); border:1px solid var(--line); font-size:.78rem; font-weight:700; }
@@ -1556,14 +1558,14 @@
   /* position:relative: an absolute child (`.sr-only` in a header cell) otherwise escapes
      the sideways scroll and widens the whole page on a 1024 px screen (Rekap, 2026-10-01). */
   .tabel { position:relative; overflow-x:auto; background:var(--card);
-           border:1px solid var(--line-kuat); border-radius:var(--r-md); }
+           border:1px solid var(--line); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
   /* The R2 manifest table is a second block under the ERP queue table, not a part of it. */
   #manifest-nonaktif { margin:0 0 8px; }
   /* No summary to show (R2 not set): no empty bar above the table, which then closes its
      own top edge. A browser without :has() just keeps the empty bar. */
   .tools:has(> #manifest-ringkas:empty) { display:none; }
-  .tools:has(> #manifest-ringkas:empty) + .tabel { border-top:1px solid var(--line-kuat); border-radius:var(--r-md); }
+  .tools:has(> #manifest-ringkas:empty) + .tabel { border-top:1px solid var(--line); border-radius:var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
      sengaja tanpa garis bawah karena menempel ke `.tabel`; tanpa tabel, kotaknya
      menggantung dengan bawah terbuka (keluhan 2026-09-25). Di sini kotaknya
@@ -1779,15 +1781,15 @@
   .setelan-form :is(label, .label) > span:first-child { font-weight:600; }
   .setelan-form input {
     padding:10px 12px; font-family:var(--angka); font-size:1.1rem;
-    border:1px solid var(--line-kuat); border-radius:var(--r);
+    border:1px solid var(--line-kuat); border-radius:var(--r-sm);
     background:var(--input); color:var(--fg); width:100%; box-sizing:border-box; }
   /* Saklar: kotak centang di kiri, teks di kanan, sejajar atas. `grid` milik
      label biasa akan menaruh kotaknya selebar kolom. */
   .setelan-form label.saklar { display:flex; gap:12px; align-items:flex-start; cursor:pointer; }
-  .setelan-form label.saklar input { width:22px; height:22px; margin-top:2px; flex:none; accent-color:var(--aksen); }
+  .setelan-form label.saklar input { width:22px; height:22px; margin-top:2px; flex:none; accent-color:var(--merek); }
   .setelan-form label.saklar > span { display:grid; gap:4px; }
   .setelan-form input:focus-visible, .setelan-form select:focus-visible {
-    outline:2px solid var(--aksen); outline-offset:1px; }
+    outline:2px solid var(--merek); outline-offset:1px; }
   /* Angka yang ditolak ditandai DI KOLOMNYA, bukan cuma di banner bawah:
      operator yang mengetik satu huruf harus tahu kolom mana yang salah tanpa
      membaca kalimat. */
@@ -1799,7 +1801,7 @@
                          padding-top:14px; border-top:1px solid var(--line); }
   /* Empty: no room under Simpan (its own margins plus the card's gap left a blank band). */
   #set-pesan:empty { margin:-18px 0 0; }
-  #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
+  #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r-sm);
                            background:var(--warn-bg); color:var(--warn); }
   /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
      tidak kosong di kanan sementara Simpan terdorong jauh ke bawah. `.tools`
@@ -1811,7 +1813,7 @@
      per satu kalau tidak (AnyDesk/laptop sempit) - lebar minimum menahan supaya
      kartu tidak memepet sampai tulisan dan radio ikut mengecil. */
   .sumber-baris { flex:1 1 18rem; min-width:18rem; display:grid; gap:10px; padding:16px 20px;
-                  border:1px solid var(--line); border-radius:var(--r); background:var(--kartu); }
+                  border:1px solid var(--line); border-radius:var(--r-sm); background:var(--card); }
   .sumber-baris label, .sumber-baris .label { display:flex; align-items:center; gap:8px; cursor:pointer; }
   .sumber-berkas { display:grid; gap:10px; padding-top:10px; margin-top:4px;
                    border-top:1px solid var(--line); }
@@ -1891,7 +1893,7 @@
   .impor-catatan { margin-top:8px; color:var(--warn); font-weight:600; }
   .impor-daftar { display:grid; gap:8px; max-height:16rem; overflow:auto; }
   .impor-batch { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:8px 10px;
-                 border:1px solid var(--line); border-radius:var(--r); }
+                 border:1px solid var(--line); border-radius:var(--r-sm); }
   .impor-batch .muted { font-size:.85rem; }
   .impor-batch button { margin-left:auto; min-height:2.4rem; min-width:7rem; }
   .impor-batch[data-status="undone"] { opacity:.7; }
@@ -3503,6 +3505,10 @@ const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;" }[c]));
 const KOSONG = "-";
 const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
+// A plate in a table reads as a plate (spec §4 plate chip, `.plat:not(input)`); no plate stays a dash.
+function chipPlat(v) {
+  return v === null || v === undefined || v === "" ? dash(v) : `<b class="plat">${esc(v)}</b>`;
+}
 let trucks = [];
 // Trucks that did "Catat datang" and are not weighed in yet (`waiting` of /weighings,
 // oldest first): the top section of step 2's plate picker and the top rows of the table.
@@ -6276,7 +6282,7 @@ const tagHasil = (s, kelas) => {
 
 function barisTruk(tr) {
   return `<tr>
-    <td class="key">${dash(tr.plate_number)}</td>
+    <td class="key">${chipPlat(tr.plate_number)}</td>
     <td>${dash(tr.supplier_name)}</td>
     <td>${dash(tr.source_label)}</td>
     <td>${dash(tr.status)}</td>
@@ -6298,7 +6304,7 @@ function barisTimbangan(w) {
     <td title="${esc(jamDatang)}">${durasiAntre(w)}</td>
     <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
     <td title="${esc(jamPergi)}">${dash(teksMenit(w.total_menit))}</td>
-    <td class="key">${dash(w.plate_number)}${tandaErp(w)}</td>
+    <td class="key">${chipPlat(w.plate_number)}${tandaErp(w)}</td>
     <td>${dash(w.source_label)}</td>
     <td class="num">${kg(w.gross_kg)}</td>
     <td class="num">${kg(w.tare_kg)}</td>
@@ -6320,7 +6326,7 @@ function barisMenunggu(a) {
     <td title="${esc(jamDatang)}">${dash(teksMenit(a.menit))}</td>
     <td>${KOSONG}</td>
     <td>${KOSONG}</td>
-    <td class="key">${dash(a.plate_number)}</td>
+    <td class="key">${chipPlat(a.plate_number)}</td>
     <td>${KOSONG}</td>
     <td class="num">${KOSONG}</td>
     <td class="num">${KOSONG}</td>
@@ -6439,7 +6445,7 @@ function barisRecent(r, i) {
     <td class="no">${gradingOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
     <td class="kode-line">${esc(r.line_code)}</td>
-    <td class="key">${dash(r.plate_number)}</td>
+    <td class="key">${chipPlat(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
     <td>${selFoto(r,
@@ -8760,7 +8766,7 @@ function barisBatal(r) {
     ? `<td title="${esc(r.cancelled_by || "")}">${esc(r.cancelled_by_name)}</td>`
     : `<td>${dash(r.cancelled_by)}</td>`;
   return `<tr>
-    <td class="key">${dash(r.plate_number)}</td>
+    <td class="key">${chipPlat(r.plate_number)}</td>
     <td class="sel-waktu">${r.arrived_at ? waktuDuaBaris(r.arrived_at) : KOSONG}</td>
     <td class="sel-waktu">${r.cancelled_at ? waktuDuaBaris(r.cancelled_at) : KOSONG}</td>
     ${oleh}
@@ -8869,7 +8875,7 @@ function barisRiwayatHari(r) {
 }
 
 function barisRiwayatTruk(r) {
-  const plat = r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`;
+  const plat = r.plate_number ? chipPlat(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`;
   const lihat = r.truck_id && r.plate_number
     ? `<button type="button" class="riwayat-lihat" data-lihat="janjang"
          data-tanggal="${esc(r.work_date)}" data-plat="${esc(r.plate_number)}">${esc(t("riwayatLihatJanjang"))}</button>` : "";
@@ -8901,7 +8907,7 @@ function barisRiwayatJanjang(r, i) {
     <td>${waktu(r.timestamp)}</td>
     <td class="kode-line">${esc(r.line_code)}${r.import_batch
       ? `<span class="label-impor" title="${esc(t("imporLabelJudul"))}">${esc(t("imporLabel"))}</span>` : ""}</td>
-    <td class="key">${dash(r.plate_number)}</td>
+    <td class="key">${chipPlat(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
     <td>${selFoto(r, judul)}</td>
@@ -8934,9 +8940,9 @@ function isiRingkasanRiwayat(r) {
   const perLine = Boolean(riwayatFilter && riwayatFilter.line_code);
   $("riwayat-ringkasan").innerHTML = [
     kotak("", "thJanjang", kg(r.total)),
-    kotak("acc", "clsRipe", kg(r.ripe)),
-    kotak("rej", "clsUnripe", kg(r.unripe)),
-    kotak("rej", "clsJk", kg(r.jk)),
+    kotak("ripe", "clsRipe", kg(r.ripe)),
+    kotak("unripe", "clsUnripe", kg(r.unripe)),
+    kotak("jk", "clsJk", kg(r.jk)),
     kotak("tp", "clsTp", kg(r.tp)),
     kotak("", "thRasio", rasioRiwayat(r.acc, r.total)),
     kotak("", "riwayatJumlahTruk", kg(r.truk)),

@@ -42,7 +42,7 @@ def _kamus(bahasa: str) -> dict[str, str]:
 
 
 def _jalankan(ekspresi: str, *fungsi: str):
-    skrip = _STUB + "".join(_fungsi(f) for f in fungsi) + f"\nprocess.stdout.write(JSON.stringify({ekspresi}));"
+    skrip = _STUB + "".join(_fungsi(f) for f in ("chipPlat", *fungsi)) + f"\nprocess.stdout.write(JSON.stringify({ekspresi}));"
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
     assert hasil.returncode == 0, hasil.stderr[-800:]
     return json.loads(hasil.stdout)
@@ -124,7 +124,7 @@ def test_baris_riwayat_jam_dua_baris_seperti_tabel_timbangan():
         "waktu", "waktuDuaBaris", "barisBatal",
     )
     assert hasil.count('class="sel-waktu"') == 2 and hasil.count('class="tgl"') == 2
-    assert 'class="key">BE 1 AA<' in hasil and ">op@pks.test<" in hasil
+    assert 'class="key"><b class="plat">BE 1 AA</b><' in hasil and ">op@pks.test<" in hasil
 
 
 @butuh_node

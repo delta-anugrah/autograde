@@ -37,7 +37,7 @@ def _kamus(bahasa: str) -> str:
 
 
 def _jalankan(ekspresi: str, *fungsi: str, awal: str = ""):
-    skrip = _STUB + awal + "".join(_fungsi(f) for f in fungsi) + f"\nprocess.stdout.write(JSON.stringify({ekspresi}));"
+    skrip = _STUB + awal + "".join(_fungsi(f) for f in ("chipPlat", *fungsi)) + f"\nprocess.stdout.write(JSON.stringify({ekspresi}));"
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
     assert hasil.returncode == 0, hasil.stderr[-800:]
     return json.loads(hasil.stdout)
@@ -214,7 +214,7 @@ def test_baris_tiket_diawali_lencana_dua_belas_sel():
         assert len(sel) == 12, baris
         assert kelas in sel[0]
     menunggu = re.findall(r"<td\b[^>]*>(.*?)</td>", html[1], re.S)
-    assert menunggu[3] == "7 mnt" and menunggu[6] == "BE 2 BB"
+    assert menunggu[3] == "7 mnt" and menunggu[6] == '<b class="plat">BE 2 BB</b>'
     # No ticket yet: no weighing button and no ticket id. Its one button is Batal datang (2026-10-03).
     assert re.findall(r"data-aksi=\"([\w-]+)\"", html[1]) == ["batal-datang"] and "data-id" not in html[1]
 
