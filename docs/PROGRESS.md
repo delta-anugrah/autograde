@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-07 · console · New look: fonts, tokens, left rail, Grading in one screen (PR 2+3, PR pending)
+## 2026-10-07 · console · New look: fonts, tokens, left rail, Grading in one screen (PR 2+3)
 Changed:        console.html restyle and re-layout (spec sawit/docs/superpowers/specs/2026-10-07-autograde-konsol-baru-design.md
                 §4, §5.1, §5.2). Embedded fonts (scripts/tanam_font.py, assets/fonts, OFL); tokens --merek, class colours
                 (JK violet), contrast 6:1 tested; left rail #tabs with hide button (#menu-samping, kept per browser); header
@@ -28,9 +28,9 @@ Changed:        console.html restyle and re-layout (spec sawit/docs/superpowers/
                 Tugaskan, Lepas, order); camera box sized to fit one screen; results table title. Neto of the day moved to
                 Timbangan. No endpoint or payload change. Stacked on #254 (merged into the branch); also fixes #254's
                 tests/e2e/test_display_overlay_render.py (expected 1280x720, skipped in CI without torch).
-Validated:      ruff check . → All checks passed. pytest tests --ignore=tests/browser → 5945 passed, 48 skipped.
-                make test-browser (chromium + firefox) → 344 passed (first full run); after the review fixes 343 passed,
-                1 failed (test_browser_sambung_ulang::test_cancel_sends_nothing[chromium]) that passed 5/5 on rerun.
+Validated:      ruff check . → All checks passed. pytest tests --ignore=tests/browser → 5959 passed, 48 skipped.
+                make test-browser (chromium + firefox) → 344 passed on the final branch (owner feedback included:
+                AutoGrade title, one-row header, account at the rail foot, summary cards aligned with the lines).
                 Screenshots light/dark at 1366x768, 1440x900, 1920x1080 and 390 px (no sideways scroll) from a local demo.
 Not validated:  Lampung kiosk Firefox (version unknown; no new container query or color-mix was added). Real cameras and a
                 real PLC scale (demo used a video line and a simulated scale reading).
