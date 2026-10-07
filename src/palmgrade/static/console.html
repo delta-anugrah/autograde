@@ -166,6 +166,9 @@
     white-space:normal; box-shadow:var(--tinggi-2); pointer-events:none;
     transform:translateX(-50%); animation:tip-muncul .12s ease .35s backwards; }
   [data-tip][data-tip-sisi="akhir"]:is(:hover, :focus-visible)::after { left:auto; right:0; transform:none; }
+  /* `awal`: for an element at the screen's left edge (the side-menu button), so the hint starts
+     at its left edge instead of hanging off the screen. */
+  [data-tip][data-tip-sisi="awal"]:is(:hover, :focus-visible)::after { left:0; transform:none; }
   @keyframes tip-muncul { from { opacity:0; translate:0 -4px; } to { opacity:1; translate:0 0; } }
   .tombol-ikon[hidden] { display:none; }
   .tombol-ikon svg { flex:none; }
@@ -1879,7 +1882,7 @@
        then the actions. The version and licence line (all accounts, 2026-09-28) stays under
        the title; a click opens the detail box. Filled by every `/api/console/state` poll. -->
   <button type="button" id="menu-samping" class="tombol-ikon" aria-controls="tabs" aria-expanded="true"
-          data-t-lb="menuSembunyikan" data-t-tip="tipMenuSamping"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg></button>
+          data-t-lb="menuSembunyikan" data-t-tip="tipMenuSamping" data-tip-sisi="awal"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg></button>
   <div class="merek">
     <h1 id="judul-tampilan">AutoGrade</h1>
     <span class="sub-judul"><span id="hari-kerja"></span><span id="perusahaan"></span>

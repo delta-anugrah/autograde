@@ -54,3 +54,8 @@ def test_judul_autograde_tanpa_logo_biru():
 
 def test_jumlah_kelas_hari_ini_bagi_rata_selebar_kartu():
     assert re.search(r"\.kelas-baris\s*\{[^}]*display:grid;[^}]*grid-template-columns:repeat\(4, minmax\(0, 1fr\)\)", HTML)
+
+
+def test_tooltip_tombol_menu_tidak_terpotong_di_kiri():
+    assert re.search(r'id="menu-samping"[^>]*data-tip-sisi="awal"', HTML)
+    assert re.search(r'\[data-tip\]\[data-tip-sisi="awal"\]:is\(:hover, :focus-visible\)::after\s*\{\s*left:0; transform:none;', HTML)
