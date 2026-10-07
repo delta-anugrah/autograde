@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from langkah import JEDA_HALAMAN_MS, OPERATOR, SUPPORT, buka_tab, kamus, masuk, plat
+from langkah import JEDA_HALAMAN_MS, OPERATOR, SUPPORT, buka_menu_line, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
 pytestmark = pytest.mark.usefixtures("scanner_nyala", "penugasan_bersih")
@@ -285,6 +285,8 @@ def _tugaskan_line_1(halaman, nomor: str) -> None:
     _daftar(halaman, nomor)
     buka_tab(halaman, "grading")
     kartu = halaman.locator('#lines .card[data-line="line-1"]')
+    # The truck picker and Tugaskan live in the card's more menu since 2026-10-07.
+    buka_menu_line(kartu)
     kartu.locator(".pilih-tombol").click()
     kartu.locator('[role="option"]', has_text=nomor).click()
     kartu.locator('[data-aksi="tugaskan"]').click()
