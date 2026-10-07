@@ -942,6 +942,12 @@
   .restart-bar::before { content:""; position:absolute; inset:0 auto 0 0; width:40%;
                          border-radius:inherit; background:currentColor;
                          animation:restart-jalan 1.4s ease-in-out infinite; }
+  /* Tirai Pasang sekarang: layar penuh yang menahan klik selama konsol restart. */
+  #tirai-pembaruan { position:fixed; inset:0; z-index:45; display:grid; place-content:center;
+                     justify-items:center; gap:16px; padding:24px; text-align:center;
+                     background:rgba(0,0,0,.88); color:#fff; font-size:1.25rem; }
+  #tirai-pembaruan[hidden] { display:none; }
+  #tirai-pembaruan p { margin:0; max-width:32rem; }
   @keyframes restart-jalan { from { transform:translateX(-100%); } to { transform:translateX(250%); } }
   /* Tanpa gerak, bar 40% yang diam terbaca "40% selesai": dibuat penuh dan redup. */
   @media (prefers-reduced-motion:reduce) { .restart-bar::before { width:100%; opacity:.6; } }
@@ -3111,6 +3117,16 @@
 </dialog>
 
 <!--
+  Tirai Pasang sekarang (`tampilkanTirai`). Sengaja BUKAN <dialog>: `amanMuatUlang()` menolak
+  memuat ulang halaman selama ada dialog terbuka, dan muat ulang itulah cara versi baru
+  sampai ke layar. Menahan klik lewat lapisan layar penuh dan tombol lewat `tahanTombolTirai`.
+-->
+<div id="tirai-pembaruan" role="alertdialog" aria-modal="true" aria-busy="true" aria-labelledby="tirai-teks" hidden>
+  <div class="restart-putar" aria-hidden="true"></div>
+  <p id="tirai-teks"></p>
+</div>
+
+<!--
   Impor grading dari CSV Per janjang (tab Riwayat, support, 2026-09-27). Dua langkah:
   Periksa tidak menyimpan apa pun; Impor mengirim berkas yang SAMA (sidiknya dicocokkan
   server). Batalkan di daftar bawah menghapus janjang satu impor, dengan dua klik.
@@ -3610,7 +3626,12 @@ const KAMUS = {
     infoTenggangSampai:"Tenggang s/d {tanggal}", infoLisensiHabis:"Lisensi habis",
     infoTanpaToken:"Token lisensi belum dipasang", infoLisensiAktif:"Lisensi aktif",
     judulPembaruan:"Pembaruan", pembaruanSiap:"Versi {versi} siap dipasang",
-    pembaruanSyarat:"Lepas semua truk dulu. Konsol dan ketiga line berhenti sekitar 2 menit, lalu menyala sendiri.",
+    pembaruanSyarat:"Konsol dan ketiga line berhenti sekitar 2 menit, lalu menyala sendiri. Truk yang masih di line dilepas otomatis.",
+    konfirmasiPasangJudul:"Pasang {versi}?", konfirmasiPasangTruk:"{plat} di {line}",
+    konfirmasiPasangLepas:"Truk ini dilepas dulu dan rekap gradingnya dikirim ke AutoERP. Yang belum selesai bongkar ditugaskan lagi sesudah konsol menyala.",
+    konfirmasiPasangRestart:"Konsol dan ketiga line restart \u00b12 menit.",
+    tiraiPasang:"Memasang {versi}. Konsol dan line restart, tunggu \u00b12 menit. Jangan matikan PC.",
+    pembaruanBerhasil:"{versi} terpasang",
     btnPasangSekarang:"Pasang sekarang", pembaruanTerbaru:"Sudah versi terbaru",
     pembaruanPitaAjak:"Ketuk untuk melihat dan memasang",
     pembaruanBerjalan:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
@@ -4156,7 +4177,12 @@ const KAMUS = {
     infoTenggangSampai:"Grace until {tanggal}", infoLisensiHabis:"Licence expired",
     infoTanpaToken:"No licence token installed", infoLisensiAktif:"Licence active",
     judulPembaruan:"Update", pembaruanSiap:"Version {versi} ready to install",
-    pembaruanSyarat:"Release every truck first. The console and all three lines stop for about 2 minutes, then start again by themselves.",
+    pembaruanSyarat:"The console and all three lines stop for about 2 minutes, then start again by themselves. Any truck still on a line is released automatically.",
+    konfirmasiPasangJudul:"Install {versi}?", konfirmasiPasangTruk:"{plat} on {line}",
+    konfirmasiPasangLepas:"This truck is released first and its grading recap is sent to AutoERP. If unloading is not finished, assign it again once the console is back.",
+    konfirmasiPasangRestart:"The console and all three lines restart for about 2 minutes.",
+    tiraiPasang:"Installing {versi}. The console and lines are restarting, wait about 2 minutes. Do not switch off the PC.",
+    pembaruanBerhasil:"{versi} installed",
     btnPasangSekarang:"Update now", pembaruanTerbaru:"Already on the latest version",
     pembaruanPitaAjak:"Tap to see it and install",
     pembaruanBerjalan:"Installing the new version. The screen will reconnect by itself.",
@@ -7659,7 +7685,9 @@ async function refresh() {
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
     namaLineKartu = Object.fromEntries(s.lines.map((l) => [l.line_code, l.name || l.line_code]));
+    lineTerakhir = s.lines;
     gambarPembaruan(s.pembaruan);
+    cekHasilTirai(s);
     aturSlipCetak(s.slip_cetak);
     aturCutoffShift(s.cutoff_shift);
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
@@ -9332,13 +9360,110 @@ function gambarPembaruan(p) {
   if (status && !status.hidden) tulisKalauBeda($("pembaruan-support"), htmlPembaruan(p, true));
 }
 
+// The question before Update now: which trucks get released, grouped by plate ("B 1995 SME
+// di Line 1, Line 2"), then what happens to them, then the restart. No truck = restart only.
+function teksTrukDilepas(lines, peta) {
+  const perPlat = new Map();
+  for (const l of lines || []) {
+    if (!l.assignment) continue;
+    const plat = l.assignment.plate_number;
+    if (!perPlat.has(plat)) perPlat.set(plat, []);
+    perPlat.get(plat).push(peta[l.line_code] || l.line_code);
+  }
+  const bagian = [...perPlat].map(([plat, nama]) =>
+    t("konfirmasiPasangTruk").replace("{plat}", plat).replace("{line}", nama.join(", ")));
+  if (!bagian.length) return t("konfirmasiPasangRestart");
+  return `${bagian.join("; ")}. ${t("konfirmasiPasangLepas")} ${t("konfirmasiPasangRestart")}`;
+}
+
+// ── tirai Pasang sekarang ────────────────────────────────────────────
+// The marker lives in sessionStorage (this tab only) so the curtain survives the reload that
+// brings the new version. Storage can be missing: then the curtain shows until the reload
+// and the success toast is skipped.
+const KUNCI_PASANG = "autograde.pasang";
+const BATAS_PENANDA_MS = 25 * 60 * 1000;   // BATAS_TUNGGU_S (1200 s) plus margin
+let lineTerakhir = [];                     // s.lines from the last poll, for the question
+
+function bacaPenandaPasang() {
+  try {
+    const p = JSON.parse(sessionStorage.getItem(KUNCI_PASANG) || "null");
+    if (!p || !p.target || Date.now() - Number(p.pada) > BATAS_PENANDA_MS) {
+      if (p) hapusPenandaPasang();
+      return null;
+    }
+    return p;
+  } catch (e) { return null; }
+}
+
+function tulisPenandaPasang(target) {
+  try { sessionStorage.setItem(KUNCI_PASANG, JSON.stringify({ target, pada: Date.now() })); } catch (e) { /* tanpa storage: toast sukses dilewati */ }
+}
+
+function hapusPenandaPasang() {
+  try { sessionStorage.removeItem(KUNCI_PASANG); } catch (e) { /* tidak ada yang dihapus */ }
+}
+
+// Keys do nothing while the curtain is up (Tab, Enter, the scanner's keystrokes).
+function tahanTombolTirai(ev) {
+  if (!$("tirai-pembaruan").hidden) { ev.preventDefault(); ev.stopPropagation(); }
+}
+document.addEventListener("keydown", tahanTombolTirai, true);
+
+function tampilkanTirai(target) {
+  $("tirai-teks").textContent = t("tiraiPasang").replace("{versi}", target);
+  // A focused field behind the curtain would keep `amanMuatUlang()` false.
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  $("tirai-pembaruan").hidden = false;
+}
+
+function tutupTirai() {
+  $("tirai-pembaruan").hidden = true;
+}
+
+// Every poll: the version the page was loaded with equals the marker target = installed
+// (success toast); a failed result for that target = failure toast; otherwise the curtain
+// stays up, also after a reload in the middle. A page still on the OLD version waits: its
+// own reload is about to bring the new page, which shows the toast.
+function cekHasilTirai(s) {
+  const p = bacaPenandaPasang();
+  if (!p) { tutupTirai(); return; }
+  const hasil = s && s.pembaruan && s.pembaruan.hasil;
+  if (s && s.versi === p.target && versiHalaman === s.versi) {
+    hapusPenandaPasang();
+    tutupTirai();
+    toastSukses(t("pembaruanBerhasil").replace("{versi}", p.target));
+  } else if (hasil && hasil.target === p.target && ["rolled_back", "failed", "timeout", "nothing"].includes(hasil.state)) {
+    hapusPenandaPasang();
+    tutupTirai();
+    toastGagal(teksHasilPembaruan(hasil));
+  } else {
+    tampilkanTirai(p.target);
+  }
+}
+
+// A reload in the middle of an install: the curtain is up again before the first poll answers.
+{
+  const menunggu = bacaPenandaPasang();
+  if (menunggu) tampilkanTirai(menunggu.target);
+}
+
 async function pasangSekarang(tombol) {
+  const target = tombol.dataset.target;
+  const ya = await tanyaKonfirmasi({
+    judul: t("konfirmasiPasangJudul").replace("{versi}", target),
+    pesan: teksTrukDilepas(lineTerakhir, namaLineKartu),
+    ya: t("btnPasangSekarang"),
+    asal: tombol,
+  });
+  if (!ya) return;
   await denganSibuk(tombol, async () => {
     try {
-      await api("/api/console/update/install",
-                { method: "POST", body: JSON.stringify({ target: tombol.dataset.target }) });
+      await api("/api/console/update/install", { method: "POST", body: JSON.stringify({ target }) });
+      tulisPenandaPasang(target);
+      // An open info box is a <dialog>: it would stop the reload that brings the new version.
+      if ($("info-sistem-modal").open) $("info-sistem-modal").close();
       gambarPembaruan({ ...pembaruanTerakhir, berjalan: true, siap: null, hasil: null });
-      toast("sukses", t("pembaruanDimulai"));
+      tampilkanTirai(target);
     } catch (e) {
       if (e.kode === "pembaruan_ada_truk" || e.kode === "pembaruan_lepas_gagal") e.params = { ...e.params, line: namaLineDari(e.params.line, namaLineKartu) };
       toast("gagal", gagalKarena("gagalPasangPembaruan", e));

@@ -6,7 +6,7 @@ import pytest
 from konsol_js import HTML, NODE, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
-FUNGSI = ["teksBadgePembaruan", "pitaPembaruan", "teksHasilPembaruan", "tombolPasang", "htmlPembaruan", "namaLineDari"]
+FUNGSI = ["teksBadgePembaruan", "pitaPembaruan", "teksHasilPembaruan", "tombolPasang", "htmlPembaruan", "namaLineDari", "teksTrukDilepas"]
 IKON = "const IKON_UNDUH = '<svg></svg>';"
 
 
@@ -28,7 +28,7 @@ def test_tombol_membawa_versi_yang_dilihat_operator():
     html = _j("htmlPembaruan({terpasang:true, siap:'v1.22.1', berjalan:false, hasil:null}, false)")
     assert 'class="pembaruan-pasang utama" data-target="v1.22.1"' in html
     assert "<svg" in html
-    assert "Lepas semua truk dulu" in html
+    assert "Lepas semua truk dulu" not in html
 
 
 @butuh_node
@@ -156,3 +156,63 @@ def test_versi_lama_kosong_tidak_meninggalkan_lubang():
         teks = _j(f"teksHasilPembaruan({{state:'{state}', target:'v1.22.1', installed:''}})")
         assert " ." not in teks and "ke ." not in teks and "di ." not in teks, teks
         assert "versi sebelumnya" in teks, teks
+
+
+PETA = "{'line-1':'Line 1', 'line-2':'Line 2', 'line-3':'Line 3'}"
+TIGA = (
+    "[{line_code:'line-1', assignment:{plate_number:'B 1995 SME'}},"
+    " {line_code:'line-2', assignment:{plate_number:'B 1995 SME'}},"
+    " {line_code:'line-3', assignment:null}]"
+)
+
+
+@butuh_node
+def test_konfirmasi_menyebut_plat_sekali_dengan_semua_line_nya():
+    teks = _j(f"teksTrukDilepas({TIGA}, {PETA})")
+    assert teks.count("B 1995 SME") == 1
+    assert "B 1995 SME di Line 1, Line 2" in teks and "Line 3" not in teks
+    assert "dilepas dulu dan rekap gradingnya dikirim ke AutoERP" in teks
+    assert teks.endswith("Konsol dan ketiga line restart \u00b12 menit.")
+
+
+@butuh_node
+def test_konfirmasi_dua_plat_dua_kelompok():
+    banyak = (
+        "[{line_code:'line-1', assignment:{plate_number:'B 1 AA'}},"
+        " {line_code:'line-2', assignment:{plate_number:'B 2 BB'}}]"
+    )
+    teks = _j(f"teksTrukDilepas({banyak}, {PETA})")
+    assert "B 1 AA di Line 1" in teks and "B 2 BB di Line 2" in teks
+
+
+@butuh_node
+def test_konfirmasi_tanpa_truk_cuma_kalimat_restart():
+    kosong = "[{line_code:'line-1', assignment:null}, {line_code:'line-2', assignment:null}]"
+    assert _j(f"teksTrukDilepas({kosong}, {PETA})") == "Konsol dan ketiga line restart \u00b12 menit."
+    assert _j(f"teksTrukDilepas([], {PETA})") == "Konsol dan ketiga line restart \u00b12 menit."
+
+
+@butuh_node
+def test_kunci_pasang_ada_di_dua_bahasa():
+    for bahasa in ("id", "en"):
+        for kunci in (
+            "konfirmasiPasangJudul",
+            "konfirmasiPasangTruk",
+            "konfirmasiPasangLepas",
+            "konfirmasiPasangRestart",
+            "tiraiPasang",
+            "pembaruanBerhasil",
+            "err_pembaruan_lepas_gagal",
+        ):
+            teks = _j(f"t('{kunci}')", bahasa)
+            assert teks and teks != kunci, (bahasa, kunci)
+    assert "Lepas semua truk dulu" not in _j("t('pembaruanSyarat')")
+    assert "Release every truck first" not in _j("t('pembaruanSyarat')", "en")
+
+
+def test_tirai_bukan_dialog_dan_menahan_aksi():
+    assert 'id="tirai-pembaruan" role="alertdialog" aria-modal="true" aria-busy="true"' in HTML
+    assert "<dialog id=\"tirai-pembaruan\"" not in HTML
+    for nama in ("tampilkanTirai", "tutupTirai", "cekHasilTirai"):
+        assert f"function {nama}(" in HTML, nama
+    assert "autograde.pasang" in HTML
