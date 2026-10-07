@@ -948,6 +948,27 @@
                      background:rgba(0,0,0,.88); color:#fff; font-size:1.25rem; }
   #tirai-pembaruan[hidden] { display:none; }
   #tirai-pembaruan p { margin:0; max-width:32rem; }
+  /* Hasil scan di tengah layar, hilang sendiri (user 2026-10-07). Di bawah tirai (45) dan di atas
+     toast (40). Tidak menangkap klik kecuali saat menunggu berat ketikan: kamera di belakangnya
+     tetap bisa disentuh selama 4 detik itu. */
+  #scan-popup { position:fixed; z-index:42; left:50%; top:50%; transform:translate(-50%,-50%);
+                width:min(36rem, calc(100vw - 2 * var(--pad))); box-sizing:border-box;
+                display:grid; gap:8px; justify-items:center; padding:24px 28px; text-align:center;
+                border:3px solid; border-radius:var(--r-lg); box-shadow:var(--tinggi-2);
+                font-size:1.15rem; font-weight:600; pointer-events:none; }
+  #scan-popup[hidden] { display:none; }
+  #scan-popup[data-jenis="berat"] { pointer-events:auto; }
+  #scan-popup[data-jenis="sukses"] { background:var(--acc-bg); border-color:var(--acc); color:var(--acc); }
+  #scan-popup[data-jenis="gagal"] { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); }
+  #scan-popup[data-jenis="berat"] { background:var(--warn-bg); border-color:var(--warn); color:var(--warn); }
+  #scan-popup p, #scan-popup ul { margin:0; padding:0; list-style:none; }
+  #scan-popup .scan-popup-judul { font-size:1rem; text-transform:uppercase; letter-spacing:.08em; }
+  #scan-popup .plat-besar { font-family:var(--mono); font-size:2.6rem; font-weight:700; line-height:1.1;
+                            letter-spacing:.04em; text-transform:uppercase; overflow-wrap:anywhere; }
+  #scan-popup-isian { display:flex; align-items:center; gap:10px; }
+  #scan-popup-isian[hidden] { display:none; }
+  #scan-popup-berat { width:11rem; font-family:var(--mono); font-size:2rem; font-weight:700; text-align:right; }
+  #scan-popup-galat { color:var(--danger-fg); }
   @keyframes restart-jalan { from { transform:translateX(-100%); } to { transform:translateX(250%); } }
   /* Tanpa gerak, bar 40% yang diam terbaca "40% selesai": dibuat penuh dan redup. */
   @media (prefers-reduced-motion:reduce) { .restart-bar::before { width:100%; opacity:.6; } }
@@ -3127,6 +3148,23 @@
 </div>
 
 <!--
+  Hasil scan (`tampilkanPopupScan`). Sengaja BUKAN <dialog>: scan harus tetap jalan selagi ini
+  tampil, dan `tangkapScan`, `bolehAmbilFokus` serta `amanMuatUlang` menganggap dialog terbuka
+  sebagai "operator sedang sibuk". Menutup sendiri (4 detik sukses, 8 detik gagal); popup berat
+  ketikan menutup saat disimpan, Esc, scan QR lain, atau 60 detik tanpa tombol.
+-->
+<div id="scan-popup" role="status" aria-live="polite" data-jenis="sukses" hidden>
+  <p id="scan-popup-judul" class="scan-popup-judul"></p>
+  <ul id="scan-popup-baris"></ul>
+  <div id="scan-popup-isian" hidden>
+    <input id="scan-popup-berat" type="text" inputmode="decimal" autocomplete="off" spellcheck="false">
+    <span>kg</span>
+  </div>
+  <p id="scan-popup-petunjuk" hidden></p>
+  <p id="scan-popup-galat" role="alert" hidden></p>
+</div>
+
+<!--
   Impor grading dari CSV Per janjang (tab Riwayat, support, 2026-09-27). Dua langkah:
   Periksa tidak menyimpan apa pun; Impor mengirim berkas yang SAMA (sidiknya dicocokkan
   server). Batalkan di daftar bawah menghapus janjang satu impor, dengan dua klik.
@@ -3504,6 +3542,9 @@ const KAMUS = {
     scanKetikBruto:"Timbangan belum siap. Ketik bruto {plat}, lalu Enter",
     scanKetikTara:"Timbangan belum siap. Ketik tara {plat}, lalu Enter",
     scanLangkahDatang:"datang", scanLangkahIsi:"timbang isi", scanLangkahKosong:"timbang kosong",
+    scanLangkahKeluar:"keluar", scanInternal:"Internal", scanDipasang:"Dipasang ke {line}",
+    scanKetikBeratPopup:"Ketik beratnya lalu Enter, atau scan QR truk ini lagi",
+    scanBeratMinimum:"Berat minimal 1.000 kg, cek lagi angkanya", scanBeratLabel:"Berat (kg)",
     konfirmasiScanJudul:"Catat {langkah} {plat}?",
     konfirmasiScan:"Langkah sebelumnya truk ini baru {menit} menit lalu. Scan QR-nya sekali lagi untuk Catat. Kalau QR-nya cuma terbaca dua kali, pilih Batal.",
     btnCatatScan:"Catat",
@@ -4063,6 +4104,9 @@ const KAMUS = {
     scanKetikBruto:"Scale not ready. Type the gross weight of {plat}, then Enter",
     scanKetikTara:"Scale not ready. Type the tare of {plat}, then Enter",
     scanLangkahDatang:"arrival", scanLangkahIsi:"weigh-in", scanLangkahKosong:"weigh-out",
+    scanLangkahKeluar:"leave", scanInternal:"Internal", scanDipasang:"Assigned to {line}",
+    scanKetikBeratPopup:"Type the weight and press Enter, or scan this truck's QR again",
+    scanBeratMinimum:"Weight must be at least 1,000 kg, check the figure", scanBeratLabel:"Weight (kg)",
     konfirmasiScanJudul:"Record {langkah} for {plat}?",
     konfirmasiScan:"This truck's previous step was only {menit} min ago. Scan its QR once more to record. If the QR was just read twice, choose Cancel.",
     btnCatatScan:"Record",
@@ -6345,7 +6389,7 @@ function tangkapScan(ev) {
     const rusak = penangkapScan.rusak;
     const dikirim = !rusak && teks.length >= 3 && selang <= JEDA_ENTER_SCANNER_MS;
     bersih();
-    if (rusak) { ev.preventDefault(); toastGagal(t("scanTakTerbaca")); }
+    if (rusak) { ev.preventDefault(); popupScanGagal(t("scanTakTerbaca")); }
     else if (dikirim) { ev.preventDefault(); kirimScanOtomatis(teks); }
     return;
   }
@@ -6521,23 +6565,97 @@ function pesanScanKeluar(teks, salah = false) {
 const JEDA_BACA_ULANG_MS = 2000;
 let scanTerakhir = { qr: "", pada: 0 };
 
-const SUKSES_SCAN = { datang: "sukDatang", timbang_isi: "sukMasuk", timbang_kosong: "sukTara", keluar: "sukPergi" };
-const NAMA_LANGKAH = { datang: "scanLangkahDatang", timbang_isi: "scanLangkahIsi", timbang_kosong: "scanLangkahKosong" };
+const NAMA_LANGKAH = { datang: "scanLangkahDatang", timbang_isi: "scanLangkahIsi", timbang_kosong: "scanLangkahKosong",
+                       keluar: "scanLangkahKeluar" };
 const PERINGATAN_SCAN = {
   sudah_tercatat: "datangSudah", masih_di_dalam: "datangMasihDiDalam", belum_timbang_kosong: "pergiBelumKosong",
   sudah_keluar: "pergiSudah", tidak_ada_tiket: "pergiTakAdaTiket", ganda: "scanGanda",
   belum_terdaftar: "scanBelumAda", nonaktif: "scanTrukNonaktif",
 };
 
-// "Timbang isi tercatat BE 1234 TEST · 14.820 kg · PT X": what was recorded, for whom.
-function teksScan(kunci, h) {
-  return [`${t(kunci)} ${h.plate_number || ""}`.trim(),
-          h.kg !== null && h.kg !== undefined ? `${kg(h.kg)} kg` : "",
-          h.supplier || ""].filter(Boolean).join(" · ");
+// What the scan popup says, pure so it can be tested without a page: { jenis, judul, baris }.
+// First row of a success is the plate (the big line), then supplier, weight, and where the truck
+// went. Lines are named and ordered the way the cards are.
+function teksPopupScan(h) {
+  const peringatan = PERINGATAN_SCAN[h.hasil];
+  if (peringatan) {
+    const kalimat = h.arrived_at ? t(peringatan).replace("{jam}", waktu(h.arrived_at)) : t(peringatan);
+    return { jenis: "gagal", judul: "", baris: [`${kalimat} ${h.plate_number || ""}`.trim()] };
+  }
+  const nama = t(NAMA_LANGKAH[h.langkah] || "scanLangkahDatang");
+  const baris = [h.plate_number || "", h.supplier || t("scanInternal")];
+  if (h.kg !== null && h.kg !== undefined) baris.push(`${kg(h.kg)} kg${h.dummy ? " (dummy)" : ""}`);
+  const dipasang = urutkanLineKartu((h.dipasang || []).filter((d) => d.terpasang), (d) => d.line_code);
+  if (h.langkah === "timbang_kosong") {
+    // The weigh-out frees this truck's lines; what comes back is the next truck going on them.
+    const perTruk = new Map();
+    dipasang.forEach((d) => perTruk.set(d.plate_number, [...(perTruk.get(d.plate_number) || []), namaKartuLine(d.line_code)]));
+    perTruk.forEach((lines, truk) => baris.push(
+      t("sukDitugaskanOtomatis").replace("{truk}", truk || "").replace("{line}", lines.join(", "))));
+  } else if (dipasang.length) {
+    baris.push(t("scanDipasang").replace("{line}", dipasang.map((d) => namaKartuLine(d.line_code)).join(", ")));
+  }
+  return { jenis: "sukses", judul: nama.charAt(0).toUpperCase() + nama.slice(1), baris };
+}
+
+// The popup itself. A <div>, never a <dialog> (see the comment on #scan-popup). One at a time: a
+// new scan replaces the content and restarts the timer. `popupBerat` is the state of the
+// weight-input variant, null for every other kind.
+const DURASI_POPUP_SUKSES_MS = 4000;
+const DURASI_POPUP_GAGAL_MS = 8000;
+// The weight popup hides the cameras, so one left open by a wandering operator must go too.
+const DURASI_POPUP_BERAT_DIAM_MS = 60000;
+let timerPopupScan = null;
+let popupBerat = null;
+
+function tutupPopupScan() {
+  clearTimeout(timerPopupScan);
+  timerPopupScan = null;
+  popupBerat = null;
+  const el = $("scan-popup");
+  if (el.hidden) return;
+  if (document.activeElement === $("scan-popup-berat")) $("scan-popup-berat").blur();
+  el.hidden = true;
+  // The weight box held the focus; the scan field takes it back.
+  jagaFokusScan();
+}
+
+function tampilkanPopupScan({ jenis, judul = "", baris = [], petunjuk = "", durasiMs }) {
+  clearTimeout(timerPopupScan);
+  popupBerat = null;
+  const el = $("scan-popup");
+  el.dataset.jenis = jenis;
+  $("scan-popup-judul").textContent = judul;
+  $("scan-popup-judul").hidden = !judul;
+  const daftar = $("scan-popup-baris");
+  daftar.replaceChildren(...baris.map((teks, i) => {
+    const li = document.createElement("li");
+    li.textContent = teks;
+    if (i === 0 && jenis !== "gagal") li.className = "plat-besar";
+    return li;
+  }));
+  $("scan-popup-petunjuk").textContent = petunjuk;
+  $("scan-popup-petunjuk").hidden = !petunjuk;
+  $("scan-popup-galat").hidden = true;
+  // Hiding a focused box does not always fire blur; without it the scan field never gets the focus back.
+  if (jenis !== "berat" && document.activeElement === $("scan-popup-berat")) $("scan-popup-berat").blur();
+  $("scan-popup-isian").hidden = jenis !== "berat";
+  el.hidden = false;
+  if (durasiMs) timerPopupScan = setTimeout(tutupPopupScan, durasiMs);
+}
+
+function popupScanGagal(teks) {
+  tampilkanPopupScan({ jenis: "gagal", baris: [teks], durasiMs: DURASI_POPUP_GAGAL_MS });
+}
+
+function popupScanSukses(h) {
+  tampilkanPopupScan({ ...teksPopupScan(h), durasiMs: DURASI_POPUP_SUKSES_MS });
 }
 
 async function kirimScanOtomatis(qr, konfirmasi = false) {
   if (!qr || scanSibuk) return;
+  // The weight popup is waiting for this very truck: the scan answers it, it is not a new scan.
+  if (popupBerat && samaPlat(qr, popupBerat.plat)) { simpanBeratPopup(); return; }
   if (!konfirmasi && qr === scanTerakhir.qr && Date.now() - scanTerakhir.pada < JEDA_BACA_ULANG_MS) return;
   scanSibuk = true;
   let h = null;
@@ -6547,7 +6665,7 @@ async function kirimScanOtomatis(qr, konfirmasi = false) {
     });
   } catch (e) {
     pesanScan(alasan(e), true);
-    toastGagal(alasan(e));
+    popupScanGagal(alasan(e));
   } finally {
     // Released as soon as the server answered: the next truck's scan must not be lost while
     // this one's table reload runs.
@@ -6610,40 +6728,104 @@ async function tanyaScanUlang(qr, h) {
 async function tanganiScan(h) {
   if (h.hasil === "perlu_berat") { await mintaBerat(h); return; }
   const peringatan = PERINGATAN_SCAN[h.hasil];
+  const popup = teksPopupScan(h);
+  tampilkanPopupScan({ ...popup, durasiMs: peringatan ? DURASI_POPUP_GAGAL_MS : DURASI_POPUP_SUKSES_MS });
   if (peringatan) {
-    const kalimat = h.arrived_at ? t(peringatan).replace("{jam}", waktu(h.arrived_at)) : t(peringatan);
-    const teks = `${kalimat} ${h.plate_number || ""}`.trim();
-    pesanScan(teks, true);
-    toastPeringatan(teks);
+    pesanScan(popup.baris[0], true);
   } else {
     pesanScan("");
-    toastSukses(teksScan(SUKSES_SCAN[h.langkah] || "sukDatang", h));
-    umumkanPasang(h.dipasang);
+    umumkanPasang(h.dipasang, true);
   }
   await muatTimbangan();
   // A weight just freed or filled the lines: the cards and the unloading queue follow now.
   if (h.langkah === "timbang_isi" || h.langkah === "timbang_kosong") await refresh();
 }
 
-// The scale is not connected or not fit to save: the box the operator always had opens,
-// filled and focused for this truck. Typing the number and Enter saves it.
+// The scale is not connected or not fit to save: a popup asks for the number, from any tab
+// (user 2026-10-07). The bruto box and the tara bar are no longer touched; they stay for typing
+// by hand. Enter saves, the same QR scanned again saves, another QR closes this and is sent.
 async function mintaBerat(h) {
-  if (h.langkah === "timbang_kosong" && h.weighing) {
-    tanyaTara(h.weighing);
-    pesanScan(t("scanKetikTara").replace("{plat}", h.plate_number || ""), true);
+  const kosong = h.langkah === "timbang_kosong";
+  const nama = t(kosong ? "scanLangkahKosong" : "scanLangkahIsi");
+  tampilkanPopupScan({
+    jenis: "berat", judul: nama.charAt(0).toUpperCase() + nama.slice(1), baris: [h.plate_number || ""],
+    petunjuk: t("scanKetikBeratPopup"), durasiMs: DURASI_POPUP_BERAT_DIAM_MS,
+  });
+  popupBerat = {
+    plat: h.plate_number, langkah: h.langkah, weighing: h.weighing || null, supplier: h.supplier || "",
+    ketik: "", pada: 0, awal: "", menyimpan: false,
+  };
+  const kolom = $("scan-popup-berat");
+  kolom.value = "";
+  kolom.setAttribute("aria-label", t("scanBeratLabel"));
+  kolom.focus({ preventScroll: true });
+}
+
+function galatPopupScan(teks) {
+  $("scan-popup-galat").textContent = teks;
+  $("scan-popup-galat").hidden = !teks;
+}
+
+// Typed by hand or arriving as a scan: letters never enter the box, so a scanned plate cannot
+// become a weight. Digits do enter, so a person sees what they type; when a run of keys turns
+// out to hold a letter the box goes back to what it held before the run began.
+$("scan-popup-berat").addEventListener("keydown", (ev) => {
+  const p = popupBerat;
+  if (!p) return;
+  // Any key keeps the popup: it only goes after 60 s without one.
+  clearTimeout(timerPopupScan);
+  timerPopupScan = setTimeout(tutupPopupScan, DURASI_POPUP_BERAT_DIAM_MS);
+  const kolom = $("scan-popup-berat");
+  if (ev.key === "Escape") { ev.preventDefault(); tutupPopupScan(); return; }
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+    const larian = p.ketik;
+    p.ketik = "";
+    if (/[A-Za-z]/.test(larian)) {
+      kolom.value = p.awal;
+      if (larian.trim().length < 3) return;
+      if (samaPlat(larian, p.plat)) simpanBeratPopup();
+      else { tutupPopupScan(); kirimScanOtomatis(larian.trim()); }
+      return;
+    }
+    simpanBeratPopup();
     return;
   }
-  const plat = h.plate_number;
-  if (!$("plat-timbang").querySelector(`[role="option"][data-nilai="${CSS.escape(plat)}"]`)) await muatTrucks();
-  pilihNilai($("plat-timbang"), plat);
-  if ($("plat-timbang").dataset.nilai !== plat) {
-    pesanScan(`${t("scanBelumAda")} ${plat}`, true);
-    toastPeringatan(`${t("scanBelumAda")} ${plat}`);
+  if (ev.key.length !== 1 || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  const sekarang = Date.now();
+  if (!p.ketik || sekarang - p.pada > JEDA_ENTER_SCANNER_MS) { p.ketik = ""; p.awal = kolom.value; }
+  p.ketik += ev.key;
+  p.pada = sekarang;
+  if (!/[0-9.,]/.test(ev.key)) ev.preventDefault();
+});
+
+async function simpanBeratPopup() {
+  const p = popupBerat;
+  if (!p || p.menyimpan) return;
+  const teks = $("scan-popup-berat").value.trim().replace(",", ".");
+  if (!teks) return;
+  const angka = Number(teks);
+  if (!Number.isFinite(angka) || angka < MINIMUM_BERAT_KG) {
+    galatPopupScan(t("scanBeratMinimum"));
     return;
   }
-  pesanScan(t("scanKetikBruto").replace("{plat}", plat), true);
-  $("bruto").focus();
-  segarkanTombol();
+  p.menyimpan = true;
+  galatPopupScan("");
+  try {
+    const kosong = p.langkah === "timbang_kosong";
+    const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
+      kosong ? muatanTara(p.weighing, teks) : muatanBruto(p.plat, teks)) });
+    popupScanSukses({ hasil: "tersimpan", langkah: p.langkah, plate_number: p.plat, supplier: p.supplier,
+                      kg: angka, dummy: false, dipasang: r.dipasang });
+    pesanScan("");
+    umumkanPasang(r.dipasang, true);
+    await muatTimbangan();
+    await refresh();
+  } catch (e) {
+    // The popup stays with its number: the operator fixes it without retyping.
+    p.menyimpan = false;
+    galatPopupScan(alasan(e));
+  }
 }
 
 $("scan-otomatis").addEventListener("keydown", (ev) => {
@@ -6672,7 +6854,7 @@ $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async
   $("masuk").disabled = true;
   try {
     const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
-      { plate_number, gross_kg, entered_at: new Date().toISOString() }) });
+      muatanBruto(plate_number, gross_kg)) });
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     $("bruto").blur();
     pesanScan("");
@@ -6712,6 +6894,17 @@ $("timbangan").addEventListener("click", async (ev) => {
 // the server - one second lost at the gate with a truck waiting. The server
 // still has the final say.
 const MINIMUM_BERAT_KG = 1000;
+
+// The two weighing bodies, shared by the bruto box, the tara bar and the scan popup: what they
+// write is the figure the farmer is paid on, so there is one copy of each.
+function muatanBruto(plat, bruto) {
+  return { plate_number: plat, gross_kg: bruto, entered_at: new Date().toISOString() };
+}
+
+function muatanTara(tiket, tara) {
+  return { plate_number: tiket.plate_number, ref: tiket.ref, entered_at: tiket.entered_at,
+           tare_kg: tara, exited_at: new Date().toISOString() };
+}
 
 // The ticket currently being asked for its tare. Kept here, not re-read from
 // the table: the table is rebuilt every 2 seconds by polling.
@@ -6755,9 +6948,8 @@ async function simpanTara() {
   $("tara-simpan").disabled = true;
   $("tara-simpan").classList.add("sibuk");
   try {
-    const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
-      plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
-      tare_kg: teks, exited_at: new Date().toISOString() }) });
+    const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
+      muatanTara(w, teks)) });
     tutupTara();
     pesanScanKeluar("");
     // The tare box just closed and took the plate with it, so the toast is
@@ -7481,7 +7673,7 @@ function umumkanPelepasanOtomatis(daftar, otomatis) {
     return;
   }
   const perTruk = new Map();
-  baru.forEach((r) => {
+  urutkanLineKartu(baru, (r) => r.line_code).forEach((r) => {
     const truk = r.plate_number || r.truck_id;
     perTruk.set(truk, [...(perTruk.get(truk) || []), namaKartuLine(r.line_code)]);
   });
@@ -7512,6 +7704,14 @@ function gambarAntreanBongkar(daftar, setelan) {
   tulisKalauBeda(el, html);
 }
 
+// Rows that carry a line code, in the order the cards sit on screen (`urutan`, the same order
+// Space+N counts). A server list comes in code order or in the order the lines answered, which
+// read "Line 1, Line 3, Line 2" on screen. A code without a card goes last.
+function urutkanLineKartu(daftar, kode = (x) => x) {
+  const nomor = (x) => { const i = urutan.indexOf(kode(x)); return i < 0 ? 1e9 : i; };
+  return [...daftar].sort((a, b) => nomor(a) - nomor(b));
+}
+
 // Nama line seperti di kartunya ("Line 1"), bukan kode internal.
 // Satu kode line -> nama di kartunya. Bukan `namaLineDari` (Update now): yang itu memetakan
 // daftar kode "line-1, line-3" lewat peta; dua fungsi bernama sama saling menimpa diam-diam.
@@ -7524,17 +7724,19 @@ function namaKartuLine(kode) {
 // sendiri, supaya operator tahu kartu mana yang harus ditugaskan manual. Line yang
 // masih memegang truk yang sudah keluar (pelepasannya gagal) juga, dengan plat truk
 // lama itu: kalau tidak dilepas, line itu menstempel truk lama ke janjang berikutnya.
-function umumkanPasang(daftarPasang) {
+function umumkanPasang(daftarPasang, tanpaSukses = false) {
   const daftar = daftarPasang || [];
   if (!daftar.length) return;
   const truk = daftar[0].plate_number || "";
-  const ok = daftar.filter((d) => d.terpasang).map((d) => namaKartuLine(d.line_code));
-  const gagal = daftar.filter((d) => !d.terpasang && !d.tertahan).map((d) => namaKartuLine(d.line_code));
+  const namaUrut = (baris) => urutkanLineKartu(baris, (d) => d.line_code).map((d) => namaKartuLine(d.line_code));
+  const ok = namaUrut(daftar.filter((d) => d.terpasang));
+  const gagal = namaUrut(daftar.filter((d) => !d.terpasang && !d.tertahan));
   const tertahan = new Map();
-  daftar.filter((d) => d.tertahan).forEach((d) => {
+  urutkanLineKartu(daftar.filter((d) => d.tertahan), (d) => d.line_code).forEach((d) => {
     tertahan.set(d.plate_lama, [...(tertahan.get(d.plate_lama) || []), namaKartuLine(d.line_code)]);
   });
-  if (ok.length) toastSukses(t("sukDitugaskanOtomatis").replace("{truk}", truk).replace("{line}", ok.join(", ")));
+  // `tanpaSukses`: the scan popup already says where the truck went; only the warnings stay toasts.
+  if (ok.length && !tanpaSukses) toastSukses(t("sukDitugaskanOtomatis").replace("{truk}", truk).replace("{line}", ok.join(", ")));
   if (gagal.length) toastPeringatan(t("tugaskanGagalLine").replace("{truk}", truk).replace("{line}", gagal.join(", ")));
   tertahan.forEach((lines, lama) => toastPeringatan(t("tugaskanTertahan")
     .replace("{line}", lines.join(", ")).replace("{lama}", lama || "").replace("{truk}", truk)));

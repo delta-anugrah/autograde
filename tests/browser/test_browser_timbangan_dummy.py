@@ -56,10 +56,14 @@ def test_support_turns_the_dummy_scale_on_and_a_scan_saves_30000(halaman, konsol
         buka_tab(halaman, "timbangan")
         expect(halaman.locator("#timbang-keadaan")).to_have_text(kamus(halaman, "timbangDummy"))
         _scan(halaman, nomor)
-        expect(halaman.locator("#toasts")).to_contain_text(f"{kamus(halaman, 'sukDatang')} {nomor}")
+        expect(halaman.locator("#scan-popup")).to_contain_text(nomor)
         _scan(halaman, nomor)
         _jawab(halaman, ya=True)
-        # No typed box: the dummy gross is saved by the scan itself.
+        # No typed box anywhere: the dummy gross is saved by the scan itself.
+        popup = halaman.locator("#scan-popup")
+        expect(popup).to_have_attribute("data-jenis", "sukses")
+        expect(popup).to_contain_text("30.000 kg (dummy)")
+        expect(halaman.locator("#scan-popup-berat")).to_be_hidden()
         expect(halaman.locator("#bruto")).not_to_be_focused()
         baris = halaman.locator("#sec-timbangan tr", has_text=nomor)
         expect(baris.first).to_contain_text("30.000")
