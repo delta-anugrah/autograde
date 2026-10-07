@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.25"
+versi: "2.26"
 tanggal: 7 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -128,16 +128,29 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 ### 3.2 Layar utama
 
-- **Di bawah tulisan AUTOGRADE** (semua akun): versi dan sampai kapan lisensi PC ini berlaku,
+- **Susunan layar** (sejak 7 Oktober 2026): **menu di kiri** (Grading, Truk, Timbangan, Rekap;
+  akun support juga Log, Status, Akun, Line, Setelan di bawah garis **Support**). Tombol
+  berikon panel di kiri atas **menyembunyikan menu** supaya kamera dapat ruang lebih; ketuk lagi
+  untuk memunculkannya. Pilihannya diingat browser itu. Di kepala layar: nama layar yang
+  terbuka, tanggal hari kerja dan nama perusahaan, pil **AutoERP**, **Cloud Photo**, dan
+  **PLC** (berapa line yang PLC-nya menjawab, misalnya `3/3`), jam, lalu tombol Segarkan,
+  bahasa, tema, dan Keluar. Tema bawaan terang (untuk layar di bawah matahari); **Gelap** satu
+  ketukan.
+- **Layar Grading muat satu layar tanpa scroll** di layar lebar: tiga kartu ringkasan (Janjang
+  hari ini, Timbangan sekarang, truk di line dan antrean bongkar), lalu tiga kartu line. Tabel
+  **Hasil grading hari ini** ada di bawahnya (scroll). Kartu kamera dan ringkasan cuma ada di
+  layar Grading; di layar lain tidak tampil, tapi **Spasi + angka** dan **P + angka** tetap
+  bekerja dari layar mana pun.
+- **Di bawah nama layar** (semua akun): versi dan sampai kapan lisensi PC ini berlaku,
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
-- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, di atas kartu line:
+- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, tepat di bawah kepala layar:
   versi baru sudah diunduh PC, sudah diperiksa utuh, dan menunggu dipasang. PC mencari versi baru
   sendiri tiap jam (sejak launcher 5 Oktober 2026), jadi pita ini tidak menunggu Start besok pagi. Ketuk pitanya, kotak Versi & lisensi
   terbuka dengan tombol hijau **Pasang sekarang** di sebelah **Tutup**. Tombol **×** di ujung
   pita menyembunyikannya untuk versi itu saja (di PC itu); versi berikutnya memunculkannya lagi,
-  dan angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
+  dan angka versi di bawah nama layar tetap membuka kotak yang sama. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
   lupa dilepas kemarin). Konsol dan ketiga line berhenti sekitar 2 menit lalu menyala sendiri;
   selama itu layar menulis "Sedang memasang versi baru" dan tersambung lagi sendiri, jangan
   tekan apa-apa. Hasilnya tertulis di kotak yang sama (dan di tab Log): "sudah terpasang" berarti
@@ -169,25 +182,36 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - Sesudah versi baru terpasang, layar yang sedang terbuka **memuat ulang dirinya sendiri**
   (tidak perlu F5). Ia menunggu dulu kalau ada kotak dialog terbuka, tombol yang masih
   berputar, atau isian yang sedang diketik.
-- **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
-  **Data timbangan**, dan **Last Sync**. Angka besar di **Data timbangan** adalah berat yang ada
-  di jembatan timbang **sekarang**, dibaca dari PLC tiap detik, dengan tulisan di sampingnya:
-  **Stabil** (hijau, angkanya sudah diam), **Bergerak** (kuning, tunggu dulu), **Timbangan
-  putus** atau **Timbangan error** (merah, angkanya diganti strip). **Belum tersambung** berarti
-  sambungan ke timbangan belum dipasang di PC ini. Di bawahnya: neto hari ini, jumlah tiket, dan
-  tiket yang menunggu tara. Angka live ini baru masuk tiket lewat **kolom scan** (§3.3), dan
-  cuma kalau sudah **Stabil** (atau angkanya diam 2 detik) dan minimal 1.000 kg; selain itu
-  operator mengetik beratnya.
-- **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
+- **Janjang hari ini**: jumlah janjang semua line, **Rasio Ripe**, bar warna per kelas (hijau
+  Ripe, merah Unripe, ungu JK), dan jumlah tiap kelas (Ripe, Unripe, JK, TP).
+- **Timbangan sekarang** (kartu gelap): berat yang ada di jembatan timbang **sekarang**, dibaca
+  dari PLC tiap detik. Angkanya bergulir seperti odometer, grafik batang kecil di sampingnya
+  menunjukkan 24 detik terakhir, dan tulisan di pojok: **Stabil** (hijau, angkanya sudah diam),
+  **Bergerak** (kuning, tunggu dulu), **Timbangan putus** atau **Timbangan error** (merah,
+  angkanya diganti strip). **Belum tersambung** berarti sambungan ke timbangan belum dipasang di
+  PC ini. Baris di bawahnya menyebut apa yang bisa dilakukan. Angka live ini baru masuk tiket
+  lewat **kolom scan** (§3.3), dan cuma kalau sudah **Stabil** (atau angkanya diam 2 detik) dan
+  minimal 1.000 kg; selain itu operator mengetik beratnya. Neto hari ini, jumlah tiket, dan
+  tiket yang menunggu tara ada di atas layar **Timbangan**.
+- **Kartu truk**: kiri = truk yang **sedang dibongkar** (plat, pemasok, sumber, di line mana)
+  dengan tombol **Lepas** (melepas truk itu dari semua line yang memegangnya). Kalau tiap line
+  memegang truk berbeda (penugasan manual), tiap truk tampil sendiri dengan Lepas-nya sendiri.
+  Kanan = **Antrean bongkar** (cuma saat penugasan otomatis nyala): truk yang sudah timbang
+  isi, berurutan, dengan lama menunggu, **Tugaskan sekarang**, dan **Lewati**.
+- **Pil AutoERP dan Cloud Photo** (Last Sync) di kepala layar: AutoERP dan Cloud Photo (foto di R2). Jamnya = kapan data
   terakhir masuk ke sana; `-` berarti belum pernah ada yang masuk. Titik **hijau** = tersambung; titik **kuning** = terputus, dengan
   keterangan seperti "Terputus sejak 13.40 · 5 menunggu". Foto naik tiap jam, jadi jam Cloud
   Photo yang tertinggal sampai satu jam itu normal selama titiknya hijau. Arahkan kursor ke
   baris untuk rinciannya (Cloud Photo: jam upload tiap line). Selama terputus tidak ada data
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung (gambarnya utuh dengan bentuk asli
-  kamera, tidak dipotong dan tidak gepeng; kotaknya mengikuti bentuk gambar), status **ONLINE / OFFLINE** di
-  judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
-- **Lepas paksa** (merah tua, di tempat **Lepas**) muncul kalau line itu sama sekali tidak
+  kamera, tidak dipotong dan tidak gepeng; kotaknya mengikuti bentuk gambar), nama line dan
+  **ONLINE / OFFLINE** di pojok gambar. Di bawah gambar: **empat foto janjang terakhir** line itu
+  (bingkai warna kelasnya; ketuk untuk foto penuh) dan jamnya, jumlah tiap kelas hari ini di
+  line itu dengan bar warnanya, lalu **Reject Manual** (pintasan Spasi + nomor kartu) dan tombol
+  piston (P + nomor). Tombol **⋯** membuka menu kartu: **Pilih Truk** dan **Tugaskan**, **Lepas**,
+  dan **Urutan kartu** (geser kiri / kanan). Ketuk di luar menu untuk menutupnya.
+- **Lepas paksa** (merah tua, di menu ⋯ di tempat **Lepas**) muncul kalau line itu sama sekali tidak
   menjawab konsol padahal masih memegang truk. Layar bertanya dulu. Truknya dilepas **di konsol
   saja**: tiket dan berat aman, grading truk itu tetap masuk kunjungannya, dan Update now serta
   penugasan otomatis tidak tertahan lagi. Line itu ikut melepasnya sendiri begitu menyala lagi.
@@ -383,9 +407,9 @@ terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikas
   tetap tersimpan; tugaskan truknya manual di kartu line itu.
 - Kalau timbang kosong tidak bisa melepas sebuah line (line itu mati), line itu masih memegang
   truk yang sudah timbang kosong dan truk berikutnya hanya naik ke line lain. Notifikasinya menyebut
-  line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di kartunya, lalu
-  tugaskan truk yang menunggu di kartu yang sama. Selama line masih mati, Lepas juga ditolak
-  "tidak menjawab"; pakai **Lepas paksa** yang muncul di kartu itu.
+  line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di menu **⋯** kartunya,
+  lalu tugaskan truk yang menunggu di menu yang sama. Selama line masih mati, Lepas juga ditolak
+  "tidak menjawab"; pakai **Lepas paksa** yang muncul di menu kartu itu.
 
 Tabel Timbangan memakai kolom **Lama**: berapa lama truk itu diproses, dihitung
 dari jam timbang isi ke jam timbang kosong (`25 mnt`, `1 j 45 mnt`). Tiket
@@ -468,8 +492,8 @@ runbook: **Diagnostik, Antrean ERP, Versi** → tab **Status**; **Sumber Kamera,
 Uji PLC, Rekam Video** → tab **Line** (sub-tab di atasnya; sejak 2026-10-05 ditambah **Setelan Kamera**); **Riwayat** → tab
 **Rekap** (operator). Tab lama yang masih diingat browser dibuka di tempat barunya.
 
-Tab **Status**, **Line**, dan **Setelan** punya baris sub-tab di bawah baris tab utama, sama
-lebarnya, dengan garis bawah tebal di sub-tab yang terbuka. Satu bagian tampil sekaligus, dan
+Tab **Status**, **Line**, dan **Setelan** punya baris sub-tab di atas isinya, selebar
+kartunya, dengan garis bawah tebal di sub-tab yang terbuka. Satu bagian tampil sekaligus, dan
 sub-tab terakhir diingat browser. Status punya lima: **Versi & pembaruan**, **Diagnostik**,
 **Antrean line ke konsol**, **Antrean ERP**, **Manifest R2** (sejak 5 Oktober 2026; dulu
 kelimanya bertumpuk dalam satu halaman).
@@ -477,7 +501,7 @@ kelimanya bertumpuk dalam satu halaman).
 | Tab | Isi |
 |---|---|
 | **Log** | tombol saring bergaris tepi (tanpa isi warna): **Semua** (putih di tema gelap), **WARNING** (kuning), **ERROR** (merah); yang dipilih garisnya lebih tebal dan terang, yang lain redup. Isinya galat dan peringatan konsol DAN ketiga line (kolom Sumber menyebut line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord. 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
-| **Status** → Versi & pembaruan | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
+| **Status** → Versi & pembaruan | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah nama layar untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
 | **Status** → Diagnostik | tiga kartu line, tiap kartu berisi empat kelompok yang **tertutup dari awal** dan dibuka dengan menekan judulnya (**Kamera dan gambar**, **Mesin**, **Data**, **Workers**); kelompok yang dibuka tetap terbuka di browser itu, dan judul kelompok jadi **merah** kalau ada baris bermasalah di dalamnya, dan judul **Kamera dan gambar** menulis **perlu dicek** (kuning atau merah) kalau laju, frame hilang, atau putus-nyambung kameranya bermasalah. Ini pengganti indikator suhu: kamera yang kepanasan biasanya turun lajunya, kehilangan gambar, atau putus-nyambung. Isinya: kamera, suhu kamera (°C, `-` kalau kamera tidak melaporkan atau sudah lebih dari 60 detik tidak terbaca, **tidak didukung kamera** kalau kameranya memang tanpa sensor suhu seperti kamera Lampung; belum ada batas aman atau warna), FPS kamera / deteksi (terukur, 0 kalau gambar berhenti; FPS kamera **kuning** kalau tertahan di bawah 90% target kamera lebih dari 2 menit), umur gambar terakhir (merah kalau kamera berhenti mengirim), **Frame hilang (10 mnt)** (hijau 0, kuning ada yang hilang, merah mulai 5%), **Putus-nyambung (24 jam)** (hijau 0, kuning 1-2, merah 3 ke atas), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
 | **Status** → Antrean line ke konsol | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), jam pengiriman terakhir yang gagal (teks galatnya di tab Log); tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status** → Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang** |
@@ -779,7 +803,7 @@ kartu line (bukan di Uji PLC); E-stop tidak menghentikan grading.
 Bawaan mati. Kalau dinyalakan (`LICENSE_ENABLED=true`, `LICENSE_TOKEN=<token dari cloud>`),
 lisensi kedaluwarsa menghentikan inferensi dan menjatuhkan heartbeat PLC, jadi terlihat di lantai
 pabrik. Kunci publik sudah tertanam di image; `LICENSE_PRIVATE_KEY` **tidak boleh** ada di PC
-pabrik. Status terlihat di bawah tulisan AUTOGRADE (semua akun) dan di tab Status (support).
+pabrik. Status terlihat di bawah nama layar (semua akun) dan di tab Status (support).
 
 ### 5.11 Catatan PC Lampung (per 28 September 2026)
 
@@ -836,7 +860,7 @@ Di PC pabrik image-nya dipilih `PALMGRADE_AUTOGRADE_IMAGE` di `/opt/palmgrade/au
 membuat ulang container supaya versinya benar-benar terpasang.
 
 **Update now dari konsol** (sejak 3 Oktober 2026): operator bisa memasang versi yang sudah
-diunduh tanpa menunggu Start pagi, lewat pita kuning di bawah tulisan AUTOGRADE (§3.2). Konsol
+diunduh tanpa menunggu Start pagi, lewat pita kuning di bawah kepala layar (§3.2). Konsol
 sendiri tidak pernah menyentuh Docker; ia cuma menaruh berkas permintaan di
 `/opt/palmgrade/autograde/update/`, dan **penunggu** di PC (systemd, dipasang sekali lewat
 AnyDesk dengan `sudo ./pasang-penunggu-update.sh`) yang menjalankan `autograde`. Cara pasang,
@@ -1053,6 +1077,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.26 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi nama layar, tanggal, perusahaan, pil AutoERP / Cloud Photo / PLC, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |
 | 2.25 | 7 Oktober 2026 | §3.2 dan §3.5: gambar kamera di kartu line utuh dengan bentuk asli kamera (tidak dipotong, tidak gepeng); angka garis capture dan kotak area deteksi dibaca sebagai skala 1280 x 720 yang direntangkan ke seluruh gambar, bukan piksel video. Angka yang sudah tersimpan tidak berubah artinya. |
 | 2.24 | 6 Oktober 2026 | §3.3: pertanyaan "Catat?" sesudah scan ulang dijawab dengan scan QR yang sama sekali lagi (sesudah 2 detik), tanpa mouse. |
 | 2.23 | 6 Oktober 2026 | §3.2 dan §3.3: empat kolom scan diganti **satu kolom scan** yang selalu siap; konsol memilih langkahnya dari keadaan truk, menyimpan berat timbangan yang sudah stabil, membuka kotak berat kalau belum, dan bertanya dulu kalau truk yang sama di-scan lagi dalam 3 menit. Dropdown truk di kartu line ikut berganti saat truk dipasang otomatis. |

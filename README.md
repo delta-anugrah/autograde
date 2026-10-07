@@ -122,7 +122,7 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
                                              └→ MasterDataWorker  ← supplier + truk dari AutoERP  (kalau ERP_URL diisi)
                                                 ErpOutboxWorker   → truk baru (§4.B) + kunjungan truk (§4.C)
                                                 VisitResendWorker → kunjungan kemarin, sekali sehari
-PLC register D (MC Protocol, port 1028) → TimbanganLiveWorker → kotak "Data timbangan" (kalau SCALE_PLC_REGISTER diisi)
+PLC register D (MC Protocol, port 1028) → TimbanganLiveWorker → kartu "Timbangan sekarang" (kalau SCALE_PLC_REGISTER diisi)
 
 /console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
@@ -393,9 +393,11 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 ### Konsol operator (`APP_MODE=console`)
 
 Layar di **`/console`**: port 8100 di PC pabrik (image produksi) dan `make console`, 8000 lewat `make up` / `make up-console` dari source. Satu berkas HTML statis: vanilla JS, **tanpa
-build step, tanpa Node, tanpa CDN, tanpa webfont**, harus tetap kebuka saat internet mati.
-Isinya strip total hari kerja (dengan **Last Sync**: jam sinkron terakhir dan status sambungan ke
-AutoERP dan Cloud Photo), kartu kamera per line (assign/lepas truk, reject manual, piston),
+build step, tanpa Node, tanpa CDN**, harus tetap kebuka saat internet mati (dua font, Plus Jakarta
+Sans dan Barlow Condensed, tertanam di berkasnya sebagai woff2 lewat `scripts/tanam_font.py`).
+Menu di kiri (bisa disembunyikan), kepala dengan pil **Last Sync** (AutoERP dan Cloud Photo) dan
+PLC, ringkasan hari kerja (janjang, timbangan live, truk di line dan antrean bongkar), kartu
+kamera per line (foto terakhir, reject manual, piston, menu ⋯ untuk assign/lepas truk),
 dan 5 tab operator: Grading, Truk, Timbangan, Rekap, **Riwayat** (grading hari-hari sebelumnya,
 maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 10 tab tambahan (Log sampai
 Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di

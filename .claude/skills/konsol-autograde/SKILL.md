@@ -163,7 +163,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   role="group">` dengan `button[data-sub]` + `aria-pressed`, dipakai Setelan, Line, Status, dan
   tampilan Rekap (`.sub-tab.riwayat-tampilan`). Garis bawah, bukan tombol: yang terbuka
   `box-shadow:inset 0 -4px 0 var(--acc)`. `.line-sub-bar` tanpa padding samping, jadi barnya
-  selebar `#tabs` (dijaga `test_sub_tab_bars_are_as_wide_as_the_main_tab_bar`); tiap bar cuma
+  selebar isi panelnya (dijaga `test_sub_tab_bars_span_their_panel`); tiap bar cuma
   menyetel jumlah kolomnya. Sub-tab baru: pola `SUB_*` + `terapkanSub*` + `simpan/baca` seperti
   `SUB_SETELAN`. Jangan pakai `.log-level` untuk sub-tab: itu tombol saring.
 - Satu komponen dropdown untuk seluruh konsol (batch 5.6, 2026-10-05): tidak ada `<select>`
@@ -193,6 +193,36 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Ini cuma kerapian: backend yang menjaga (`require_support`, 403).
 - Header: versi + lisensi di bawah AUTOGRADE untuk semua akun (`teksInfoSistem`, data dari
   `/api/console/state`: `versi`, `lisensi`). Nomor token tidak pernah ke layar operator.
+
+## Tampilan (sejak 2026-10-07, spec `sawit/docs/superpowers/specs/2026-10-07-autograde-konsol-baru-design.md`)
+
+- Font tertanam: Plus Jakarta Sans (teks, `--font`) dan Barlow Condensed (angka dan plat,
+  `--angka`) sebagai woff2 data URI, ditulis `scripts/tanam_font.py` dari `assets/fonts/` (OFL).
+  `--kode` = monospace sungguhan untuk log, kode, alamat PLC. Jangan pakai `--mono` (sudah tidak ada).
+- Token warna di `:root` dan `:root[data-theme="dark"]`: `--merek` (biru logo, aksi/pilihan/fokus),
+  `--ripe --unripe --jk --tp` (kelas; JK ungu), `--panel2`, `--inset`, `--muted2`, `--plat-bg/fg`,
+  `--r-kartu` 18px, `--bayang-kartu`. Warna teks wajib 6:1 di atas `--card` di dua tema
+  (`test_console_html_token.py`); tambahan `@container` / `container-type` ditolak.
+- Rel kiri = `#tabs` (`position:fixed`, `--rel` 96px), ikon + `span[data-t]` (data-t di span,
+  bukan di tombol, supaya ikon tidak terhapus). Garis `.rel-pisah` ber-`data-dev="1"` ikut
+  dibuang untuk operator. `#menu-samping` menyembunyikan rel (`body.menu-tutup`, `localStorage.menuSamping`).
+- `terapkanTab` menulis `body[data-tab]` dan judul `#judul-tampilan`. `#tally` dan `#lines`
+  cuma tampil di Grading (`display:none`, tidak dibuang: Spasi+n dan P+n tetap jalan).
+- Kepala: `#hari-kerja`, `#perusahaan` (`lisensi.perusahaan`), pil `#sinkron-erp` /
+  `#sinkron-cloud` (kelas `sinkron-baris pil <keadaan>`), `#pil-plc` dari `ringkasPlc(lines)`,
+  jam, `.tata` (Grading saja). Pita di bawah kepala.
+- `#tally` = tiga `.ringkas`: hari (`#tot-all`, `#tot-rate`, `#bar-kelas` dari `htmlBarKelas`),
+  `#timbang` (gelap di dua tema, `#timbang-jejak` 24 bacaan `catatJejak`/`htmlJejak`,
+  `#timbang-saran` dari `SARAN_TIMBANG[keadaan]`), dan truk (`#truk-di-line` dari
+  `htmlTrukDiLine`, Lepas = `lepasTruk` = `release-truck` per line berurutan; `#antrean-bongkar`
+  tampil selama penugasan otomatis nyala, kosong pun). `#tot-neto`/`#tot-tiket` di `#sec-timbangan`.
+- Kartu line: `.feed` di atas, `h2` (nama + `.sinyal`) melayang di atasnya; strip `.strip-foto`
+  (empat terbaru per line, `ambilStrip` = `history?line_code=X&limit=4` per line, `button.foto`
+  jadi klik membuka `#foto-modal`), `.counts`, `.bar-kelas`, Reject + piston, `details.lagi`
+  (menu ⋯: `.truk`, `.assign`, `.ord`; klik di luar menutupnya). Tes browser yang klik
+  Tugaskan/Lepas/geser memanggil `buka_menu_line(kartu)` dulu (`tests/browser/langkah.py`).
+- Tinggi kamera: `aturTinggiKamera` mengukur sisa jendela ke `--tinggi-tetap`; `#lines .feed`
+  `max-height` di layar ≥1100 px, jadi layar pertama Grading tanpa scroll.
 
 ## Aturan yang dijaga test (merah kalau dilanggar)
 
@@ -224,7 +254,10 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `await tanyaKonfirmasi({judul, pesan, ya, batal, bahaya, asal})` (Promise<boolean>,
   `<dialog id="konfirmasi-modal">`), dan tanya SEBELUM tombolnya dikunci supaya fokus bisa
   kembali (`test_console_html_konfirmasi.py`, `test_browser_konfirmasi.py`).
-- Angka tally (strip Hari ini dan `.counts b[data-k]` kartu line) ditulis lewat
+- Berat live `#timbang-kg` ditulis `tulisBerat(el, v)`: odometer lima kolom (`odometerBerat`, nol
+  depan `.redup`, titik ribuan dan "kg" digambar CSS lewat `data-c`), `textContent` tetap persis
+  `kg(v) + " kg"`; desimal, negatif, null = teks biasa.
+- Angka tally (kartu Janjang hari ini dan `.counts b[data-k]` kartu line) ditulis lewat
   `tulisAngka(el, nilai)`: odometer kalau nilainya berubah, polos untuk tulisan pertama, tab
   tersembunyi, dan gerak dikurangi. `textContent` tetap angkanya (`.odo-baca`).
   Arah gulir ikut arah angka: naik = semua digit yang berubah maju dan 9 menyambung ke 0

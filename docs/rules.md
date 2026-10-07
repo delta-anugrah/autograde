@@ -407,7 +407,7 @@ end of this file.
     dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan
     menerima teks apa pun tanpa validasi. Lalu dialog sendiri **juga** ditolak, dan
     alasannya lebih penting: lapisan yang menutup layar menghilangkan kamera line dan
-    strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
+    ringkasan hari ini sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
     pandangan justru saat paling butuh. (Ini soal mengisi angka; pertanyaan ya/tidak memakai
     `tanyaKonfirmasi`, coding standard F12.) Bar itu **tersembunyi sampai Timbang kosong ditekan
     di baris tiket atau scan timbang kosong meminta beratnya**: kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
@@ -592,7 +592,7 @@ end of this file.
     mereka: layar akan diam persis di saat penjelasan paling dibutuhkan. Yang ikut ke
     operator cuma tingkat keparahan, tanggal, dan nama perusahaan; nomor token tetap support-only, dan
     ada test yang menjaganya.
-    Data yang sama ditulis **di bawah tulisan AUTOGRADE untuk semua akun** (2026-09-28,
+    Data yang sama ditulis **di kepala layar, di bawah judul tampilan, untuk semua akun** (2026-09-28,
     `teksInfoSistem`): versi + "Lisensi s/d …", warnanya dari `severity` server, bukan
     dihitung ulang. Klik membuka kotak detail (`barisInfoSistem`), yang berbagi
     `barisLisensi` dengan tab Status (bagian Versi). Fitur lisensi mati = versi saja, supaya kata "mati"
@@ -815,7 +815,7 @@ end of this file.
     cloud lama (palmgrade-api) sudah mati dan AutoERP cuma menerima rekap per truk.
 
 27. **Last Sync: satu bagian, dua baris (AutoERP dan Cloud Photo), untuk semua operator** (2026-09-27).
-    Di ujung strip "Hari ini". Tiap baris menjawab dua hal yang sengaja dipisah: **jam** = kapan
+    Dua pil di kepala layar sejak 2026-10-07 (dulu di ujung strip "Hari ini"). Tiap pil menjawab dua hal yang sengaja dipisah: **jam** = kapan
     data terakhir benar-benar tersinkron, **warna** = apakah sambungannya hidup SEKARANG. Foto naik
     ke R2 tiap jam, jadi "13.05" pada pukul 13.50 itu normal; warna **tidak pernah** dihitung dari
     umur jam. Aturannya murni di `domain/sinkron.py`; pencatatnya SATU `StatusSinkron`
@@ -1248,17 +1248,17 @@ end of this file.
     Zone). **Bawaannya NYALA di semua line sejak 2026-10-05** (permintaan user; sebelumnya mati
     sampai support menyalakannya, keputusan D13): konsol yang belum pernah menyimpan saklar ini
     langsung menugaskan truk saat timbang isi. Baris tersimpan yang tidak terbaca dibaca MATI
-    (`domain/penugasan_line._tak_terbaca`), bukan bawaan. Selama mati strip antrean bongkar
-    tidak tampil. Hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
+    (`domain/penugasan_line._tak_terbaca`), bukan bawaan. Selama mati antrean bongkar (di kartu
+    truk layar Grading) tidak tampil; selama nyala ia tampil walau kosong. Hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
     saklar nyala langsung menjalankan `isi_line_otomatis()` (truk yang sudah menunggu naik
     sekarang); rute itu `async def` karena bertanya ke line (aturan 30). `baca_setelan` tidak pernah melempar (dibaca tiap polling
     `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.
     Penugasan tetap lewat `assign_truck` (aturan 13: line menerima dulu, baru dicatat); line
     yang tidak menjawab dilaporkan ke layar (`dipasang[].terpasang: false`) dan tidak pernah
     menggagalkan timbangan. Sebelum tiap line tiketnya dibaca lagi: tiket yang sudah dilewati
-    atau sudah bertara tidak dipasang ke line berikutnya. Jalan manual: dropdown Tugaskan/Lepas
-    per line, serta tombol **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di strip
-    antrean bongkar (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator).
+    atau sudah bertara tidak dipasang ke line berikutnya. Jalan manual: pemilih truk, Tugaskan,
+    dan Lepas di menu ⋯ tiap kartu line (Lepas per truk juga di kartu truk), serta tombol
+    **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di antrean bongkar (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator).
     **Tugaskan sekarang** hanya memakai line pilihan yang BEBAS (tidak pernah mengambil line
     dari truk lain) dan melewati pemeriksaan satu-truk-satu-waktu; ditolak
     `line_semua_terpakai` kalau tidak ada line pilihan yang bebas ATAU selama timbang kosong
@@ -1391,8 +1391,8 @@ end of this file.
     sampai Discord), tanpa notifikasi desktop (keputusan user 2026-10-02). Aturan murni:
     `domain/pembaruan.py`; kontrak berkas: `docs/backend-overview.md` § Update now.
 
-39. **Timbangan live: dibaca konsol dari PLC, masuk tiket cuma lewat scan dan kalau layak** (2026-10-06). Angka besar di kotak
-    **Data timbangan** (strip "Hari ini") adalah berat di jembatan timbang SEKARANG, dibaca
+39. **Timbangan live: dibaca konsol dari PLC, masuk tiket cuma lewat scan dan kalau layak** (2026-10-06). Angka besar di kartu
+    **Timbangan sekarang** (layar Grading; dulu kotak "Data timbangan") adalah berat di jembatan timbang SEKARANG, dibaca
     konsol dari register kata PLC lewat MC Protocol (`plc/pembaca_timbangan.py`, worker
     `workers/timbangan_live_worker.py`, tiap `SCALE_POLL_MS`), di **sambungan sendiri**
     (`SCALE_PLC_PORT`, bawaan 1028; 1025-1027 dipegang tiga line, satu port satu pemakai), bukan
