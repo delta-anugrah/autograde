@@ -116,6 +116,12 @@
   .lb { font-size:.8rem; font-weight:600; letter-spacing:0; text-transform:none;
         color:var(--muted); }
   .muted { color:var(--muted); }
+  /* Status pill (spec §4): AutoERP, Foto cloud, PLC in the header; a dot plus words, never
+     colour alone. */
+  .pil { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:0 13px;
+         border-radius:999px; background:var(--card); border:1px solid var(--line);
+         font-size:.85rem; font-weight:700; }
+  .pil .titik { flex:none; width:8px; height:8px; border-radius:50%; background:var(--muted); }
 
   /* ---- status bar ---- */
   /* `position` + `z-index`: a tooltip under a top-bar button lies over the tally strip. */
@@ -189,9 +195,9 @@
      shift's screen back to the login gate, so it must never be the button a gloved
      hand hits while reaching for the language or theme toggle. */
 
-  #err { display:none; padding:13px var(--pad); font-weight:700;
+  #err { display:none; margin:10px var(--pad) 0; padding:13px 16px; font-weight:700; border-radius:14px;
          background:var(--danger-bg); color:var(--danger-fg);
-         border-bottom:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
+         border:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
 
   /* ---- banner langganan ----
      Dibaca dari beberapa meter di luar ruangan, jadi setebal #err dan bukan
@@ -202,7 +208,7 @@
      Yang TIDAK ditampilkan di sini: nomor token dan nama perusahaan. Layar ini
      terbuka untuk operator biasa; tanggal cukup untuk menjelaskan kenapa
      kamera berhenti, dan sisanya urusan tab Support. */
-  #lisensi-banner { display:none; padding:13px var(--pad); font-weight:700; }
+  #lisensi-banner { display:none; margin:10px var(--pad) 0; padding:13px 16px; font-weight:700; border-radius:14px; }
   #lisensi-banner[data-tingkat="warning"] { display:block;
          background:var(--warn-bg); color:var(--warn);
          border-bottom:1px solid var(--warn); border-left:6px solid var(--warn); }
@@ -247,7 +253,7 @@
      di tepi atas, jauh dari tengah tombol ×. Di tengah, satu baris dan banyak baris sama rapi. */
   .toast { position:absolute; left:0; right:0; bottom:0; box-sizing:border-box;
            pointer-events:auto; display:flex; align-items:center; gap:10px;
-           padding:12px 14px; border-radius:var(--r-sm); border:1px solid;
+           padding:12px 14px; border-radius:14px; border:1px solid;
            box-shadow:var(--tinggi-2); font-weight:600; line-height:1.35;
            /* Slightly transparent on purpose - it must never fully hide
               whatever card or feed sits behind it while it is up. Opaque text
@@ -311,7 +317,7 @@
   .gerbang-isi input { min-height:3.4rem; padding:0 14px; font-size:1.1rem;
                        font-family:inherit; color:var(--fg); background:var(--bg);
                        border:1px solid var(--line-kuat); border-radius:var(--r-md); }
-  .gerbang-isi input:focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
+  .gerbang-isi input:focus-visible { outline:2px solid var(--merek); outline-offset:1px; }
   /* The toggle sits inside the field, where every login screen puts it, and it overlaps
      no text: the input reserves right padding as wide as the button, so a tap at the end
      of what was typed still lands on the input. Its face is a word rather than an eye -
@@ -323,7 +329,7 @@
                  padding:0; font-size:.95rem; font-weight:700; color:var(--muted);
                  background:none; border:0; border-radius:var(--r-xs); cursor:pointer; }
   .sandi-lihat:hover { color:var(--fg); background:var(--zebra); }
-  .sandi-lihat:focus-visible { outline:3px solid var(--acc); outline-offset:-2px; }
+  .sandi-lihat:focus-visible { outline:2px solid var(--merek); outline-offset:-2px; }
   .sandi-lihat[aria-pressed="true"] { color:var(--acc); }
 
   /* ---- pagination ---- */
@@ -998,6 +1004,14 @@
   .truk .truk-kosong .plat { color:var(--warn); font-size:1.15rem; letter-spacing:.02em; }
   .plat { font-family:var(--angka); font-size:1.4rem; font-weight:700; line-height:1.1;
           letter-spacing:.04em; text-transform:uppercase; }
+  /* A plate outside a field reads as a plate (spec §4): black, white letters, a thin inner
+     rim like the real thing. Same in both themes. */
+  .plat:not(input) { display:inline-flex; align-items:center; width:fit-content; padding:3px 9px;
+          border-radius:6px; background:var(--plat-bg); color:var(--plat-fg);
+          border:1.5px solid rgba(244,246,248,.9);
+          box-shadow:inset 0 0 0 2px var(--plat-bg), inset 0 0 0 3px rgba(244,246,248,.28);
+          letter-spacing:.07em; white-space:nowrap; line-height:1.15; }
+  .truk-kosong .plat:not(input) { background:none; border:0; box-shadow:none; padding:0; color:var(--warn); }
   .truk .sup { display:flex; align-items:center; flex-wrap:wrap; gap:6px 9px;
                min-width:0; font-size:.95rem; font-weight:600; }
   .truk .sup span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1014,8 +1028,9 @@
   .slot-piston { display:contents; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
-                  border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
-  :is(button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+                  border-radius:12px; padding:10px 14px; font:inherit; min-height:44px; }
+  button { background:var(--panel2); }
+  :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline:2px solid var(--merek); outline-offset:2px; }
   /* Sibuk: tombol yang sedang menunggu server (denganSibuk). Klik berikutnya
      ditolak dan spinner kecil di depan label memberi tahu bahwa klik pertama
      sudah diterima. `disabled` sengaja tidak dipakai: layar yang mengatur kapan
@@ -1040,7 +1055,7 @@
   button:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
   /* Assign is the one action with a consequence on the line, so it is the one
      filled button on the card. */
-  button.utama { background:var(--acc); border-color:var(--acc); color:var(--on-acc); }
+  button.utama { background:var(--merek); border-color:var(--merek); color:var(--merek-ink); }
   button.utama:hover { border-color:var(--fg); }
   /* Varian bahaya, SATU untuk semua tombol yang membatalkan, menghapus, mereset, mengurungkan,
      melepas, atau keluar dari sesi (user 2026-10-02: "button batal dibuat warna merah ... pake
@@ -1074,7 +1089,7 @@
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* The keyboard hint is printed on the button, so the shortcut never has to be
      remembered - and it follows the panel order the operator arranged. */
-  .pintas { margin-left:10px; font-size:.7rem; letter-spacing:.06em; opacity:.8;
+  .pintas { margin-left:10px; font-size:.75rem; letter-spacing:0; opacity:.85;
             border:1px solid currentColor; border-radius:var(--r-xs); padding:2px 6px; }
   .pintas:empty { display:none; }
   /* Fires from a key, so the screen has to say which panel it landed on. */
@@ -1196,18 +1211,18 @@
                   background-image:var(--chev); background-repeat:no-repeat;
                   background-position:right 13px center; background-size:16px; }
   .pilih-teks { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pilih[data-buka="1"] .pilih-tombol { border-color:var(--acc); }
+  .pilih[data-buka="1"] .pilih-tombol { border-color:var(--merek); }
   .pilih-panel { position:absolute; z-index:20; top:calc(100% + 4px); left:0; min-width:100%;
                  max-height:17rem; overflow-y:auto; padding:4px;
                  background:var(--card); border:1px solid var(--line-kuat);
-                 border-radius:var(--r-sm); box-shadow:var(--tinggi-2); }
+                 border-radius:12px; box-shadow:var(--tinggi-2); }
   .pilih-panel [role="option"] { display:flex; align-items:center; min-height:2.6rem;
                                  padding:10px 14px; border-radius:var(--r-xs); cursor:pointer;
                                  white-space:nowrap; font-weight:600; }
   .pilih-panel [role="option"]:hover { background:var(--zebra); }
   .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
                                        box-shadow:inset 4px 0 0 var(--acc); }
-  .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
+  .pilih-panel [role="option"][aria-selected="true"] { background:var(--merek-tint); color:var(--merek); }
   /* Shown but not pickable (a model that does not fit this build), with its reason as the hint. */
   .pilih-panel [role="option"][aria-disabled="true"] { color:var(--muted); cursor:not-allowed; }
   /* `display:flex` on a row beats the `hidden` attribute: rows the search filtered out. */
@@ -1256,7 +1271,9 @@
                        box-shadow:inset 0 4px 0 var(--acc); }
 
   /* ---- panels & tables ---- */
-  .panel { padding:16px var(--pad) 28px; }
+  /* Every view is one card (spec §4): radius 18, one hairline, soft shadow. */
+  .panel { margin:0 var(--pad) 24px; padding:18px 20px 22px; background:var(--card);
+           border:1px solid var(--line); border-radius:var(--r-kartu); box-shadow:var(--bayang-kartu); }
   .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:14px;
            background:var(--card); border:1px solid var(--line-kuat); border-bottom:none;
            border-radius:var(--r-md) var(--r-md) 0 0; }
@@ -1344,11 +1361,11 @@
   .tools.lepas button.utama { flex:1 1 100%; }
   table { width:100%; border-collapse:collapse; }
   th, td { text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
-  th { background:var(--zebra); border-bottom:2px solid var(--line-kuat);
-       font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-       color:var(--muted); }
+  th { background:var(--panel2); border-bottom:1px solid var(--line);
+       font-size:.8rem; font-weight:700; letter-spacing:0; text-transform:none;
+       color:var(--muted2); }
   td { font-size:.95rem; }
-  tbody tr:nth-child(even) { background:var(--zebra); }
+  tbody tr:hover { background:var(--zebra); }
   tbody tr:last-child td { border-bottom:none; }
   /* Plate columns: the one thing in a table anybody actually hunts for. */
   td.key { font-family:var(--angka); font-weight:700; font-size:1rem; letter-spacing:.03em; }
@@ -1621,11 +1638,11 @@
      sendirian di kiri dengan ukurannya sendiri, Tutup di kanan dengan ukuran lain.
      Tombol di `.modal-tombol` selebar satu sama lain (F5); yang batal/tutup di kiri, merah,
      dan mendapat fokus awal, jadi Enter yang tidak disengaja tidak menjalankan apa pun. */
-  dialog.modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
+  dialog.modal { border:1px solid var(--line-kuat); border-radius:var(--r-kartu); padding:0;
                  background:var(--card); color:var(--fg); width:min(92vw, 30rem);
                  box-shadow:var(--tinggi-2); }
   dialog.modal[open] { animation:muncul .15s ease; }
-  dialog.modal::backdrop { background:rgba(0,0,0,.72); }
+  dialog.modal::backdrop { background:rgba(3,7,13,.76); backdrop-filter:blur(4px); }
   .modal-isi { padding:22px 24px; display:grid; gap:14px; }
   .modal-isi h2 { margin:0; font-size:1.25rem; overflow-wrap:anywhere; }
   .modal-isi p { margin:0; }
@@ -1680,14 +1697,14 @@
      tetap terlihat persis seperti sebelumnya. */
   button.foto { padding:0; border:0; background:none; cursor:pointer; display:block;
                 border-radius:var(--r-xs); }
-  button.foto:focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+  button.foto:focus-visible { outline:2px solid var(--merek); outline-offset:2px; }
 
   /* Lapisan foto. Ukurannya dipatok ke viewport, bukan ke ukuran gambar: foto
      janjang 2448x2048 akan melampaui layar mana pun kalau dibiarkan apa adanya. */
   #foto-modal { border:0; padding:0; background:var(--card); color:var(--fg);
-                border-radius:var(--r); max-width:min(96vw, 1100px); max-height:92vh;
+                border-radius:var(--r-kartu); max-width:min(96vw, 1100px); max-height:92vh;
                 overflow:hidden; }
-  #foto-modal::backdrop { background:rgba(0,0,0,.72); }
+  #foto-modal::backdrop { background:rgba(3,7,13,.76); backdrop-filter:blur(4px); }
   .foto-kepala { display:flex; align-items:center; justify-content:space-between;
                  gap:12px; padding:10px 12px; border-bottom:1px solid var(--line);
                  font-family:var(--angka); font-size:.95rem; }

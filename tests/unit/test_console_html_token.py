@@ -59,3 +59,13 @@ def test_tanpa_container_query_baru():
     # Lampung's kiosk Firefox version is unknown (spec §8). The one container query that
     # already shipped (Setelan, support only) stays; the new look adds none.
     assert HTML.count("@container") == 1 and HTML.count("container-type") == 1
+
+
+def test_komponen_dasar_memakai_token_baru():
+    assert re.search(r"button\.utama\s*\{[^}]*background:var\(--merek\)", HTML)
+    assert re.search(r":focus-visible\s*\{[^}]*outline:2px solid var\(--merek\)", HTML)
+    assert "outline:3px solid var(--acc)" not in HTML
+    assert re.search(r"\.plat:not\(input\)\s*\{[^}]*background:var\(--plat-bg\)", HTML)
+    assert re.search(r"dialog\.modal\s*\{[^}]*border-radius:var\(--r-kartu\)", HTML)
+    assert re.search(r"\.panel\s*\{[^}]*border-radius:var\(--r-kartu\)", HTML)
+    assert re.search(r"\.pil\s*\{[^}]*border-radius:999px", HTML)
