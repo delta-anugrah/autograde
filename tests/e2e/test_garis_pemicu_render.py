@@ -255,3 +255,36 @@ def test_the_horizontal_line_keeps_its_label_on_screen(monkeypatch):
     assert int(((bawah == np.array(COLOR_TRIGGER, dtype=np.uint8)).all(axis=2)).sum()) > 50, (
         "label tidak pindah ke bawah garis"
     )
+
+
+# ----------------------------------------------------------- picture with the camera's own ratio (2026-10-07)
+
+GAMBAR_W, GAMBAR_H = 861, 720
+RUANG = (GAMBAR_W / STREAM_W, GAMBAR_H / STREAM_H)
+
+
+def _gambar_rasio_kamera():
+    """The stream of a 1224x1024 camera since 2026-10-07: 861x720, not stretched to 1280x720."""
+    return np.zeros((GAMBAR_H, GAMBAR_W, 3), dtype=np.uint8)
+
+
+def test_garis_tegak_digambar_di_tempat_yang_sama_relatif_pada_gambar_rasio_kamera(monkeypatch):
+    """x=640 in settings space is the middle of the frame; on the 861 px picture it is x=430."""
+    p = _pipeline(monkeypatch, roi=(0, 0, 0, 0))
+    out = p.draw_roi(_gambar_rasio_kamera(), garis_capture=640, skala_setelan=RUANG)
+
+    def biru_di(x):
+        return sum(1 for px in out[:, x] if tuple(px) == COLOR_TRIGGER)
+
+    assert biru_di(430) > GAMBAR_H * 0.9, "the line left the place the operator set"
+    assert biru_di(640) == 0, "the line was drawn at the raw settings-space number"
+
+
+def test_roi_penuh_menutup_seluruh_gambar_rasio_kamera(monkeypatch):
+    """A box set to (0, 0, 1280, 720) is the whole frame and must stay the whole picture, edge to
+    edge, on 861x720: not a 1280 px box running off the right side."""
+    p = _pipeline(monkeypatch, roi=(0, 0, 1280, 720))
+    out = p.draw_roi(_gambar_rasio_kamera(), garis_capture=0, skala_setelan=RUANG)
+
+    kolom_kanan = out[:, GAMBAR_W - 1].any(axis=1).sum()
+    assert kolom_kanan > GAMBAR_H * 0.9, "the right side of the box is off the picture"

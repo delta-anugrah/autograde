@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_STREAM
 from ..domain.setelan_grading import UKURAN_LABEL_BAWAAN
-from ..domain.skala_tampilan import TANPA_SKALA, skala_ke
+from ..domain.skala_tampilan import TANPA_SKALA, skala_ke, ukuran_muat
 from .runtime_state import RuntimeState
 
 if TYPE_CHECKING:  # annotation only: the pipeline module pulls in cv2 and ultralytics, and
@@ -104,10 +104,12 @@ class DisplayWorker:
                 ukuran_label=self.state.ukuran_label_override or UKURAN_LABEL_BAWAAN,
             )
 
-        # Garis capture digambar dalam ruang STREAM, sama seperti ROI, dan sama
-        # seperti ruang tempat operator menyetelnya. Dibaca dari `RuntimeState`
-        # tiap render supaya perubahan dari konsol langsung terlihat tanpa
-        # restart line.
+        # Garis capture dan ROI disimpan dalam ruang SETELAN (`STREAM_WIDTH` x
+        # `STREAM_HEIGHT`, tempat operator menyetelnya) dan tetap berarti begitu; sejak
+        # 2026-10-07 gambarnya menjaga rasio kamera, jadi angkanya dipetakan per sumbu ke
+        # gambar ini saat digambar. Dibaca dari `RuntimeState` tiap render supaya perubahan
+        # dari konsol langsung terlihat tanpa restart line.
+        tinggi_gambar, lebar_gambar = display.shape[:2]
         display = self.pipeline.draw_roi(
             display,
             garis_capture=(
@@ -123,6 +125,9 @@ class DisplayWorker:
             tampil_garis=self.state.tampil_garis_override is not False,
             tampil_roi=self.state.tampil_roi_override is not False,
             roi=self.state.roi_override,
+            skala_setelan=skala_ke(
+                self.settings.stream_width, self.settings.stream_height, lebar_gambar, tinggi_gambar
+            ),
         )
 
         # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable)
@@ -148,13 +153,15 @@ class DisplayWorker:
     def _ke_ukuran_stream(self, frame: Any) -> tuple[Any, tuple[float, float]]:
         """A stream-size frame that is safe to draw on, and the scale that led to it.
 
+        Stream size keeps the frame's own ratio inside `STREAM_WIDTH` x `STREAM_HEIGHT`
+        (2026-10-07): 1224x1024 becomes 861x720, never stretched to 16:9 again.
+
         `frame` is shared with the detection thread (and, for a captured bunch, with the
         photo writer as the clean copy), so it is never drawn on. Shrinking already makes a
         new array; only a frame that is stream size already has to be copied.
         """
-        target_w = self.settings.stream_width
-        target_h = self.settings.stream_height
         h, w = frame.shape[:2]
+        target_w, target_h = ukuran_muat(w, h, self.settings.stream_width, self.settings.stream_height)
         if w == target_w and h == target_h:
             return frame.copy(), TANPA_SKALA
         kecil = self._cv.resize(frame, (target_w, target_h), interpolation=self._cv.INTER_NEAREST)
