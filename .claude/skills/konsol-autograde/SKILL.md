@@ -205,7 +205,8 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   (`test_console_html_token.py`); tambahan `@container` / `container-type` ditolak.
 - Rel kiri = `#tabs` (`position:fixed`, `--rel` 96px), ikon + `span[data-t]` (data-t di span,
   bukan di tombol, supaya ikon tidak terhapus). Garis `.rel-pisah` ber-`data-dev="1"` ikut
-  dibuang untuk operator. `#menu-samping` menyembunyikan rel (`body.menu-tutup`, `localStorage.menuSamping`).
+  dibuang untuk operator. `#menu-samping` menyembunyikan rel (`body.menu-tutup`, `localStorage.menuSamping`);
+  rel tersembunyi `visibility:hidden` sesudah geser .28 dtk, jadi tombolnya keluar dari urutan Tab.
 - Kaki rel: `.rel-akun` = `#operator-inisial` (`inisialNama`), `#operator-aktif`, `#keluar`
   (`data-tip-sisi="atas"`, warna bahaya tetap). Gaya rel cuma untuk `#tabs button[data-tab]`.
   Kepala satu baris: `.tata` ikon saja (teks `.pilih-teks` sr-only), `#segarkan` / `#bahasa` /
@@ -223,13 +224,34 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `#timbang-saran` dari `SARAN_TIMBANG[keadaan]`), dan truk (`#truk-di-line` dari
   `htmlTrukDiLine`, Lepas = `lepasTruk` = `release-truck` per line berurutan; `#antrean-bongkar`
   tampil selama penugasan otomatis nyala, kosong pun). `#tot-neto`/`#tot-tiket` di `#sec-timbangan`.
+  Tombol kartu truk dan antrean 44 px; `.truk-grup-atas` dan `.antrean-aksi` boleh membungkus
+  (di 1366 px separuh kartu ±200 px; `test_truck_card_buttons_fit_their_card_at_1366` memalsukan
+  `/api/console/state` jadi mode otomatis + satu antrean).
 - Kartu line: `.feed` di atas, `h2` (nama + `.sinyal`) melayang di atasnya; strip `.strip-foto`
   (empat terbaru per line, `ambilStrip` = `history?line_code=X&limit=4` per line, `button.foto`
   jadi klik membuka `#foto-modal`), `.counts`, `.bar-kelas`, Reject + piston, `details.lagi`
-  (menu ⋯: `.truk`, `.assign`, `.ord`; klik di luar menutupnya). Tes browser yang klik
+  (menu ⋯: `.truk`, `.assign`, `.ord`; klik di luar atau Esc menutupnya, `tutupMenuLagi`). Tes browser yang klik
   Tugaskan/Lepas/geser memanggil `buka_menu_line(kartu)` dulu (`tests/browser/langkah.py`).
 - Tinggi kamera: `aturTinggiKamera` mengukur sisa jendela ke `--tinggi-tetap`; `#lines .feed`
   `max-height` di layar ≥1100 px, jadi layar pertama Grading tanpa scroll.
+- Tabel Grading: baris teratas halaman 1 berkedip sekali (`tr.baris-baru`) kalau janjang baru;
+  `gantiSaringGrading` mengosongkan `barisAtasGrading` supaya ganti saringan tidak berkedip.
+- Gerbang (PR 4, 2026-10-08): `#gerbang` = grid `.gerbang-hero` (selalu gelap, token lokal
+  `--hero-*`; foto `#gerbang-foto` dari `--foto-masuk` = JPEG ≤ 60 KB, ditulis
+  `scripts/tanam_foto_masuk.py` dari `assets/masuk/masuk.jpg`; satu `.gerbang-deteksi`; tiga
+  `ul.gerbang-fakta`) + `.gerbang-form` (`.gerbang-kotak` dengan id lama). Di bawah 900 px hero
+  dibuang. Chip akun `tombolOperator` = inisial + nama + email, `aria-pressed` dari
+  `tandaiOperator` (input email + klik chip). `#gerbang-bahasa` (ID / EN) memanggil
+  `$("bahasa").click()`; `terapkanBahasa` menandai yang aktif. Tanpa logo dan tanpa angka hidup.
+- Layar lain (PR 5): pilihan = biru merek (`.sub-tab` garis bawah 3 px `--merek`, tombol cepat
+  Rekap = chip `--merek-tint`); kotak di dalam kartu (`.tools`, `.tabel`, `.riwayat-saring`,
+  `.riwayat-ringkasan`, `.setelan-form`, `.daftar-definisi`) bergaris `--line`, bukan
+  `--line-kuat`. Plat di tabel = `chipPlat(v)` → `<b class="plat">` (`td.key .plat` seukuran
+  baris), kosong tetap `dash`. Ringkasan Rekap pakai kelas `ripe/unripe/jk/tp` (JK ungu).
+  Timbangan: `.timbang-kepala` (judul + `.timbang-ubin` Neto hari ini dan Tiket hari ini),
+  langkah dengan celah 24 px (panah di celah), `.timbang-form` kartu di atas pita `.tools`.
+  Setiap `var(--x)` harus terdefinisi (`test_console_html_komponen.py`; dulu `--r`, `--aksen`,
+  `--kartu` hilang dan kolom Setelan jadi bersudut tajam).
 
 ## Aturan yang dijaga test (merah kalau dilanggar)
 

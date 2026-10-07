@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.27"
-tanggal: 7 Oktober 2026
+versi: "2.28"
+tanggal: 8 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -107,8 +107,11 @@ terang/gelap, pilihan tersimpan di browser.
 
 ### 3.1 Masuk
 
-Layar terkunci sampai ada yang masuk dengan **email + sandi**. Tombol nama di gerbang cuma
-mengisi kolom email; sandi tetap wajib. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
+Layar terkunci sampai ada yang masuk dengan **email + sandi**. Sejak 8 Oktober 2026 layar masuk
+terbelah dua: kiri foto kamera line dengan satu kotak deteksi dan tiga keterangan singkat
+(hilang di jendela yang lebih sempit dari 900 px), kanan form masuk. Tombol akun di form (inisial,
+nama, email) cuma mengisi kolom email dan ikut tertandai biru; sandi tetap wajib. Tombol **ID / EN**
+di bawah form mengganti bahasa layar sebelum masuk. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
 (bukan 12 jam sesudah masuk): selama operator memakai layar, sesinya ikut diperpanjang sendiri.
 15 menit sebelum habis muncul pita kuning **Sesi berakhir dalam N menit**: sentuh layar di mana
 saja atau tekan **Perpanjang**. Layar yang dibiarkan tanpa disentuh tetap keluar sendiri
@@ -204,7 +207,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   minimal 1.000 kg; selain itu operator mengetik beratnya. Neto hari ini, jumlah tiket, dan
   tiket yang menunggu tara ada di atas layar **Timbangan**.
 - **Kartu truk**: kiri = truk yang **sedang dibongkar** (plat, pemasok, sumber, di line mana)
-  dengan tombol **Lepas** (melepas truk itu dari semua line yang memegangnya). Kalau tiap line
+  dengan tombol **Lepas** (melepas truk itu dari semua line yang memegangnya; di layar 1366 px
+  tombolnya turun ke bawah plat). Kalau tiap line
   memegang truk berbeda (penugasan manual), tiap truk tampil sendiri dengan Lepas-nya sendiri.
   Kanan = **Antrean bongkar** (cuma saat penugasan otomatis nyala): truk yang sudah timbang
   isi, berurutan, dengan lama menunggu, **Tugaskan sekarang**, dan **Lewati**.
@@ -453,7 +457,7 @@ Aturan angka yang dijaga konsol:
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | saringan **Line** dan **Truk** di atas tabel (ikut polling, kembali ke halaman 1 tiap ganti), pagination; tabel memuat foto kecil (400 px), klik foto → foto penuh |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
-| **Timbangan** | tiket hari kerja, plus truk dari hari kerja lain yang belum selesai (belum timbang kosong: 12 jam; sudah timbang kosong tapi belum Keluar: 24 jam): status, jam timbang isi, jam timbang kosong, antre, lama, total, bruto, tara, neto; di bawahnya panel **Kedatangan dibatalkan** | **Catat datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket; **Batal datang** di baris Datang |
+| **Timbangan** | di atas: **Neto hari ini** dan **Tiket hari ini** (jumlah tiket dan yang menunggu tara) sebagai dua kotak di samping judul; lalu tiket hari kerja, plus truk dari hari kerja lain yang belum selesai (belum timbang kosong: 12 jam; sudah timbang kosong tapi belum Keluar: 24 jam): status, jam timbang isi, jam timbang kosong, antre, lama, total, bruto, tara, neto; di bawahnya panel **Kedatangan dibatalkan** | **Catat datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket; **Batal datang** di baris Datang |
 | **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; tombol **Cetak** di tiap baris truk kalau support menyalakan slip grading (satu lembar per truk per hari kerja: plat, supplier, sumber, jam grading, hitungan tiap kelas, rasio Ripe, neto, tiket timbang, tanda tangan Operator dan Supir); rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
@@ -464,7 +468,9 @@ Aturan angka yang dijaga konsol:
 sama seperti tab Rekap dulu, dan menyegarkan diri tiap 15 detik selama rentangnya memuat hari ini.
 Ganti tanggal untuk melihat hari-hari sebelumnya. Rekap menyandingkan dua sumber terpisah (grading
 dan timbangan): neto dijumlah per truk, dan satu truk boleh punya lebih dari satu tiket sehari.
-Baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan.
+Baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan. Plat di tabel Truk, Timbangan,
+dan Rekap tampil seperti pelat nomor (kotak hitam, huruf putih); angka JK di ringkasan Rekap ungu,
+sama dengan layar Grading.
 
 Di atas tabel tertulis hari kerja yang sedang ditampilkan: **Hari kerja Sen, 5 Okt 2026** untuk satu
 hari, atau **Hari kerja Sen, 5 Okt 2026 sampai Jum, 9 Okt 2026** untuk rentang.
@@ -1095,6 +1101,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.28 | 8 Oktober 2026 | §3.1: layar masuk terbelah dua (foto kamera dengan kotak deteksi dan tiga keterangan, form dengan tombol akun berinisial dan tombol ID / EN). §3.2: tombol Lepas dan antrean bongkar 44 px dan tidak terpotong di 1366 px. §3.4: Timbangan memakai dua kotak Neto hari ini dan Tiket hari ini; plat di tabel bergaya pelat nomor; JK ungu di ringkasan Rekap. Menu kiri yang disembunyikan tidak lagi kena tombol Tab, menu ⋯ kartu line bisa ditutup dengan Esc. |
 | 2.27 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi tulisan AutoGrade, tanggal, perusahaan, pil AutoERP / Cloud Photo, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |
 | 2.26 | 7 Oktober 2026 | §3.2 dan §3.5: gambar kamera di kartu line utuh dengan bentuk asli kamera (tidak dipotong, tidak gepeng); angka garis capture dan kotak area deteksi dibaca sebagai skala 1280 x 720 yang direntangkan ke seluruh gambar, bukan piksel video. Angka yang sudah tersimpan tidak berubah artinya. |
 | 2.25 | 7 Oktober 2026 | §3.2, §3.3, §3.5, §7: **Update now** melepas truk sendiri (konsol bertanya dulu, lalu layar penuh menunggu sampai selesai, notifikasi hasil sesudah halaman termuat ulang). Scan QR jalan dari tab mana pun dan hasilnya popup yang menutup sendiri; berat diketik di popup. Saklar support **Timbangan dummy** di Mode Developer (30.000 / 10.000 kg, pita oranye). |
