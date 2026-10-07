@@ -48,14 +48,15 @@ def test_the_line_filter_asks_the_server_and_page_one_follows(halaman):
     pilih = halaman.locator("#grading-line")
     pilih.locator(".pilih-tombol").click()
     expect(pilih.locator('[role="option"]').first).to_have_text(kamus(halaman, "saringSemuaLine"))
+    sesudah_pilih = len(diminta)
     pilih.locator('[role="option"][data-nilai="line-2"]').click()
 
     expect(halaman.locator("#recent tr")).to_have_count(1)
     expect(halaman.locator("#recent td.kode-line")).to_have_text("line-2")
-    # The photo strips ask four rows per line on their own (2026-10-07): read the table's.
-    tabel = [d for d in diminta if d["limit"] != "4"]
-    terakhir = tabel[-1]
-    assert terakhir["line_code"] == "line-2" and terakhir["offset"] == "0" and "truck_id" not in terakhir
+    # The photo strips ask four rows per line on their own (2026-10-07), and a poll may land
+    # before or after the pick (review #256): look for the table's filtered request, not the last.
+    tabel = [d for d in diminta[sesudah_pilih:] if d["limit"] != "4"]
+    assert any(d.get("line_code") == "line-2" and d["offset"] == "0" and "truck_id" not in d for d in tabel), tabel
     # The 2 s poll keeps the filter.
     sebelum = len(diminta)
     halaman.evaluate("() => refresh()")
@@ -69,10 +70,11 @@ def test_the_truck_filter_lists_the_trucks_and_says_when_nothing_matches(halaman
     pilih.locator(".pilih-tombol").click()
     pertama = pilih.locator('[role="option"]:not([data-nilai=""])').first
     truck_id = pertama.get_attribute("data-nilai")
+    sesudah_pilih = len(diminta)
     pertama.click()
 
     expect(halaman.locator("#recent td.kosong")).to_have_text(kamus(halaman, "kosongGradingSaring"))
-    assert [d for d in diminta if d["limit"] != "4"][-1]["truck_id"] == truck_id
+    assert any(d.get("truck_id") == truck_id for d in diminta[sesudah_pilih:] if d["limit"] != "4")
 
 
 def test_the_table_loads_the_small_photo_and_the_dialog_the_full_one(halaman):
@@ -122,3 +124,15 @@ def test_a_strip_photo_opens_the_full_photo(halaman):
     foto.click()
     expect(halaman.locator("#foto-modal")).to_be_visible()
     expect(halaman.locator("#foto-besar")).to_have_attribute("src", PNG + "#penuh1")
+
+
+def test_a_new_filter_does_not_flash_the_first_row(halaman):
+    """Review #256: after a filter change every row is "new"; none of them may flash."""
+    _jawab_history(halaman, [_baris(1, "line-1", thumb=PNG + "#kecil1"), _baris(2, "line-2", thumb=PNG + "#kecil2")])
+    masuk(halaman, OPERATOR)
+    expect(halaman.locator("#recent tr")).to_have_count(2)
+    pilih = halaman.locator("#grading-line")
+    pilih.locator(".pilih-tombol").click()
+    pilih.locator('[role="option"][data-nilai="line-2"]').click()
+    expect(halaman.locator("#recent tr")).to_have_count(1)
+    expect(halaman.locator("#recent tr.baris-baru")).to_have_count(0)

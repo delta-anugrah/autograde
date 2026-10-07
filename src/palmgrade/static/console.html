@@ -735,7 +735,7 @@
   .truk-grup + .truk-grup { padding-top:8px; border-top:1px solid var(--line); }
   .truk-grup-atas { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
   .truk-grup .plat { font-size:1.5rem; }
-  .truk-grup button { min-height:36px; padding:0 12px; }
+  .truk-grup button { min-height:44px; padding:0 14px; }
   .truk-sup { overflow:hidden; font-weight:700; white-space:nowrap; text-overflow:ellipsis; }
   .truk-ket { overflow:hidden; color:var(--muted2); font-size:.8rem; white-space:nowrap; text-overflow:ellipsis; }
   /* Last Sync (2026-09-27), a pill each in the header since 2026-10-07: dot + name + time;
@@ -1261,7 +1261,7 @@
                   font:700 1.1rem var(--angka); letter-spacing:.05em; }
   .antrean-truk .muted { font-size:.8rem; }
   .antrean-aksi { flex:1 1 100%; display:flex; gap:6px; }
-  .antrean-aksi button { min-height:34px; padding:0 10px; font-size:.8rem; }
+  .antrean-aksi button { min-height:44px; padding:0 12px; font-size:.85rem; }
   #pita-disk p { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
                  margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
                  background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
@@ -1378,7 +1378,10 @@
           display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:16px 10px;
           background:var(--card); border-right:1px solid var(--line);
           transition:width .28s ease, padding .28s ease; }
-  body.menu-tutup #tabs { padding-inline:0; border-right-color:transparent; }
+  /* Hidden = out of reach (review #256): `visibility` takes the buttons out of the Tab order
+     once the slide ends, and gives them back at once when the rail opens. */
+  body.menu-tutup #tabs { padding-inline:0; border-right-color:transparent; visibility:hidden;
+                          transition:width .28s ease, padding .28s ease, visibility 0s linear .28s; }
   #tabs button[data-tab] { display:flex; flex-direction:column; align-items:center; gap:5px; min-height:0;
                  padding:10px 4px; border:0; border-radius:14px; background:none; color:var(--muted);
                  font-size:.75rem; font-weight:700; letter-spacing:0; }
@@ -5126,6 +5129,8 @@ function gantiSaringGrading() {
   gradingSaring.truk = $("grading-truk").dataset.nilai;
   // Back to page one: page 7 of everything is not page 7 of one truck.
   gradingOffset = 0;
+  // Every row is "new" under another filter: forget the top row so none of them flashes.
+  barisAtasGrading = "";
   return muatGrading();
 }
 
@@ -6367,6 +6372,16 @@ async function ambilStrip(kodeLines) {
 // A tap anywhere outside an open "more" menu closes it, like the dropdowns.
 document.addEventListener("click", (ev) => {
   document.querySelectorAll("details.lagi[open]").forEach((d) => { if (!d.contains(ev.target)) d.open = false; });
+});
+// Esc closes it too (review #256), like the dropdowns. Only when one was open, so Esc keeps
+// its other jobs (the scan popup, a dropdown) everywhere else.
+function tutupMenuLagi() {
+  const buka = [...document.querySelectorAll("details.lagi[open]")];
+  buka.forEach((d) => { d.open = false; });
+  return buka.length > 0;
+}
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && tutupMenuLagi()) ev.preventDefault();
 });
 
 // Yard total across every line, for the glance that never reaches a card.

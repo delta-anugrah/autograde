@@ -89,3 +89,23 @@ def test_inisial_nama(nama, hasil):
     if NODE is None:
         pytest.skip("node tidak ada")
     assert jalankan(["inisialNama"], f"inisialNama({json.dumps(nama)})") == hasil
+
+
+def test_hidden_rail_leaves_the_tab_order():
+    """Review #256: a rail slid to 0 px still took Tab presses. `visibility:hidden` takes its
+    buttons out of the Tab order once the slide ends."""
+    css = re.search(r"body\.menu-tutup #tabs \{([^}]*)\}", HTML).group(1)
+    assert "visibility:hidden" in css
+
+
+@pytest.mark.parametrize("pemilih", [".truk-grup button", ".antrean-aksi button"])
+def test_truck_card_buttons_are_44px(pemilih):
+    """Review #256: Lepas on the truck card and the queue buttons were 34-36 px."""
+    aturan = re.search(re.escape(pemilih) + r" \{([^}]*)\}", HTML).group(1)
+    assert "min-height:44px" in aturan
+
+
+def test_escape_closes_the_more_menu():
+    kerja = re.search(r"function tutupMenuLagi\(\) \{(.*?)\n\}", HTML, re.S).group(1)
+    assert 'details.lagi[open]' in kerja and "open = false" in kerja
+    assert re.search(r'ev\.key === "Escape" && tutupMenuLagi\(\)', HTML)

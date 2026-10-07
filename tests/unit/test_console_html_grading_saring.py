@@ -129,3 +129,10 @@ def test_a_small_photo_that_is_missing_falls_back_to_the_full_one_once():
     kerja = HTML[awal : HTML.index("\n}, true);", awal)]
     assert 'document.addEventListener("error"' in kerja
     assert "dataset.penuh" in kerja and 'removeAttribute("data-penuh")' in kerja
+
+
+def test_a_new_filter_does_not_flash_the_first_row():
+    """Review #256: every row is "new" after a filter change, so the first one flashed."""
+    kerja = fungsi("gantiSaringGrading")
+    assert 'barisAtasGrading = ""' in kerja
+    assert kerja.index('barisAtasGrading = ""') < kerja.index("muatGrading()")
