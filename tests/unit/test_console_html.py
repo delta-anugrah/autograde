@@ -603,7 +603,7 @@ def test_fokus_tidak_direbut_dari_kolom_lain_dialog_atau_daftar():
 def test_kamus_kolom_scan_ada_di_dua_bahasa():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
-        for kunci in ("lbScanOtomatis", "phScanOtomatis", "scanKetikBruto", "scanKetikTara",
+        for kunci in ("lbScanOtomatis", "phScanOtomatis",
                       "konfirmasiScanJudul", "konfirmasiScan", "btnCatatScan", "scanBelumAda",
                       "scanTrukNonaktif", "scanGanda", "scanLangkahDatang", "scanLangkahIsi",
                       "scanLangkahKosong"):

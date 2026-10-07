@@ -18,6 +18,33 @@ Next:           ...
 
 ---
 
+## 2026-10-07 · console · Update now releases trucks, dummy scale, scan from any tab (branch feat/update-now-scan-popup)
+Changed:        Dummy scale: support switch in Settings > Mode Developer (`/api/console/dev/timbangan-dummy`,
+                `sync_state` key `setelan_timbangan_dummy`); scans save 30,000 kg (isi) / 10,000 kg
+                (kosong) with `dummy: true`, still sent to AutoERP, orange band `#pita-dummy` on every
+                tab (5e00a96f, b8bf4915). Update now: install route moved to
+                `routes/console_pembaruan.py`, releases every assigned truck first, 409
+                `pembaruan_lepas_gagal` when a line does not answer; screen confirms with trucks and
+                lines, full-screen curtain `#tirai-pembaruan` until the reload, success toast only on the
+                watcher's ok verdict, 25 min marker (4f47838e, e8458bfc, a36c0f50, d5ffd132). Scan:
+                key catcher `tangkapScan` on every tab, popup `#scan-popup` (4 s / 8 s), weight popup
+                with a field when the scale is not ready (2348723b, 530613a7, 1893509d, ade49a4c,
+                d56880cd: a fast hand-typed weight is never taken for a scan). Docs: rules 20, 21, 38,
+                39, CLAUDE.md index, coding-standard F12, backend-overview, MANUAL 2.25 (+ PDF),
+                skills scanner-qr and konsol-autograde; dead KAMUS keys `scanKetikBruto` and
+                `scanKetikTara` removed.
+Validated:      pytest tests/unit → 5305 passed, 28 skipped; tests/e2e → 424 passed, 20 skipped;
+                tests/integration → 192 passed; make test-browser chromium → 182 passed; firefox →
+                182 passed on the 4th full run (3 earlier runs each had 1 failure under heavy
+                machine load, a different test or the same one that passes alone: test_browser_timbangan
+                twice, test_browser_sesi_geser once); ruff → All checks passed; MANUAL.pdf rebuilt
+                (47 pages).
+Not validated:  with the real scanner and at Lampung; the docs-sweep agent (the controller runs it).
+Risks:          the scan key catcher is tuned to 100 ms / 500 ms; a slower scanner shows "Scan tidak
+                terbaca" and needs a look at the scanner's inter-character delay.
+Next:           Final review, push, PR to staging, release, then one visit at Lampung with the scanner
+                from a non-Timbangan tab and with Update now while a truck is on a line.
+
 ## 2026-10-06 · console · Answer the "Catat?" question by scanning again (PR #252)
 Changed:        While the repeat-scan question is open, a capture keydown listener takes the
                 scanner's keys: the same QR again answers Catat, from 2 s after the question
