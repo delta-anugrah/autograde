@@ -347,7 +347,6 @@
   /* ---- pagination ---- */
   .grading-saring { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-bottom:12px; }
   .kepala-panel .grading-saring { margin-bottom:0; }
-  @media (min-width:1100px) { .kepala-panel .grading-saring { flex-wrap:nowrap; } }
   .grading-saring .pilih { flex:0 1 14rem; min-width:10rem; }
   .grading-saring .lb + .pilih { margin-right:8px; }
   .halaman { display:flex; flex-wrap:wrap; align-items:center; gap:12px;
@@ -1775,6 +1774,7 @@
   .kepala-panel h2 { margin:0; font-size:1.15rem; font-weight:800; }
   .kepala-panel-judul { display:flex; flex-direction:column; gap:2px; }
   .kepala-panel-judul .muted { font-size:.82rem; }
+  @media (min-width:1100px) { .kepala-panel .grading-saring { flex-wrap:nowrap; } }
   /* A new row on page 1 flashes once in the logo blue. */
   @keyframes baris-baru { from { background:var(--merek-tint); } }
   tr.baris-baru { animation:baris-baru 1.6s ease-out; }
