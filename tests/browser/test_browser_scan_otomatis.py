@@ -461,3 +461,45 @@ def test_a_scan_that_stalls_never_becomes_a_weight(halaman, konsol, browser_name
         assert _pesan_berat_tersimpan(halaman, konsol, nomor) == []
     finally:
         _batal_kedatangan(halaman, konsol, nomor)
+
+
+def test_space_1_in_the_weight_popup_rejects_and_types_nothing(halaman, konsol, browser_name):
+    """Space+1 while the weight box has the focus is the Reject shortcut, never a "1" in the box
+    (it would turn 30000 into 130,000 kg)."""
+    nomor, lain = plat(browser_name, 1707), plat(browser_name, 1708)
+    masuk(halaman, OPERATOR)
+    _tugaskan_line_1(halaman, nomor)
+    tombol = halaman.locator('#lines .card[data-line="line-1"] button.reject')
+    halaman.route("**/manual-reject", lambda r: r.fulfill(status=200, content_type="application/json", body="{}"))
+    _daftar(halaman, lain)
+    _sampai_popup_berat(halaman, lain)
+    halaman.keyboard.down("Space")
+    halaman.wait_for_timeout(300)
+    halaman.keyboard.press("1")
+    halaman.keyboard.up("Space")
+    expect(tombol).to_have_class(re.compile(r"\bkedip\b"))
+    expect(halaman.locator("#scan-popup-berat")).to_have_value("")
+    expect(halaman.locator("#scan-popup-berat")).to_be_focused()
+    halaman.keyboard.type("30000")
+    halaman.keyboard.press("Enter")
+    popup = halaman.locator("#scan-popup")
+    expect(popup).to_have_attribute("data-jenis", "sukses")
+    expect(popup).to_contain_text("30.000 kg")
+    expect(_baris_timbangan(halaman, lain)).to_contain_text("30.000")
+    _selesaikan(halaman, lain)
+
+
+def test_tapping_the_weight_popup_keeps_its_box_focused(halaman, konsol, browser_name):
+    nomor = plat(browser_name, 1709)
+    masuk(halaman, OPERATOR)
+    _daftar(halaman, nomor)
+    _sampai_popup_berat(halaman, nomor)
+    halaman.locator("#scan-popup-judul").click()
+    expect(halaman.locator("#scan-popup-berat")).to_be_focused()
+    halaman.keyboard.type("30000")
+    halaman.keyboard.press("Enter")
+    popup = halaman.locator("#scan-popup")
+    expect(popup).to_have_attribute("data-jenis", "sukses")
+    expect(popup).to_contain_text("30.000 kg")
+    expect(_baris_timbangan(halaman, nomor)).to_contain_text("30.000")
+    _selesaikan(halaman, nomor)

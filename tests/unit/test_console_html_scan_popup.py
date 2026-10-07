@@ -137,6 +137,7 @@ const setTimeout = (f, ms) => { const id = ++nomorJam; jam.push({ id, f, pada: s
 const clearTimeout = (id) => { jam = jam.filter((x) => x.id !== id); };
 const maju = (ms) => { sekarang += ms; for (const x of jam.filter((j) => j.pada <= sekarang)) { jam = jam.filter((j) => j !== x); x.f(); } };
 let timerPopupScan = null;
+let spasi = false; let pTahan = false;
 const kolom = { value: "", blur() {} };
 let popupBerat = { plat: "B 1995 SME", langkah: "timbang_isi", ketik: "", pada: 0, awal: "", rusak: false, rusakPada: 0, menyimpan: false };
 const $ = () => kolom;
@@ -206,6 +207,17 @@ def test_tombol_saat_rusak_tidak_memperpanjang_rusak():
     h = _kunci('ketik("BE 12", 10); sekarang += 600; tekan("3"); sekarang += 500; tekan("4");'
                ' sekarang += 600; tekan("5"); tekan("0"); tekan("Enter");', _KELUAR)
     assert h["disimpan"] == ["50"] and h["galat"] == []
+
+
+@butuh_node
+@pytest.mark.parametrize(("awal", "tahan"), [(" ", "spasi"), ("p", "pTahan")])
+def test_spasi_atau_p_ditahan_lalu_angka_bukan_berat(awal, tahan):
+    # Space+1 / P+1 in the weight box is the shortcut: "1" never lands, and the held key is no
+    # letter of a scan (the typed weight after it saves as is).
+    h = _kunci(f'tekan("{awal}"); {tahan} = true; sekarang += 300; const e = tekan("1"); {tahan} = false;'
+               ' sekarang += 200; ketik("30000", 200); tekan("Enter");',
+               "({ dicegah: e.dicegah === true, nilai: kolom.value, galat, disimpan })")
+    assert h == {"dicegah": True, "nilai": "30000", "galat": [], "disimpan": ["30000"]}
 
 
 @butuh_node

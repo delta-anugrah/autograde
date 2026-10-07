@@ -159,6 +159,8 @@ def _badan(awal: str) -> str:
 
 def test_penjaga_ledakan_ada_di_handler_spasi_dan_p():
     spasi = _badan('document.addEventListener("keydown", (ev) => {\n  // The gate owns')
-    p = _badan('document.addEventListener("keydown", (ev) => {\n  if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;\n  if (ev.code === "KeyP")')
+    p = _badan('document.addEventListener("keydown", (ev) => {\n  if (!diKolomBerat(ev) && ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;\n  if (ev.code === "KeyP")')
     assert "ledakanScan()" in spasi and "B 1995 SME" in spasi
     assert "ledakanScan()" in p and "B 1995 SME" in p
+    # The weight popup's box is the one input where both shortcuts still work.
+    assert "diKolomBerat(ev)" in spasi and "diKolomBerat(ev)" in p

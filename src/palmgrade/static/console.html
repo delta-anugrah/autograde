@@ -6431,13 +6431,18 @@ document.addEventListener("keydown", tangkapScan, true);
 // cameras off screen. The click is replayed through the delegated handler
 // above, so there is one code path, not two.
 let spasi = false;
+// The weight popup's box: the one input where Space+N and P+N still work.
+function diKolomBerat(ev) {
+  return Boolean(ev.target && ev.target.id === "scan-popup-berat");
+}
 addEventListener("blur", () => { spasi = false; });
 document.addEventListener("keyup", (ev) => { if (ev.code === "Space") spasi = false; });
 document.addEventListener("keydown", (ev) => {
   // The gate owns the keyboard while it is up; the server would refuse anyway.
   if (!$("gerbang").hidden) return;
-  // Typing a plate, and picking from a listbox, both own the space bar.
-  if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
+  // Typing a plate, and picking from a listbox, both own the space bar. The weight popup's box
+  // does not: it takes digits only, and Space+N there is still Reject (`tombolPopupBerat`).
+  if (!diKolomBerat(ev) && ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
   if (ev.code === "Space") { spasi = true; ev.preventDefault(); return; }
   // Not while a scanner types a plate such as `B 1995 SME` (" 1" is not Space+1).
   if (!spasi || ledakanScan() || ev.ctrlKey || ev.altKey || ev.metaKey) return;
@@ -6463,7 +6468,7 @@ let pTahan = false;
 addEventListener("blur", () => { pTahan = false; });
 document.addEventListener("keyup", (ev) => { if (ev.code === "KeyP") pTahan = false; });
 document.addEventListener("keydown", (ev) => {
-  if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
+  if (!diKolomBerat(ev) && ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
   if (ev.code === "KeyP") { pTahan = true; return; }
   // Not while a scanner types a plate such as `B 1995 SME` (a plate with P then a digit).
   if (!pTahan || spasi || ledakanScan() || ev.ctrlKey || ev.altKey || ev.metaKey) return;
@@ -6547,6 +6552,8 @@ function bolehAmbilFokus() {
   const grup = $("scan-otomatis-grup");
   if (grup.hidden || !grup.offsetParent) return false;
   if (document.querySelector("dialog[open]") || document.querySelector('.pilih[data-buka="1"]')) return false;
+  // The weight popup waits for its number: a tap on it must not hand the keys to the scan field.
+  if (popupBerat) return false;
   const el = document.activeElement;
   return !(el && el !== $("scan-otomatis") && el.matches("input, select, textarea, [contenteditable]"));
 }
@@ -6820,6 +6827,9 @@ function tombolPopupBerat(ev) {
     return;
   }
   if (ev.key.length !== 1 || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  // Space or P held: the key is the Reject / piston shortcut (handled on the document), never a
+  // digit of the weight. The run so far held only that Space or P: it is dropped, not a letter.
+  if (spasi || pTahan) { ev.preventDefault(); p.ketik = ""; return; }
   if (p.rusak) { ev.preventDefault(); return; }
   const jeda = sekarang - p.pada;
   if (!p.ketik || jeda > JEDA_ENTER_SCANNER_MS) {
@@ -6840,6 +6850,10 @@ function tombolPopupBerat(ev) {
   if (!/[0-9.,]/.test(ev.key)) ev.preventDefault();
 }
 $("scan-popup-berat").addEventListener("keydown", tombolPopupBerat);
+// A tap anywhere on the weight popup gives its box the focus back (gloved fingers miss the box).
+$("scan-popup").addEventListener("click", (ev) => {
+  if (popupBerat && ev.target !== $("scan-popup-berat")) $("scan-popup-berat").focus({ preventScroll: true });
+});
 
 async function simpanBeratPopup() {
   const p = popupBerat;
