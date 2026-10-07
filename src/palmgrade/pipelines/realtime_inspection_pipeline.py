@@ -17,7 +17,7 @@ from ..core.constants import (
 )
 from ..domain.garis_capture import MENDATAR, TEGAK
 from ..domain.grade_class import TP, grade_class_or_none, verdict_for_class
-from ..domain.skala_tampilan import TANPA_SKALA, gaya_berskala, gaya_label, kotak_berskala
+from ..domain.skala_tampilan import TANPA_SKALA, garis_berskala, gaya_berskala, gaya_label, kotak_berskala
 from .model_registry import ModelRegistry
 
 # Jarak garis pemicu dari tepi kanan frame saat ROI memenuhi layar. Cukup untuk
@@ -112,10 +112,10 @@ class RealtimeInspectionPipeline:
     ) -> tuple[int, int, int, int] | None:
         """Kotak ROI seperti yang terlihat di layar, atau `None` kalau tidak sah.
 
-        `ROI_*` memang ditulis dalam ruang stream (operator mengalibrasinya dari
-        gambar di browser), jadi di sini tidak ada penskalaan — yang menskalakan
-        ke ruang sensor adalah `FrameProcessingWorker._roi_box_for`, karena di
-        sanalah deteksi benar-benar berjalan.
+        `ROI_*` ditulis dalam ruang setelan `width` x `height` (operator mengalibrasinya dari
+        gambar di browser) dan dikembalikan di ruang itu juga. `draw_roi` memetakannya ke
+        gambar stream (rasio kamera sejak 2026-10-07); ke ruang sensor dipetakan oleh
+        `FrameProcessingWorker._roi_box_for`, karena di sanalah deteksi benar-benar berjalan.
         """
         # `roi` = the box set from the console (`RuntimeState.roi_override`); None = `.env`.
         s = self.settings
@@ -130,6 +130,7 @@ class RealtimeInspectionPipeline:
         self, frame: np.ndarray, garis_capture: int = 0, sumbu: str = TEGAK,
         *, tampil_garis: bool = True, tampil_roi: bool = True,
         roi: tuple[int, int, int, int] | None = None,
+        skala_setelan: tuple[float, float] = TANPA_SKALA,
     ) -> np.ndarray:
         """Kotak ROI (hijau, tipis) + garis capture (biru, tebal, bertanda).
 
@@ -154,9 +155,19 @@ class RealtimeInspectionPipeline:
         `tampil_garis` / `tampil_roi` (console switches, 2026-10-04) only decide
         whether each one is DRAWN. Detection never reads them: a hidden line still
         triggers the capture and a hidden box still filters the region.
+
+        `skala_setelan` (2026-10-07): ruang setelan ke gambar ini, per sumbu. Gambar stream
+        menjaga rasio kamera (861x720 untuk kamera 1224x1024), sementara ROI dan garis tetap
+        disimpan di ruang setelan `STREAM_WIDTH` x `STREAM_HEIGHT`. Kotak `0,0,0,0` tetap
+        seluruh gambar. `TANPA_SKALA` = gambar seukuran ruang setelan, persis seperti dulu.
         """
         h, w = frame.shape[:2]
-        kotak = self.roi_in_stream_space(w, h, roi)
+        if skala_setelan == TANPA_SKALA:
+            kotak = self.roi_in_stream_space(w, h, roi)
+        else:
+            kotak = self.roi_in_stream_space(self.settings.stream_width, self.settings.stream_height, roi)
+            kotak = kotak_berskala(*kotak, skala_setelan) if kotak is not None else None
+        garis_capture = garis_berskala(garis_capture, sumbu == MENDATAR, skala_setelan)
         # A console box of all zeros is the full frame: nothing to draw, as with `.env`.
         aktif = any(roi) if roi is not None else self._roi_enabled
         if tampil_roi and kotak is not None and aktif:

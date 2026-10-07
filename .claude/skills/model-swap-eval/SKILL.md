@@ -179,7 +179,7 @@ Coba ini dulu sebelum minta model baru, tiga-tiganya lebih murah dan bisa dibali
 |---|---|---|
 | `CONF_THRESHOLD` | `0.75` | Naik = false positive turun, kelewat naik. Turun = sebaliknya |
 | `ROI_X1/Y1/X2/Y2` | `0` (mati) | Sejak 2026-10-04 bisa diatur tanpa restart dari tab Setelan (Kotak area deteksi), yang menang atas `.env`. Crop area kerja. Ini yang **matiin FP background secara struktural**, bukan nebak threshold |
-| `GARIS_CAPTURE` | `300` (`0` = tanpa garis) | Titik janjang difoto (px, ruang stream). Ini knob buat "kefoto kecepetan/kelambatan", **bukan** `CONF_THRESHOLD`. Diatur dari tab Setelan konsol, tanpa restart |
+| `GARIS_CAPTURE` | `300` (`0` = tanpa garis) | Titik janjang difoto (angka ruang setelan, grid 1280×720, bukan piksel video). Ini knob buat "kefoto kecepetan/kelambatan", **bukan** `CONF_THRESHOLD`. Diatur dari tab Setelan konsol, tanpa restart |
 | `SUMBU_GARIS` | `tegak` | Arah conveyor: `tegak` (px dari kiri) / `mendatar` (px dari atas) |
 | `MODE_DEV` | `false` | Nyalain buat lihat **angka confidence di kotak janjang**, satu-satunya cara melihatnya di layar sejak angkanya dibuang dari label. Wajib dinyalain waktu nyetel `CONF_THRESHOLD` |
 | `DEBUG_MODEL_OUTPUT` | kosong | Nyalain buat lihat output mentah per frame di log |

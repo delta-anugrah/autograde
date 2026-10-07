@@ -99,7 +99,9 @@ def test_an_ended_session_brings_the_gate_back(halaman, konsol):
     # The polls go quiet first, so the gate can only come from the end-of-session check, and
     # the pulls the sign-in started are let finish before the session goes.
     expect(halaman.locator("#segar")).to_be_visible(timeout=PANTAU_MAKS_MS)
-    for jalur in ("state", "trucks", "weighings", "history*"):
+    # `scale/live` too: it polls every second on every tab (rule 39), and its 401 after the
+    # logout below would bring the gate back before the end-of-session check (CI 2026-10-07).
+    for jalur in ("state", "trucks", "weighings", "history*", "scale/live*"):
         halaman.route(f"**/api/console/{jalur}", lambda route: route.abort())
     halaman.wait_for_load_state("networkidle")
     # The server forgets the session (as 12 idle hours would); the page still counts down.

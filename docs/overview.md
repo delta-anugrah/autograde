@@ -125,7 +125,7 @@ each YOLO frame (ByteTrack assigns track_id per object):
   lalu ikut ter-scan `BatchUploadWorker` seperti hasil auto (truck may be `null`).
   `bounding_box` = full frame `{0,0,width,height}`.
 
-**ROI box:** `ROI_X1/Y1/X2/Y2` in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720),
+**ROI box:** `ROI_X1/Y1/X2/Y2` in **settings space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720; the stream picture keeps the camera ratio inside it since 2026-10-07 and the box is mapped onto it per axis),
 NOT sensor space: operators calibrate from what they see in the browser. Center `(cx,cy)` must be
 inside the box. `0,0,0,0` = full frame (X2=0→stream width, Y2=0→stream height); require `X2>X1` & `Y2>Y1`.
 TP is exempt from the ROI check. `draw_roi()` runs in `DisplayWorker` **after** resize.
@@ -152,7 +152,7 @@ nilai awal. **`0` = tidak ada garis**, dan itu perilaku sebelum fitur ini ada, s
 PKS yang belum menyetel tidak kehilangan janjang, jadi batas bawahnya inklusif (`BAWAH_INKLUSIF`),
 beda dari dua setelan lain yang `0`-nya justru mematikan grading diam-diam.
 
-⚠️ Angkanya ruang **stream**, diskalakan ke ruang sensor saat menyaring (`skala_garis_ke_frame`).
+⚠️ Angkanya ruang **setelan** (`STREAM_WIDTH`×`STREAM_HEIGHT`, bawaan 1280×720; gambar stream yang lebih sempit dipetakan per sumbu), diskalakan ke ruang sensor saat menyaring (`skala_garis_ke_frame`).
 Melewatkan penskalaan itu bug yang sudah pernah terjadi di ROI (`bdcb300`).
 ⚠️ Pemicunya **perpotongan**, bukan sentuhan persis: garis dievaluasi sekali per frame, dan pada
 8-20 fps janjang bisa melompati garis di antara dua frame, menuntut sentuhan persis membuat
@@ -210,8 +210,8 @@ sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos amban
 dikirim ke konsol: yang dibuang tampilannya, bukan datanya. `MODE_DEV=true` (tab Setelan)
 menggambarnya lagi, untuk support yang sedang menyetel ambang.
 
-**DisplayWorker draw order (since batch 6.3):** `cv2.resize()` of `last_yolo_frame` to stream size → `draw_boxes(skala=...)` on the small frame (box and style scaled by `domain/skala_tampilan.py`) → `draw_roi()`
-(yang juga menggambar **garis capture** biru bertanda `CAPTURE`, sesudah resize, di ruang stream).
+**DisplayWorker draw order (since batch 6.3):** `cv2.resize()` of `last_yolo_frame` to stream size (the frame's own ratio fitted inside `STREAM_WIDTH×STREAM_HEIGHT` since 2026-10-07, `ukuran_muat`) → `draw_boxes(skala=...)` on the small frame (box and style scaled by `domain/skala_tampilan.py`) → `draw_roi()`
+(yang juga menggambar **garis capture** biru bertanda `CAPTURE`, sesudah resize; angka garis dan kotak ROI dari ruang setelan dipetakan per sumbu ke gambar lewat `skala_setelan` / `garis_berskala`).
 Render boxes over `last_yolo_frame` (paired with results), **never** over `latest_raw_frame`, on CPU,
 inference can take 0.5–2s and the conveyor moves, so boxes would land in the wrong place. Fallback to
 `latest_raw_frame` only before the first YOLO run.

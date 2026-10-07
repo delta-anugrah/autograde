@@ -18,6 +18,26 @@ Next:           ...
 
 ---
 
+## 2026-10-07 · vision + console · Camera picture keeps its own ratio, never cropped or stretched (PR #254)
+Changed:        DisplayWorker fits each frame inside STREAM_WIDTH x STREAM_HEIGHT with its own
+                ratio (domain/skala_tampilan.ukuran_muat: 1224x1024 → 861x720, 640x480 → 960x720,
+                16:9 unchanged) instead of forcing 1280x720 (the Lampung picture was ~1.49x too
+                wide). ROI and capture line stay stored in settings space and are mapped per axis
+                when drawn (draw_roi skala_setelan, garis_berskala); detection untouched. Console
+                .feed takes the ratio of the first frame (rasioFeed), object-fit contain,
+                max-height 72vh. Setelan hints and MANUAL 2.25: ROI and line numbers are a 1280 x
+                720 scale over the whole picture, not video pixels. First PR of the new console
+                (spec sawit/docs/superpowers/specs/2026-10-07-autograde-konsol-baru-design.md §6).
+Validated:      pytest tests/unit → 5267 passed, 28 skipped; ruff → All checks passed; e2e
+                test_garis_pemicu_render (cv2 + torch, local) → 16 passed, new tests fail without
+                the mapping; browser chromium + firefox → 330 passed, 2 flaky in the full run
+                (both green 3/3 isolated reruns); new feed browser tests fail on the old console.
+                Final review (opus): no critical; hints and tiny-line rounding fixed with tests.
+Not validated:  real Hikrobot cameras; capture line and ROI position at Lampung after upgrade.
+Decisions:      Owner 2026-10-07: camera and media never cropped or stretched; JK violet; new
+                browsers stay light; Timbangan board not built.
+Next:           Merge #254, then PR 2 of the new console (tokens, embedded fonts, components).
+                At Lampung: screenshot capture line/ROI before upgrading, compare after.
 ## 2026-10-07 · console · Final review fixes for Update now and the scan popup (PR #255)
 Changed:        Update now refuses with 409 `pembaruan_lepas_gagal` before releasing anything when a
                 line holding a truck is already unreadable in the last status poll, names the lines

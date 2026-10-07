@@ -113,7 +113,8 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 Conventions (full text in `docs/rules.md` § Conventions): process env vars beat `.env`
 (`override=False`); three image sources (`CAMERA_TYPE` = `hikrobot` / `opencv` / `photo`,
 video uses `opencv`); all paths via `Settings`, new env var gets a default in `core/config.py`;
-ROI and the capture line are in **stream space** (1280×720); the capture line (`GARIS_CAPTURE`,
+ROI and the capture line are stored in **settings space** (`STREAM_WIDTH×STREAM_HEIGHT`, 1280×720) while the
+stream picture keeps the camera's own ratio inside it (861×720 for 1224×1024, 2026-10-07); the capture line (`GARIS_CAPTURE`,
 default 300, set from the console, `0` = off) decides **when** a bunch is photographed, ROI decides **where**;
 no confidence number on bunch labels (`mode_dev` shows it); toasts close by themselves within
 10 s (the weight-input popup is a form, the one exception: it closes at 60 s idle); a restarted line is marked on its card; frame rate lives in `config/camera/hikrobot.mfs`;
