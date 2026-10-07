@@ -91,6 +91,12 @@ class ScannerQrBody(_Body):
     aktif: bool | None = None
 
 
+class TimbanganDummyBody(_Body):
+    """Timbangan dummy switch (support, 2026-10-07). A missing `aktif` saves off."""
+
+    aktif: bool | None = None
+
+
 class SlipBody(_Body):
     """The printable slip switch (support, batch 5.9). A missing field saves "off"."""
 

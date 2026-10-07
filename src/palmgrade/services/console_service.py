@@ -288,6 +288,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             # Scanner QR switch: on the 2 s poll so every open screen shows the QR fields
             # without a reload once support turns it on.
             "scanner_qr": self.scanner_qr(),
+            "timbangan_dummy": self.timbangan_dummy(),  # orange band on every screen (2026-10-07)
             # Menumpang polling 2 detik ini, bukan endpoint sendiri: yang melihat
             # sambungan putus itu operator biasa (alasan sama dengan banner lisensi).
             "sinkron": self._sinkron_aman(),
