@@ -464,7 +464,7 @@
   /* Kotak saringan berdiri sendiri, bukan `.tools`: kotak itu dirancang menempel ke
      tabel di bawahnya, dan di sini di bawahnya ringkasan. */
   .riwayat-saring { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 16px;
-                    padding:14px 16px; background:var(--card); border:1px solid var(--line-kuat);
+                    padding:14px 16px; background:var(--panel2); border:1px solid var(--line);
                     border-radius:var(--r-md); }
   .riwayat-isian { display:grid; gap:6px; }
   /* `display` di atas dan milik `.halaman` mengalahkan `[hidden]` bawaan browser:
@@ -530,6 +530,15 @@
      ⚠️ JANGAN pakai nama `.gerbang-*` di sini: itu milik gerbang login di atas
      (`.gerbang-isi` = flex column, input 3.4rem); kelas yang sama pernah membuat kolom scan
      melar jadi kotak raksasa. */
+  /* Title row of Timbangan (PR 5): name and the steps in words on the left, today's neto and
+     tickets as two tiles on the right; they wrap under the title on a narrow window. */
+  .timbang-kepala { display:flex; flex-wrap:wrap; align-items:stretch; gap:12px; margin-bottom:16px; }
+  .timbang-judul { flex:1 1 18rem; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:4px; }
+  .timbang-judul h2 { margin:0; font-size:1.5rem; font-weight:800; letter-spacing:-.01em; }
+  .timbang-ubin { flex:0 1 auto; min-width:12rem; display:flex; flex-direction:column; justify-content:center; gap:2px;
+                  padding:10px 16px; border-radius:var(--r-md); background:var(--panel2); border:1px solid var(--line); }
+  #tot-neto { font:700 2rem/1.1 var(--angka); font-variant-numeric:tabular-nums; }
+  #tot-tiket { font-weight:700; }
   .timbang-alat { --tinggi-timbang:2.9rem; --lebar-aksi-timbang:9rem; }
   /* `.tools.timbang-alat`, bukan `.timbang-alat`: aturan `.tools` di bawah (flex,
      `align-items:center`) datang belakangan dan akan menang. */
@@ -600,10 +609,10 @@
     .timbang-langkah { grid-template-columns:repeat(2, minmax(0, 1fr)); }
   }
   @media (min-width:960px) {
-    .timbang-langkah { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; }
+    .timbang-langkah { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:24px; }
     /* The arrow between two cards: a small round chip on the gap, so it reads as a step
        onward rather than a stray mark. */
-    .langkah-ruas:not(:last-child)::after { content:""; position:absolute; top:50%; right:-15px;
+    .langkah-ruas:not(:last-child)::after { content:""; position:absolute; top:50%; right:-20px;
       z-index:1; width:16px; height:16px; border-radius:50%; background:var(--card);
       border:1px solid var(--line-kuat); transform:translateY(-50%);
       background-image:var(--chev); background-size:12px; background-repeat:no-repeat;
@@ -614,9 +623,9 @@
      sama dengan garis atas ruas langkahnya di strip. */
   .timbang-aksi { display:grid; grid-template-columns:minmax(0, 1fr); gap:8px 12px; }
   .timbang-form { min-width:0; display:flex; flex-direction:column; gap:4px; padding:10px 12px;
-                  background:var(--zebra); border:1px solid var(--line);
-                  border-left:5px solid var(--warna-tahap, var(--line-kuat));
-                  border-radius:var(--r-sm); }
+                  background:var(--card); border:1px solid var(--line);
+                  border-left:4px solid var(--warna-tahap, var(--line-kuat));
+                  border-radius:var(--r-md); }
   .timbang-kontrol { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; }
   /* Berawalan `.timbang-alat`: `.tools .pilih`, `.tools input.kg` dan `.tools button` di
      bawah sama kuatnya tanpa itu dan datang belakangan. Dropdown plat mengisi sisa baris,
@@ -1583,6 +1592,9 @@
   tbody tr:last-child td { border-bottom:none; }
   /* Plate columns: the one thing in a table anybody actually hunts for. */
   td.key { font-family:var(--angka); font-weight:700; font-size:1rem; letter-spacing:.03em; }
+  /* A plate chip in a table row: the plate look at the row's size, not the truck card's. */
+  td.key .plat { padding:1px 7px; font-size:.95rem; border-width:1px;
+                 box-shadow:inset 0 0 0 1px var(--plat-bg), inset 0 0 0 2px rgba(244,246,248,.25); }
   th.no, td.no { width:1%; text-align:right; color:var(--muted); }
   td.no { font-family:var(--angka); font-variant-numeric:tabular-nums; }
   th.num, td.num { text-align:right; }
@@ -2314,8 +2326,14 @@
 </section>
 
 <section id="sec-timbangan" class="panel" hidden>
-  <!-- Neto of the work day, from `weighings` (moved off the Grading view on 2026-10-07). -->
-  <p class="timbang-hari-ini"><span data-t="timbangHariIni">Hari ini</span> <b id="tot-neto">-</b> <span id="tot-tiket" class="muted"></span></p>
+  <!-- Title row (spec 2026-10-07 §5.3): the view's name and the four steps in words, then the
+       work day's neto and tickets as two tiles (from `weighings`; moved off Grading 2026-10-07). -->
+  <div class="timbang-kepala">
+    <div class="timbang-judul"><h2 data-t="judulTimbangan">Timbangan</h2>
+      <span class="muted" data-t="timbangAlur">Datang, timbang isi, timbang kosong, keluar</span></div>
+    <div class="timbang-ubin"><span class="lb" data-t="timbangHariIni">Neto hari ini</span><b id="tot-neto">-</b></div>
+    <div class="timbang-ubin"><span class="lb" data-t="timbangTiketJudul">Tiket hari ini</span><span id="tot-tiket"></span></div>
+  </div><!-- /timbang-kepala -->
   <!--
     The operator may type bruto/tara by hand. The payload shape is identical to
     the scale program's, so once that program is live both land on the same row
@@ -3678,7 +3696,7 @@ const KAMUS = {
     sinkronTidakDipakai:"Tidak dipakai", sinkronMemeriksa:"Memeriksa", sinkronBelum:"Belum pernah",
     sinkronTakTerbaca:"tidak terbaca", sinkronTerakhir:"Sinkron terakhir",
     timbangTiket:"{tiket} tiket · {tara} menunggu tara",
-    timbangHariIni:"Hari ini", timbangTidakDipakai:"Belum tersambung", timbangMemeriksa:"Memeriksa…",
+    timbangHariIni:"Neto hari ini", timbangTiketJudul:"Tiket hari ini", timbangAlur:"Datang, timbang isi, timbang kosong, keluar", timbangTidakDipakai:"Belum tersambung", timbangMemeriksa:"Memeriksa…",
     timbangPutus:"Timbangan putus", timbangError:"Timbangan error", timbangStabil:"Stabil",
     timbangBergerak:"Bergerak", timbangTerbaca:"Live",
     timbangBelumAda:"Belum ada tiket",
@@ -4265,7 +4283,7 @@ const KAMUS = {
     sinkronTidakDipakai:"Not used", sinkronMemeriksa:"Checking", sinkronBelum:"Never",
     sinkronTakTerbaca:"not readable", sinkronTerakhir:"Last synced",
     timbangTiket:"{tiket} tickets · {tara} awaiting tare",
-    timbangHariIni:"Today", timbangTidakDipakai:"Not connected", timbangMemeriksa:"Checking…",
+    timbangHariIni:"Neto today", timbangTiketJudul:"Tickets today", timbangAlur:"Arrive, weigh in, weigh out, leave", timbangTidakDipakai:"Not connected", timbangMemeriksa:"Checking…",
     timbangPutus:"Scale offline", timbangError:"Scale error", timbangStabil:"Stable",
     timbangBergerak:"Moving", timbangTerbaca:"Live",
     timbangBelumAda:"No tickets yet",

@@ -28,7 +28,7 @@ def test_selection_is_the_brand_blue():
 
 
 def test_boxes_inside_a_card_have_no_heavy_outline():
-    for pemilih in (r"\n  \.tools \{", r"\n  \.tabel \{", r"\n  \.riwayat-ringkasan \{"):
+    for pemilih in (r"\n  \.tools \{", r"\n  \.tabel \{", r"\n  \.riwayat-ringkasan \{", r"\n  \.riwayat-saring \{"):
         aturan = re.search(pemilih + r"([^}]*)\}", HTML).group(1)
         assert "var(--line-kuat)" not in aturan and "border-left:5px" not in aturan, pemilih
 
@@ -58,3 +58,8 @@ def test_plate_cells_are_chips(sumber):
     assert f'<td class="key">${{dash({sumber})}}' not in HTML
     assert f'<td class="key">${{chipPlat({sumber})}}' in HTML
 
+
+
+def test_a_plate_in_a_table_is_row_sized():
+    aturan = re.search(r"td\.key \.plat \{([^}]*)\}", HTML).group(1)
+    assert "font-size:.95rem" in aturan
