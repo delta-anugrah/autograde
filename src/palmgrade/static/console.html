@@ -887,8 +887,12 @@
 
   /* The black box sits on the wrapper, not the <img>: when the camera drops the
      <img> is hidden (no broken-image icon) and the notice shows instead. */
-  .feed { position:relative; aspect-ratio:16/9; background:#000; }
-  .feed img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  /* The box takes the ratio of the first frame the line sends (`feedMemuat`, `rasioFeed`):
+     the line keeps the camera's own shape since 2026-10-07 (861x720 for the 1224x1024 camera).
+     16:9 is only the shape before that first frame. `contain` so nothing is ever cut;
+     `max-height` so a portrait photo source cannot push the rest of the screen away. */
+  .feed { position:relative; aspect-ratio:16/9; max-height:72vh; background:#000; }
+  .feed img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
   /* Chrome only renders ::after on a BROKEN image. This covers the broken icon
      and its grey border in the gap before cekKamera() marks the box. */
   .feed img::after { content:""; position:absolute; inset:0; background:#000; }
@@ -5669,7 +5673,7 @@ function kartuLine(l, sekarang = Date.now()) {
     <div class="slot-pita-piston">${pitaPiston(l)}</div>
     ${pitaKunciDitolak(l)}
     <div class="slot-ai">${pitaAi(l)}</div>
-    ${feed ? `<div class="feed"><img src="${feed}" alt=""><div class="feed-putus"><span>${esc(t("kameraPutus"))}</span>${tombolSambungUlang(l)}</div><div class="slot-restart"></div></div>` : ""}
+    ${feed ? `<div class="feed"${gayaRasioFeed(l.line_code)}><img src="${feed}" alt=""><div class="feed-putus"><span>${esc(t("kameraPutus"))}</span>${tombolSambungUlang(l)}</div><div class="slot-restart"></div></div>` : ""}
     <div class="counts">
       <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
       <span class="rej"><span class="lb">${esc(t("clsUnripe"))}</span><b data-k="unripe">${l.unripe || 0}</b></span>
@@ -6776,9 +6780,21 @@ $("datang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
 // Firefox menembakkan `load` untuk TIAP bagian MJPEG, termasuk keep-alive kosong
 // line tanpa kamera (naturalWidth 0); Chrome sekali saja. Tanpa penjaga lebar,
 // kartu line tanpa kamera berkedip antara "Kamera tidak tersambung" dan kotak hitam.
+// The box keeps the picture's own shape: read from the first frame, kept per line so a card
+// redrawn by a poll does not jump back to 16:9 (2026-10-07).
+const rasioFeed = new Map();
+function gayaRasioFeed(line) {
+  const rasio = rasioFeed.get(line);
+  return rasio ? ` style="aspect-ratio:${rasio}"` : "";
+}
 function feedMemuat(img) {
   if (!(img.naturalWidth > 0)) return;
   const kartu = img.closest(".card");
+  const rasio = `${img.naturalWidth} / ${img.naturalHeight}`;
+  if (rasioFeed.get(kartu.dataset.line) !== rasio) {
+    rasioFeed.set(kartu.dataset.line, rasio);
+    img.parentElement.style.aspectRatio = rasio;
+  }
   kartu.classList.remove("putus");
   selesaikanRestart(kartu, img);
 }
