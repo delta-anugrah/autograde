@@ -1170,7 +1170,7 @@
   #pita-sesi[hidden] { display:none; }
   /* Timbangan dummy (2026-10-07): orange, not the amber of the update band, so nobody reads
      it as "an update is waiting". Every tab, because the weights it saves are fake. */
-  #pita-dummy { margin:10px var(--pad) 0; padding:11px 13px; border-radius:var(--r);
+  #pita-dummy { margin:10px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
     background:var(--oranye-bg); color:var(--oranye); border-left:4px solid var(--oranye);
     font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   #pita-dummy[hidden] { display:none; }
@@ -9719,7 +9719,11 @@ function tahanTombolTirai(ev) {
 }
 document.addEventListener("keydown", tahanTombolTirai, true);
 
+// The version the curtain shows, kept for the timeout toast when the marker is gone.
+let tiraiTarget = "";
+
 function tampilkanTirai(target) {
+  tiraiTarget = target;
   $("tirai-teks").textContent = t("tiraiPasang").replace("{versi}", target);
   if ($("tirai-pembaruan").hidden) {
     // A focused field behind the curtain would keep `amanMuatUlang()` false.
@@ -9762,11 +9766,12 @@ function cekHasilTirai(s) {
 
 // The console may never come back: the poll cannot say so, so a timer closes the curtain
 // with the timeout sentence once the marker is older than the limit.
-setInterval(() => {
+function periksaBatasTirai() {
   if ($("tirai-pembaruan").hidden) return;
   const penanda = penandaPasang();
-  if (!penanda || penandaBasi(penanda)) akhiriTirai(penanda || { target: "" }, "gagal", null);
-}, 30000);
+  if (!penanda || penandaBasi(penanda)) akhiriTirai(penanda || { target: tiraiTarget }, "gagal", null);
+}
+setInterval(periksaBatasTirai, 30000);
 
 // A reload in the middle of an install: the curtain is up again before the first poll answers.
 {

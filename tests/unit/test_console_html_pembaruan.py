@@ -293,3 +293,20 @@ def test_lepas_gagal_tanpa_yang_dilepas_tidak_menambah_kalimat():
     assert "sudah dilepas" not in teks
     ada_truk = _gagal("{kode:'pembaruan_ada_truk', params:{line:'line-1'}}")
     assert "Lepas dulu truk di Line A" in ada_truk
+
+
+@butuh_node
+def test_batas_tirai_tanpa_penanda_menyebut_versi_yang_ditampilkan():
+    """Marker gone (storage cleared) while the curtain is up: the timeout toast still names the
+    version the curtain showed, never an empty one."""
+    stub = (
+        "const KUNCI_PASANG = 'autograde.pasang'; const BATAS_PENANDA_MS = 25*60*1000; let penandaMemori = null;"
+        " const sessionStorage = {getItem(){ return null; }, setItem(){}, removeItem(){}};"
+        " let tiraiTarget = ''; const akhir = [];"
+        " const akhiriTirai = (p, putusan) => akhir.push([p.target, putusan]);"
+        " const el = {'tirai-pembaruan': {hidden: true}, 'tirai-teks': {textContent: ''}};"
+        " const $ = (id) => el[id]; const document = {activeElement: null};"
+    )
+    nama = ["penandaPasang", "penandaBasi", "bacaPenandaPasang", "tampilkanTirai", "periksaBatasTirai"]
+    hasil = jalankan(nama, "(tampilkanTirai('v1.22.1'), periksaBatasTirai(), akhir)", tambahan=stub)
+    assert hasil == [["v1.22.1", "gagal"]]
