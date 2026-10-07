@@ -18,6 +18,24 @@ Next:           ...
 
 ---
 
+## 2026-10-07 · console · Final review fixes for Update now and the scan popup (branch feat/update-now-scan-popup)
+Changed:        Update now refuses with 409 `pembaruan_lepas_gagal` before releasing anything when a
+                line holding a truck is already unreadable in the last status poll, names the lines
+                released before a mid-way failure (`params.dilepas`, screen key
+                `pembaruanSudahDilepas`), and maps any unexpected release error to the same 409.
+                Weight popup: Space+N / P+N are the shortcuts there too and never type a digit; a tap
+                on the popup keeps its box focused. Key catcher: a late scanner Enter after 3+ keys in
+                1.5 s is held back with "Scan tidak terbaca", and a fast run starting under 1 s after a
+                stray key is a failed read (no partial plate). Curtain timeout toast names the version
+                shown; `#pita-dummy` radius `--r-sm`. Docs: rules 38 and 39, MANUAL (+ PDF),
+                backend-overview, skills scanner-qr and konsol-autograde.
+Validated:      pytest tests/unit → 5320 passed, 28 skipped; tests/e2e → 424 passed, 20 skipped;
+                tests/integration → 192 passed; make test-browser chromium → 184 passed; firefox →
+                184 passed (first run each); ruff → All checks passed.
+Not validated:  the new scan timing rules with the real Cashcow scanner; Update now pre-check on the
+                factory PC.
+Next:           PR to staging.
+
 ## 2026-10-07 · console · Update now releases trucks, dummy scale, scan from any tab (branch feat/update-now-scan-popup)
 Changed:        Dummy scale: support switch in Settings > Mode Developer (`/api/console/dev/timbangan-dummy`,
                 `sync_state` key `setelan_timbangan_dummy`); scans save 30,000 kg (isi) / 10,000 kg
