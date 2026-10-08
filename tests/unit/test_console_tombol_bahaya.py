@@ -130,4 +130,4 @@ def test_lewati_dan_matikan_akun_memakai_varian_bahaya():
     lewati = re.search(r'<button\b[^>]*data-aksi="lewati"[^>]*>', HTML).group(0)
     assert "bahaya" in _kelas(lewati), lewati
     # Kelas tombol akun dirakit dari argumen ketiga `tombol(aksi, kunci, kelas)`.
-    assert re.search(r'"akunMatikan", mati \? "aksi-aktifkan" : "bahaya"\)', HTML)
+    assert re.search(r'"akunMatikan", mati \? "aksi-aktifkan" : "bahaya"[,)]', HTML)

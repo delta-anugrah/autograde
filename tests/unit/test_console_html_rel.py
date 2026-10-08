@@ -22,8 +22,10 @@ def test_tab_jadi_rel_kiri_dengan_ikon():
 def test_tombol_sembunyikan_menu_di_kepala():
     kepala = re.search(r'<header id="topbar">(.*?)</header>', HTML, re.S).group(1)
     assert 'id="menu-samping"' in kepala and 'aria-controls="tabs"' in kepala
-    for id_ in ("judul-tampilan", "hari-kerja", "perusahaan", "sinkron-erp", "sinkron-cloud", "info-sistem"):
+    for id_ in ("judul-tampilan", "perusahaan", "sinkron-erp", "sinkron-cloud", "info-sistem"):
         assert f'id="{id_}"' in kepala, id_
+    # Lampung 2026-10-08: no date under the title; the company, version and licence stay.
+    assert 'id="hari-kerja"' not in HTML
 
 
 def test_pita_tepat_di_bawah_kepala():
@@ -102,7 +104,9 @@ def test_hidden_rail_leaves_the_tab_order():
 def test_truck_card_buttons_are_44px(pemilih):
     """Review #256: Lepas on the truck card and the queue buttons were 34-36 px."""
     aturan = re.search(re.escape(pemilih) + r" \{([^}]*)\}", HTML).group(1)
-    assert "min-height:44px" in aturan
+    # 44 px through the one button size token (Lampung 2026-10-08).
+    assert "min-height:44px" in aturan or "min-height:var(--tinggi-tombol)" in aturan
+    assert "--tinggi-tombol:44px" in HTML
 
 
 def test_escape_closes_the_more_menu():

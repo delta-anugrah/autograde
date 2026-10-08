@@ -136,3 +136,13 @@ def test_teks_rusak_tidak_menyuruh_restart_konsol_lewat_setelan(bahasa):
     baris = re.search(r'discordRusak:"([^"]*)"', _kamus(bahasa)).group(1)
     assert "state/console/lapor_discord.db" in baris and "autograde restart" in baris
     assert "Setelan" not in baris and "Settings" not in baris
+
+
+@butuh_node
+@pytest.mark.parametrize("level", ["ERROR", "WARNING"])
+def test_level_di_tabel_jadi_chip_berwarna(level):
+    # Lampung 2026-10-08: ERROR red, WARNING yellow, the same tokens as the filter buttons.
+    html = jalankan(FUNGSI, f'barisLog({{level:"{level}", source:"x", message:"m", last_seen_at:{T}}})')
+    assert f'<span class="log-tingkat" data-level="{level}">{level}</span>' in html
+    token = {"ERROR": "--rej", "WARNING": "--warn"}[level]
+    assert re.search(rf'\.log-tingkat\[data-level="{level}"\][^{{]*\{{\s*color:var\({token}\)', HTML)

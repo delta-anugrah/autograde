@@ -115,6 +115,6 @@ def test_sign_in_and_the_session_check_start_the_countdown_and_the_gate_stops_it
 def test_the_ribbon_has_its_button_and_reads_as_a_status():
     pita = HTML[HTML.index('<div id="pita-sesi"') : HTML.index("</div>", HTML.index('<div id="pita-sesi"'))]
     assert 'role="status"' in pita and " hidden" in pita
-    assert '<button type="button" id="pita-sesi-perpanjang" class="utama" data-t="btnPerpanjangSesi">' in pita
+    assert re.search(r'<button type="button" id="pita-sesi-perpanjang" class="utama" data-t="btnPerpanjangSesi"[ >]', pita)
     assert '$("pita-sesi-perpanjang").addEventListener("click", (ev) => perpanjangSesi(ev.currentTarget));' in HTML
     assert re.search(r"#pita-sesi\[hidden\]\s*\{\s*display:none;", HTML)

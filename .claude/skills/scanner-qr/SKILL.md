@@ -74,7 +74,9 @@ The paper manual lists no suffix (Enter) and no keyboard-language setting.
   weight). With **Timbangan dummy** on (support, Settings > Mode Developer) the weight is 30,000
   kg (isi) or 10,000 kg (kosong) and the popup never opens.
 - The answer is a popup (`#scan-popup`, a `div`, not a dialog): success closes in 4 s, a failure
-  in 8 s, and lists the lines in card order.
+  in 8 s, and lists the lines in card order. Solid background (a see-through one vanished over
+  the camera video at Lampung, 2026-10-08); colour and step number from `data-langkah`, the same
+  as the Timbangan board columns: datang grey, timbang isi yellow, timbang kosong blue, keluar green.
 - Double reads: the screen drops the same QR within 2 s (`JEDA_BACA_ULANG_MS`), and a step
   within 3 minutes of the truck's previous step asks "Catat?" first; scanning the same QR again
   (from 2 s after the question opened) answers Catat, another QR answers Batal.
