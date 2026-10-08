@@ -1656,6 +1656,9 @@
   .setelan-form[hidden], .setelan-grup[hidden], #setform-bahaya[hidden] { display:none; }
   /* The lines a truck is assigned to: side by side under their heading. */
   .setelan-lines { display:flex; flex-wrap:wrap; gap:12px 32px; }
+  /* One word per box: centred on it, not top-aligned like the two-line switches (owner 2026-10-08). */
+  .setelan-form .setelan-lines label.saklar { align-items:center; }
+  .setelan-form .setelan-lines label.saklar input { margin-top:0; }
   /* The card (user 2026-10-05: "too many borders"): the open part is ONE card, as wide as
      the sub-tab bar above it. Nothing inside draws another box: the group is a plain layout
      wrapper and a named block is a heading on a rule (`.setelan-sub` below). */

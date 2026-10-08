@@ -64,3 +64,11 @@ def test_plate_cells_are_chips(sumber):
 def test_a_plate_in_a_table_is_row_sized():
     aturan = re.search(r"td\.key \.plat \{([^}]*)\}", HTML).group(1)
     assert "font-size:.95rem" in aturan
+
+
+def test_line_checkboxes_sit_on_the_middle_of_their_word():
+    """Owner 2026-10-08: in Penugasan line the box sat below the middle of "Line 1"."""
+    aturan = re.search(r"\.setelan-form \.setelan-lines label\.saklar \{([^}]*)\}", HTML).group(1)
+    assert "align-items:center" in aturan
+    kotak = re.search(r"\.setelan-form \.setelan-lines label\.saklar input \{([^}]*)\}", HTML).group(1)
+    assert "margin-top:0" in kotak
