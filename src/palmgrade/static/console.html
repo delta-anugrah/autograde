@@ -1225,7 +1225,7 @@
   .body { padding:10px 14px 14px; display:grid; gap:10px; }
   /* "More" menu of a line card: the manual controls, out of the operator's daily path. */
   details.lagi { position:relative; flex:none; }
-  details.lagi > summary { list-style:none; display:grid; place-items:center; width:50px; min-height:52px;
+  details.lagi > summary { list-style:none; display:grid; place-items:center; width:44px; min-height:52px;
                            border-radius:14px; border:1px solid var(--line-kuat); background:var(--panel2);
                            color:var(--muted); cursor:pointer; }
   details.lagi > summary::-webkit-details-marker { display:none; }
@@ -1388,17 +1388,18 @@
      2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek.
      `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
      bukan mendorong tombol tetangganya. */
-  .aksi-line { display:flex; align-items:stretch; gap:6px; }
+  .aksi-line { display:flex; align-items:stretch; gap:5px; }
   .aksi-line button.reject, .aksi-line button.piston { min-height:52px; border-radius:14px; }
-  .slot-piston > button, .aksi-line > button { flex:1 1 0; min-width:0; padding-left:6px; padding-right:6px;
+  .slot-piston > button, .aksi-line > button { flex:1 1 0; min-width:0; padding-left:4px; padding-right:4px;
                         display:flex; align-items:center; justify-content:center; }
   /* Setengah kartu itu sempit: spasi huruf dan petunjuk pintas dibuat lebih
      rapat supaya "REJECT MANUAL" + pintasnya masih satu baris di layar 1680 px
      ke atas. Di layar lebih sempit labelnya turun baris di dalam tombolnya. */
   /* With its icon, "Manual Reject" + its key hint stays one line on the 1680 px card (Lampung,
-     2026-10-08) while Reject and Piston keep one width: tighter padding, gap and hint. */
-  .aksi-line .pintas { margin-left:5px; font-size:.68rem; padding:1px 5px; }
-  .aksi-line button[data-ikon] { gap:5px; }
+     2026-10-08) while Reject and Piston keep one width: tighter padding, gap, hint and a 44 px
+     more button. About 16 px to spare: CI's Linux Chromium draws the text a few px wider. */
+  .aksi-line .pintas { margin-left:4px; font-size:.64rem; padding:1px 4px; }
+  .aksi-line button[data-ikon] { gap:4px; }
   .aksi-line button[data-ikon]:not(.sibuk)::before { width:1em; height:1em; }
   button.reject { border-width:1.5px; font-size:.9rem; font-weight:800;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
