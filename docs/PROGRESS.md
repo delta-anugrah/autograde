@@ -18,6 +18,33 @@ Next:           ...
 
 ---
 
+## 2026-10-08 · console · Lampung v1.26.0 polish: scan popup, header, Rekap, button icons (PR #NNN)
+Changed:        Owner feedback after testing v1.26.0 at Lampung. Scan popup #scan-popup: solid background
+                (the see-through one vanished over the camera video), colour and step number from
+                data-langkah, the same as the Timbangan board columns (datang grey, timbang isi yellow,
+                timbang kosong blue, keluar green, failure red), plate drawn as a plate; teksPopupScan
+                returns langkah. Header: no date under the title (#hari-kerja gone), the line is company
+                then version and licence in the same type (no longer monospace); pills, clock chip, layout
+                picker and round buttons share --tinggi-kepala 48 px. Rekap filter: two rows
+                (.riwayat-baris: period with the 31-day note; Line, Plat, Hasil with Tampilkan / Unduh CSV /
+                Impor CSV on the right). Every action button carries data-ikon, an icon drawn as a CSS mask
+                (list written by scripts/ikon_tombol.py, survives the language switch, spinner takes its
+                place while busy); one size --tinggi-tombol 44 px and --lebar-tombol 9.5rem minimum (table
+                cells, queue and truck card free; queue icons hidden below 1600 px; in-field Lihat buttons
+                without icon). Reject and Piston keep one width and one line at 1680 px (tighter padding,
+                hint, Reject .9rem). More menu: picker on its own row, Tugaskan / Lepas share the next.
+                Log: level as a coloured chip (.log-tingkat, ERROR red, WARNING yellow). Auto-release toasts
+                remember what they announced per tab (sessionStorage), so the reload after Update now no
+                longer pushes the "installed" toast out of TOAST_MAKS (also failing on clean staging in
+                test_browser_pembaruan after test_browser_penugasan, Firefox).
+Validated:      .venv/bin/ruff check . → All checks passed; pytest tests/unit tests/e2e tests/integration →
+                6128 passed, 48 skipped; pytest tests/browser --browser chromium --browser firefox → 424 passed.
+                New tests: tests/unit/test_console_html_ikon_tombol.py, tests/browser/test_browser_tampilan_lampung.py.
+                By eye on the local demo (scripts/demo-konsol) at 1366, 1680, 1920 and 390 px, light and
+                dark: every view, popup per step, more menu, modal, Danger Zone, Line and Setelan sub-tabs.
+Not validated:  Not yet on the Lampung PC (Firefox kiosk at 1680 px); needs a release tag.
+Next:           Release, then check the popup over live video and the Rekap row on the Lampung kiosk.
+
 ## 2026-10-08 · console · New look: split sign-in, Timbangan and the other views (PR #257)
 Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a Lampung camera still (JPEG 54 KB as
                 a CSS data URI, scripts/tanam_foto_masuk.py, assets/masuk/masuk.jpg), one detection box, three

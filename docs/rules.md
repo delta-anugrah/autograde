@@ -403,7 +403,9 @@ end of this file.
     menembakkan Reject, dan menahan Spasi lalu menekan 1 dengan tangan tetap me-reject. Enter
     datang dari scanner sendiri (terbukti 2026-10-06 dengan CASHCOW HC-4208DB lewat Bluetooth
     di Mac, skill `scanner-qr`). **Hasilnya popup, bukan toast** (`#scan-popup`, `div` bukan
-    dialog): sukses menutup sendiri dalam 4 detik, gagal dan peringatan 8 detik, isinya
+    dialog; latar padat, warna dan nomor langkah sama dengan kolom papan Timbangan: datang abu,
+    timbang isi kuning, timbang kosong biru, keluar hijau, gagal merah; Lampung 2026-10-08):
+    sukses menutup sendiri dalam 4 detik, gagal dan peringatan 8 detik, isinya
     langkah, plat, berat, supplier, dan line menurut urutan kartu (`teksPopupScan`). Berat yang
     belum bisa diambil dari timbangan (`perlu_berat`) membuka popup berat dengan kolom angka:
     Enter menyimpan, scan QR yang sama = simpan, scan QR lain menutupnya dan mengirim QR itu,

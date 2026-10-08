@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.28"
+versi: "2.29"
 tanggal: 8 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -138,9 +138,10 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   akun support juga Log, Status, Akun, Line, Setelan di bawah garis **Support**). Tombol
   berikon panel di kiri atas **menyembunyikan menu** supaya kamera dapat ruang lebih; ketuk lagi
   untuk memunculkannya. Pilihannya diingat browser itu. Di kepala layar: tulisan **AutoGrade**
-  (layar yang terbuka ditandai biru di menu kiri), tanggal hari kerja dan nama perusahaan, pil
+  (layar yang terbuka ditandai biru di menu kiri), nama perusahaan, versi dan lisensi, pil
   **AutoERP** dan **Cloud Photo**, jam, lalu tombol bundar: **Tata letak** (ikon kotak-kotak,
-  layar Grading saja), **Segarkan**, bahasa (**EN** / **ID**), dan tema. Tema bawaan terang
+  layar Grading saja), **Segarkan**, bahasa (**EN** / **ID**), dan tema, semuanya setinggi sama.
+  Tanggal ada di jam, tidak lagi di bawah tulisan AutoGrade. Tema bawaan terang
   (untuk layar di bawah matahari); **Gelap** satu ketukan. **Nama operator dan Keluar** ada di
   bawah menu kiri (bulatan inisial, misalnya **OL**); kalau menu disembunyikan, munculkan dulu.
 - **Layar Grading muat satu layar tanpa scroll** di layar lebar: tiga kartu ringkasan (Janjang
@@ -149,7 +150,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   layar Grading; di layar lain tidak tampil, tapi **Spasi + angka** dan **P + angka** tetap
   bekerja dari layar mana pun, selama kursor tidak sedang di kolom isian (misalnya kolom scan
   di layar Timbangan saat Scanner QR nyala).
-- **Di bawah tulisan AutoGrade** (semua akun): versi dan sampai kapan lisensi PC ini berlaku,
+- **Di bawah tulisan AutoGrade** (semua akun): nama perusahaan, lalu versi dan sampai kapan lisensi PC ini berlaku,
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
@@ -320,13 +321,14 @@ Scan QR cuma jalan kalau support menyalakan **Scanner QR** di tab Setelan; kalau
 **Satu kolom scan (sejak 6 Oktober 2026).** Operator cukup scan QR truk; konsol melihat
 sampai mana truk itu dan mencatat langkah berikutnya: belum ada kunjungan = **Datang**, sudah
 datang = **Timbang isi**, sudah timbang isi = **Timbang kosong**, sudah timbang kosong =
-**Keluar** (sampai 2 jam sesudah timbang kosong; lebih dari itu dianggap truk datang lagi). Hasilnya muncul sebagai **popup** yang menutup sendiri (hijau 4 detik kalau tercatat; merah
+**Keluar** (sampai 2 jam sesudah timbang kosong; lebih dari itu dianggap truk datang lagi). Hasilnya muncul sebagai **popup** berlatar padat yang menutup sendiri (4 detik kalau tercatat, warnanya sama
+dengan kolom papan Timbangan: **1 Datang** abu, **2 Timbang isi** kuning, **3 Timbang kosong** biru, **4 Keluar** hijau; merah
 8 detik untuk peringatan dan scan yang gagal), menyebut langkah, plat, berat, supplier, dan line menurut urutan kartu. Scan yang
 terbaca setengah (scanner terputus di tengah) menghasilkan "Scan tidak terbaca, ulangi scan";
 scan lagi saja. Berat diambil
 dari timbangan kalau angkanya sudah **Stabil**; kalau timbangan belum tersambung atau angkanya
-masih bergerak, popup **kuning** meminta berat: ketik angkanya lalu Enter (atau scan QR truk yang sama
-lagi untuk menyimpan). Huruf tidak pernah jadi berat. Popup kuning ini tetap terbuka sampai
+masih bergerak, popup berat (kuning untuk timbang isi, biru untuk timbang kosong) meminta berat: ketik angkanya lalu Enter (atau scan QR truk yang sama
+lagi untuk menyimpan). Huruf tidak pernah jadi berat. Popup berat ini tetap terbuka sampai
 beratnya tersimpan, Esc, scan QR truk lain, atau 60 detik tanpa tombol. Spasi+angka dan P+angka
 tetap jadi Reject dan piston, angkanya tidak masuk kotak berat. Kotak Bruto dan bar tara di tab
 Timbangan tetap ada untuk mengetik dengan tangan.
@@ -1101,6 +1103,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.29 | 8 Oktober 2026 | §3.2: semua tombol aksi berikon dan seukuran; kepala layar tanpa tanggal (perusahaan, versi, lisensi), pil dan tombol bundar setinggi sama. §3.3: popup scan berlatar padat, warna dan nomor per langkah sama dengan papan Timbangan. Tab Rekap: saringan dua baris, tombol Tampilkan / Unduh CSV / Impor CSV di kanan. Tab Log: level ERROR merah, WARNING kuning. |
 | 2.28 | 8 Oktober 2026 | §3.2: angka FPS yang ditulis line di video pindah ke pojok kanan atas (pojok kiri atas tertutup nama line di kartu). §3.5: Setelan jadi panel lipat per kategori, Mode Developer satu tombol Simpan. §3.3, §3.4: papan truk empat kolom di tab Timbangan, di atas tabel; strip empat langkah di atas form dibuang. §3.1: layar masuk terbelah dua (foto kamera dengan kotak deteksi dan tiga keterangan, form dengan tombol akun berinisial dan tombol ID / EN). §3.2: tombol Lepas dan antrean bongkar 44 px dan tidak terpotong di 1366 px. §3.4: Timbangan memakai dua kotak Neto hari ini dan Tiket hari ini; plat di tabel bergaya pelat nomor; JK ungu di ringkasan Rekap. Menu kiri yang disembunyikan tidak lagi kena tombol Tab, menu ⋯ kartu line bisa ditutup dengan Esc. |
 | 2.27 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi tulisan AutoGrade, tanggal, perusahaan, pil AutoERP / Cloud Photo, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |
 | 2.26 | 7 Oktober 2026 | §3.2 dan §3.5: gambar kamera di kartu line utuh dengan bentuk asli kamera (tidak dipotong, tidak gepeng); angka garis capture dan kotak area deteksi dibaca sebagai skala 1280 x 720 yang direntangkan ke seluruh gambar, bukan piksel video. Angka yang sudah tersimpan tidak berubah artinya. |

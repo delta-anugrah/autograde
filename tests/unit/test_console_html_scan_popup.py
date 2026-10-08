@@ -62,9 +62,31 @@ def test_berat_dari_timbangan_asli_tanpa_tanda_dummy_dan_tanpa_supplier_jadi_int
 @butuh_node
 def test_datang_dan_keluar_tanpa_berat():
     datang = _j('teksPopupScan({hasil:"tercatat", langkah:"datang", plate_number:"B 1 AA", supplier:"PT X"})')
-    assert datang == {"jenis": "sukses", "judul": "Datang", "baris": ["B 1 AA", "PT X"]}
+    assert datang == {"jenis": "sukses", "langkah": "datang", "judul": "Datang", "baris": ["B 1 AA", "PT X"]}
     keluar = _j('teksPopupScan({hasil:"tercatat", langkah:"keluar", plate_number:"B 1 AA", supplier:"PT X"})')
-    assert keluar["judul"] == "Keluar"
+    assert keluar["judul"] == "Keluar" and keluar["langkah"] == "keluar"
+
+
+@butuh_node
+def test_tiap_langkah_membawa_warnanya_sendiri():
+    # Lampung 2026-10-08: each scan step coloured like its Timbangan board column.
+    for langkah in ("datang", "timbang_isi", "timbang_kosong", "keluar"):
+        h = _j(f'teksPopupScan({{hasil:"tercatat", langkah:"{langkah}", plate_number:"B 1 AA"}})')
+        assert h["langkah"] == langkah
+    gagal = _j('teksPopupScan({hasil:"belum_terdaftar", plate_number:"B 9 ZZ"})')
+    assert "langkah" not in gagal
+
+
+def test_popup_berlatar_padat_dan_warna_sama_dengan_papan_timbangan():
+    # A see-through popup vanished over the camera video at Lampung (v1.26.0).
+    aturan = re.search(r"#scan-popup \{([^}]*)\}", HTML).group(1)
+    assert "var(--card)" in aturan and "background:linear-gradient" in aturan
+    warna = {"datang": "--muted", "timbang_isi": "--warn", "timbang_kosong": "--info", "keluar": "--acc"}
+    for langkah, token in warna.items():
+        assert re.search(rf'#scan-popup\[data-langkah="{langkah}"\]\s*\{{\s*--warna-tahap:var\({token}\)', HTML), langkah
+        papan = {"datang": "datang", "timbang_isi": "bongkar", "timbang_kosong": "kosong", "keluar": "selesai"}[langkah]
+        assert re.search(rf'\.papan-kolom\[data-kolom="{papan}"\]\s*\{{\s*--warna-tahap:var\({token}\)', HTML), papan
+    assert "el.dataset.langkah = langkah;" in HTML
 
 
 @butuh_node

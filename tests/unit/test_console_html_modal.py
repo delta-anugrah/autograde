@@ -36,7 +36,7 @@ def test_komponen_modal_satu_aturan():
     assert "padding" in _aturan(".modal-isi")
     tombol = _aturan(".modal-tombol > button")
     # One width for every button in the row (F5), large enough for a gloved thumb.
-    assert "flex:1 1 0" in tombol and "min-height:48px" in tombol
+    assert "flex:1 1 0" in tombol and "min-height:var(--tinggi-tombol)" in tombol
 
 
 @pytest.mark.parametrize("id_", DIALOG_TEKS)

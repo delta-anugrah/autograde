@@ -54,7 +54,7 @@ def test_save_stays_off_until_the_stored_cutoff_is_loaded():
     muat = fungsi("muatCutoffSetelan")
     assert muat.index('$("set-cutoff-simpan").disabled = true') < muat.index('api("/api/console/dev/shift")')
     assert '$("set-cutoff-simpan").disabled = false' in muat.split("catch")[0]
-    assert '<button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled>' in HTML
+    assert re.search(r'<button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled[ >]', HTML)
 
 
 @butuh_node
