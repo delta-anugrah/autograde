@@ -2796,7 +2796,8 @@
         </label>
       </div>
     </div>
-    <!-- Timbangan dummy (2026-10-07): its own switch and Simpan, like the scanner form. -->
+    <!-- Timbangan dummy (2026-10-07). Its own endpoint, but saved by the one Simpan below since
+         2026-10-08 (owner: one Save on Developer Mode). -->
     <div class="setelan-grup" data-setelan-grup="dev">
       <div class="setelan-grup-isi">
         <label class="saklar">
@@ -2806,7 +2807,6 @@
             <small class="muted" data-t="hintTimbanganDummy">Untuk mencoba alur scan sebelum timbangan tersambung. Datanya tetap dikirim ke AutoERP.</small>
           </span>
         </label>
-        <button type="button" id="set-dummy-simpan" class="utama" data-t="btnSimpanDummy">Simpan timbangan dummy</button>
       </div>
     </div>
 
@@ -3646,7 +3646,7 @@ const KAMUS = {
     btnSimpanScanner:"Simpan scanner", scannerTersimpan:"Setelan scanner tersimpan.",
     lbTimbanganDummy:"Timbangan dummy: scan menyimpan 30.000 kg isi dan 10.000 kg kosong",
     hintTimbanganDummy:"Untuk mencoba alur scan sebelum timbangan tersambung. Datanya tetap dikirim ke AutoERP.",
-    btnSimpanDummy:"Simpan timbangan dummy", dummyTersimpan:"Setelan timbangan dummy tersimpan.",
+    dummyTersimpan:"Setelan timbangan dummy tersimpan.",
     pitaTimbanganDummy:"TIMBANGAN DUMMY: scan menyimpan 30.000 kg (isi) dan 10.000 kg (kosong), dan tetap dikirim ke AutoERP",
     timbangDummy:"Dummy",
     antreanBongkarOtomatis:"Antrean bongkar (otomatis)",
@@ -4239,7 +4239,7 @@ const KAMUS = {
     btnSimpanScanner:"Save scanner", scannerTersimpan:"Scanner setting saved.",
     lbTimbanganDummy:"Dummy scale: scans save 30,000 kg gross and 10,000 kg tare",
     hintTimbanganDummy:"To try the scan flow before the scale is connected. The data still goes to AutoERP.",
-    btnSimpanDummy:"Save dummy scale", dummyTersimpan:"Dummy scale setting saved.",
+    dummyTersimpan:"Dummy scale setting saved.",
     pitaTimbanganDummy:"DUMMY SCALE: scans save 30,000 kg (gross) and 10,000 kg (tare), and still go to AutoERP",
     timbangDummy:"Dummy",
     antreanBongkarOtomatis:"Unloading queue (automatic)",
@@ -11224,27 +11224,17 @@ $("set-scanner-simpan").addEventListener("click", (ev) => denganSibuk(ev.current
   }
 }));
 
-// Saklar timbangan dummy: jalurnya sendiri, seperti scanner.
+// Saklar timbangan dummy: endpoint sendiri, disimpan oleh Simpan utama kalau berubah.
+let dummyTersimpanNilai = false;
 async function muatDummy() {
   try {
     const r = await api("/api/console/dev/timbangan-dummy");
-    $("set-dummy").checked = Boolean(r.aktif);
+    dummyTersimpanNilai = Boolean(r.aktif);
+    $("set-dummy").checked = dummyTersimpanNilai;
   } catch (e) {
     if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
   }
 }
-
-$("set-dummy-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
-  try {
-    await api("/api/console/dev/timbangan-dummy", {
-      method: "POST", body: JSON.stringify({ aktif: $("set-dummy").checked }),
-    });
-    toastSukses(t("dummyTersimpan"));
-    await refresh();
-  } catch (e) {
-    toastGagal(alasan(e, "gagalSetelan"));
-  }
-}));
 
 $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const pesan = $("set-pesan");
@@ -11276,6 +11266,15 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
     const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
     if (belum.length) toastPeringatan(t("setelanTersimpanSebagian").replace("{lines}", belum.join(", ")));
     else toastSukses(t("setelanTersimpan"));
+    // The dummy scale switch has its own endpoint; one Save covers it (owner 2026-10-08).
+    if ($("set-dummy").checked !== dummyTersimpanNilai) {
+      await api("/api/console/dev/timbangan-dummy", {
+        method: "POST", body: JSON.stringify({ aktif: $("set-dummy").checked }),
+      });
+      dummyTersimpanNilai = $("set-dummy").checked;
+      toastSukses(t("dummyTersimpan"));
+      await refresh();
+    }
   } catch (e) {
     pesan.textContent = alasan(e, "gagalSetelan");
     // Server menyebut nama field di pesannya (SetelanTidakSah, tanpa kode); kolomnya ikut

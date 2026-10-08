@@ -19,7 +19,7 @@ def _simpan(halaman, nyala: bool) -> None:
     saklar = halaman.locator("#set-dummy")
     expect(saklar).to_be_checked(checked=not nyala)
     saklar.set_checked(nyala)
-    halaman.click("#set-dummy-simpan")
+    halaman.click("#set-simpan")  # one Save on Developer Mode since 2026-10-08
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "dummyTersimpan"))
 
 
