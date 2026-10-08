@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-08 · console · Lampung v1.26.0 polish: scan popup, header, Rekap, button icons (PR #NNN)
+## 2026-10-08 · console · Lampung v1.26.0 polish: scan popup, header, Rekap, button icons (PR #259)
 Changed:        Owner feedback after testing v1.26.0 at Lampung. Scan popup #scan-popup: solid background
                 (the see-through one vanished over the camera video), colour and step number from
                 data-langkah, the same as the Timbangan board columns (datang grey, timbang isi yellow,
