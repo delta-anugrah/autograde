@@ -555,37 +555,13 @@
   .tools.timbang-alat.berdiri { border-bottom:1px solid var(--line); border-radius:var(--r-md); margin-bottom:16px; }
   .timbang-alat :is(button, input, .pilih-tombol) { min-height:var(--tinggi-timbang); }
 
-  /* Strip langkah. Warna garis atas ruas = warna lencana tahap di kolom Status, jadi baris
-     tabel dan langkahnya tersambung sekali lihat. */
-  .timbang-langkah { list-style:none; margin:0; padding:0; display:grid;
-                     grid-template-columns:minmax(0, 1fr); gap:8px; }
-  /* Redrawn 2026-10-05 (user: "more attractive"): a card washed in its stage colour, an icon
-     tile in that colour from 1280 px (below it the pill needs the width), the pill and the
-     sentence beside it. `color-mix` tints; a browser without it keeps the plain card. */
-  .langkah-ruas { position:relative; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr);
-                  align-content:start; row-gap:6px; column-gap:12px;
-                  padding:12px 14px; background:var(--card); border:1px solid var(--line);
-                  border-top:4px solid var(--warna-tahap, var(--line-kuat));
-                  border-radius:var(--r-md); box-shadow:var(--tinggi-1);
-                  background:linear-gradient(135deg, color-mix(in srgb, var(--latar-tahap) 70%, var(--card)), var(--card) 75%);
-                  border-color:color-mix(in srgb, var(--warna-tahap) 35%, var(--line)); }
+  /* Stage colours (forms, board, badges): one per step. */
   .ruas-datang  { --warna-tahap:var(--line-kuat); --latar-tahap:var(--zebra); --ikon-tahap:var(--muted); }
   .ruas-bongkar { --warna-tahap:var(--warn); --latar-tahap:var(--warn-bg); --ikon-tahap:var(--warn); }
   .ruas-kosong  { --warna-tahap:var(--info); --latar-tahap:var(--info-bg); --ikon-tahap:var(--info); }
   .ruas-selesai { --warna-tahap:var(--acc); --latar-tahap:var(--acc-bg); --ikon-tahap:var(--acc); }
-  .langkah-ruas { border-top-color:var(--warna-tahap); }
-  .langkah-ikon { display:none; place-items:center; width:2.9rem; height:2.9rem; border-radius:var(--r-sm);
-                  color:var(--ikon-tahap); background:var(--latar-tahap);
-                  border:1px solid color-mix(in srgb, var(--warna-tahap) 45%, transparent); }
-  .langkah-ikon svg { width:1.5rem; height:1.5rem; }
-  @media (min-width:1280px) {
-    .langkah-ruas { grid-template-columns:auto minmax(0, 1fr); }
-    .langkah-ikon { display:grid; grid-row:1 / span 3; align-self:center; }
-    .langkah-ruas > :not(.langkah-ikon) { grid-column:2; }
-  }
-  /* Langkah 3 menyala selama bar tara terbuka: bar di bawah dan ruasnya satu warna. Cuma
-     warna yang berubah, garisnya sama tebal, jadi tidak ada yang bergeser. */
-  .langkah-ruas.aktif { background:var(--info-bg); border-color:var(--info); }
+  /* The tara bar lights the board's "Timbang kosong" column (it held strip step 3 until 2026-10-08). */
+  .papan-kolom.aktif { border-color:var(--info); box-shadow:0 0 0 2px var(--info-bg), var(--bayang-kartu); }
   /* Satu baris, tidak pernah dua: lencana Menunggu berubah tiap poll 15 detik, dan ruas yang
      meninggi saat ada truk datang menggeser form dan tabel di bawah tangan operator. Kalau
      ruasnya terlalu sempit, lencananya yang terpotong, bukan barisnya yang turun. */
@@ -597,13 +573,11 @@
                     background:var(--card); border:1px solid var(--line-kuat);
                     font-size:.75rem; font-weight:700; line-height:1.3; color:var(--fg); }
   .langkah-hitung[hidden] { display:none; }
-  .langkah-di { font-size:.9rem; line-height:1.35; color:var(--muted); }
-  /* Pesan langkah 4 (scan keluar dan tombol Keluar di baris) menggantikan kalimat petunjuknya
-     selama ada, di tempat yang sama: ruasnya tidak bertambah satu baris kosong untuk pesan
-     yang belum ada. */
-  .langkah-ruas .scan-pesan { min-height:0; font-size:.85rem; line-height:1.3; }
-  .langkah-ruas .scan-pesan:empty { display:none; }
-  .langkah-ruas .scan-pesan:not(:empty) + .langkah-di { display:none; }
+  /* Form heading: the step's name and, on form 1, the waiting count. */
+  .timbang-form-kepala { display:flex; align-items:center; gap:8px; min-width:0; margin-bottom:4px; }
+  .timbang-form-kepala .lb.langkah { flex:none; white-space:nowrap; }
+  .papan-pesan { min-height:0; font-size:.85rem; line-height:1.3; }
+  .papan-pesan:empty { display:none; }
   /* Satu kolom scan (2026-10-06): selebar kotak alat, di atas strip langkah, huruf besar supaya
      plat yang baru terbaca kelihatan dari jauh. Baris pesannya selalu setinggi satu baris
      (`.scan-pesan` min-height), jadi strip di bawahnya tidak bergeser saat pesan datang. */
@@ -612,21 +586,6 @@
   .scan-otomatis[hidden] { display:none; }
   .timbang-alat .scan-otomatis input.plat { width:100%; max-width:none; font-size:1.25rem; }
   .scan-otomatis .scan-pesan { grid-column:1 / -1; }
-  /* 2 x 2 dari 600 px, empat sejajar dari 960 px dengan panah di celahnya: di bawah itu pita
-     "3. Timbang kosong" tidak muat satu baris di ruas seperempat lebar. */
-  @media (min-width:600px) {
-    .timbang-langkah { grid-template-columns:repeat(2, minmax(0, 1fr)); }
-  }
-  @media (min-width:960px) {
-    .timbang-langkah { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:24px; }
-    /* The arrow between two cards: a small round chip on the gap, so it reads as a step
-       onward rather than a stray mark. */
-    .langkah-ruas:not(:last-child)::after { content:""; position:absolute; top:50%; right:-20px;
-      z-index:1; width:16px; height:16px; border-radius:50%; background:var(--card);
-      border:1px solid var(--line-kuat); transform:translateY(-50%);
-      background-image:var(--chev); background-size:12px; background-repeat:no-repeat;
-      background-position:center; rotate:-90deg; }
-  }
 
   /* Dua form, berdampingan dari 1100 px, bertumpuk di bawahnya. Garis kiri berwarna tahapnya,
      sama dengan garis atas ruas langkahnya di strip. */
@@ -2433,48 +2392,6 @@
       <span id="scan-otomatis-pesan" class="scan-pesan" role="status"></span>
     </div>
     <!--
-      Strip empat langkah (user 2026-10-03): tiap ruas = pita tahap + di mana langkah itu
-      dikerjakan. Langkah 3 dan 4 tidak punya kontrol sendiri (tombolnya di baris tabel),
-      jadi tidak diberi kartu berisi kotak kosong.
-      Scan 1 dan 4 (2026-09-30): jam datang dan jam keluar gerbang, cuma disimpan di PC ini.
-      Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
-    -->
-    <ol class="timbang-langkah">
-      <li class="langkah-ruas ruas-datang">
-        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 4v2h-8"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></span>
-        <span class="langkah-kepala">
-          <label class="lb langkah tahap-datang" id="lb-langkah-datang" data-t="lbDatang">1. Datang</label>
-          <!-- Jumlah truk yang menunggu timbang isi; platnya di `title` dan sebagai baris
-               DATANG di tabel. Disembunyikan kalau nol. -->
-          <span id="antre" class="langkah-hitung" hidden></span>
-        </span>
-        <span class="langkah-di" data-t="hintDatang">Pilih truk, lalu Catat datang</span>
-      </li>
-      <li class="langkah-ruas ruas-bongkar">
-        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M8 8l4 4 4-4"/><path d="M3 16h18v4H3z"/></svg></span>
-        <span class="langkah-kepala">
-          <label class="lb langkah tahap-bongkar" id="lb-langkah-isi" data-t="lbGerbangMasuk">2. Timbang isi</label>
-        </span>
-        <span class="langkah-di" data-t="hintTimbangIsi">Pilih truk, isi Bruto, lalu Timbang isi</span>
-      </li>
-      <li class="langkah-ruas ruas-kosong" id="ruas-kosong">
-        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12V3"/><path d="M8 7l4-4 4 4"/><path d="M3 16h18v4H3z"/></svg></span>
-        <span class="langkah-kepala">
-          <label class="lb langkah tahap-kosong" data-t="lbGerbangKeluar">3. Timbang kosong</label>
-        </span>
-        <span id="petunjuk-keluar" class="langkah-di" data-t="hintGerbangKeluar">Tekan Timbang kosong di baris truknya</span>
-      </li>
-      <li class="langkah-ruas ruas-selesai">
-        <span class="langkah-ikon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg></span>
-        <span class="langkah-kepala">
-          <label class="lb langkah tahap-selesai" data-t="lbPergi">4. Keluar</label>
-        </span>
-        <!-- Pesan sebelum petunjuknya: selama ada, ia menggantikan petunjuk di tempat yang sama. -->
-        <span id="scan-pergi-pesan" class="scan-pesan" role="status"></span>
-        <span id="petunjuk-pergi" class="langkah-di" data-t="hintPergi">Tekan Keluar di baris truknya</span>
-      </li>
-    </ol>
-    <!--
       Dua form sama lebar dan sama tinggi, isinya cuma satu baris kontrol. Pesan scan dan
       petunjuk desimal berbagi SATU baris di bawah keduanya (`.timbang-kaki`), jadi tidak ada
       form yang lebih tinggi atau berpita kosong. Hasil scan punya tempatnya sendiri, bukan
@@ -2483,6 +2400,12 @@
     -->
     <div class="timbang-aksi">
       <div class="timbang-form ruas-datang" role="group" aria-labelledby="lb-langkah-datang">
+        <!-- The step names live on the forms since the strip went (owner 2026-10-08): the board
+             under them shows where every truck is. The waiting count stays here, hidden at zero. -->
+        <div class="timbang-form-kepala">
+          <label class="lb langkah tahap-datang" id="lb-langkah-datang" data-t="lbDatang">1. Datang</label>
+          <span id="antre" class="langkah-hitung" hidden></span>
+        </div>
         <div class="timbang-kontrol">
           <div class="pilih" id="plat-datang" data-nilai="">
             <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
@@ -2493,6 +2416,9 @@
       </div>
       <span id="scan-datang-pesan" class="scan-pesan timbang-kaki kaki-datang" role="status"></span>
       <div class="timbang-form ruas-bongkar timbang-isi" role="group" aria-labelledby="lb-langkah-isi">
+        <div class="timbang-form-kepala">
+          <label class="lb langkah tahap-bongkar" id="lb-langkah-isi" data-t="lbGerbangMasuk">2. Timbang isi</label>
+        </div>
         <div class="timbang-kontrol">
           <div class="pilih" id="plat-timbang" data-nilai="">
             <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
@@ -2549,7 +2475,7 @@
         <b class="papan-jumlah" id="papan-jumlah-bongkar">0</b></div>
       <div class="papan-isi" id="papan-isi-bongkar"></div>
     </div>
-    <div class="papan-kolom" data-kolom="kosong">
+    <div class="papan-kolom" data-kolom="kosong" id="ruas-kosong">
       <div class="papan-kepala"><span class="papan-no">3</span>
         <span class="papan-judul"><strong data-t="tahapTimbangKosong">Timbang kosong</strong><span data-t="papanSubKosong">Tinggal keluar</span></span>
         <b class="papan-jumlah" id="papan-jumlah-kosong">0</b></div>
@@ -2559,6 +2485,8 @@
       <div class="papan-kepala"><span class="papan-no">4</span>
         <span class="papan-judul"><strong data-t="tahapSelesai">Selesai</strong><span data-t="papanSubSelesai">Sudah keluar hari ini</span></span>
         <b class="papan-jumlah" id="papan-jumlah-selesai">0</b></div>
+      <!-- Result of Keluar (button or exit scan), in the column it lands in. -->
+      <span id="scan-pergi-pesan" class="scan-pesan papan-pesan" role="status"></span>
       <div class="papan-isi" id="papan-isi-selesai"></div>
     </div>
   </section><!-- /papan-timbang -->

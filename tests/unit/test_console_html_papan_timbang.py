@@ -110,3 +110,18 @@ def test_unloading_column_puts_the_truck_on_the_lines_first_then_the_queue_in_or
     awal = f"let lineTerakhir = {json.dumps(lines)}; let antreanTerakhir = {json.dumps(antrean)};"
     urut = jalankan(["urutBongkar"], f"urutBongkar({json.dumps(items)}).map((w) => w.id)", tambahan=awal)
     assert urut == ["w1", "w2", "w3"]
+
+
+def test_the_step_strip_is_gone_and_its_parts_moved():
+    """Owner 2026-10-08: the strip above the forms doubled the board's columns."""
+    sec = HTML.split('<section id="sec-timbangan"', 1)[1].split('<section id="sec-rekap"', 1)[0]
+    assert 'class="timbang-langkah"' not in sec and "langkah-ruas" not in sec
+    # The forms name themselves (aria-labelledby kept) and the waiting count rides on form 1.
+    form1 = sec.split('<div class="timbang-form ruas-datang"', 1)[1].split('id="scan-datang-pesan"', 1)[0]
+    assert 'id="lb-langkah-datang"' in form1 and 'id="antre"' in form1
+    form2 = sec.split('<div class="timbang-form ruas-bongkar timbang-isi"', 1)[1].split("bruto-petunjuk", 1)[0]
+    assert 'id="lb-langkah-isi"' in form2
+    papan = sec.split('id="papan-timbang"', 1)[1].split("<!-- /papan-timbang -->", 1)[0]
+    # The tara bar lights column 3; the exit message sits in column 4.
+    assert re.search(r'data-kolom="kosong" id="ruas-kosong"', papan)
+    assert 'id="scan-pergi-pesan"' in papan.split('data-kolom="selesai"', 1)[1]

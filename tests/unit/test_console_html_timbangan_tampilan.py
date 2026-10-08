@@ -25,13 +25,6 @@ def test_the_tiles_sit_before_the_tools():
     assert sec.index('class="timbang-kepala"') < sec.index('class="tools timbang-alat berdiri"')
 
 
-def test_step_arrows_sit_in_a_wide_gap():
-    gap = re.search(r"\.timbang-langkah \{ grid-template-columns:repeat\(4, minmax\(0, 1fr\)\); gap:(\d+)px", HTML)
-    assert gap and int(gap.group(1)) >= 24
-    panah = re.search(r"\.langkah-ruas:not\(:last-child\)::after \{([^}]*)\}", HTML).group(1)
-    assert re.search(r"right:-(\d+)px", panah).group(1) == str(int(gap.group(1)) // 2 + 8)
-
-
 def test_forms_are_cards_on_the_band():
     aturan = re.search(r"\n  \.timbang-form \{([^}]*)\}", HTML).group(1)
     assert "background:var(--card)" in aturan and "var(--zebra)" not in aturan

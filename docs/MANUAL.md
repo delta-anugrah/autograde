@@ -286,18 +286,15 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   atau membuang sesuatu.
 - Sumber TBS **Internal** ditandai "REJ tidak dibuang": buah kebun sendiri tetap dinilai, tapi
   piston tidak membuangnya.
-- Di atas tabel Timbangan ada strip empat langkah: **1. Datang**, **2. Timbang isi**,
-  **3. Timbang kosong**, **4. Keluar**, sama lebar dan sama tinggi, dengan panah di antaranya;
-  tiap kartu berwarna tahapnya dan, di layar lebar, berikon (truk, timbang isi, timbang kosong, bendera).
-  Tiap langkah menulis di mana ia dikerjakan (misalnya "Tekan Keluar di baris truknya"); langkah
-  1 juga menampilkan lencana **Menunggu n**, jumlah truk yang sudah datang tapi belum timbang
-  isi. Di bawah strip ada dua form yang sama lebar: **Datang** (pilih truk, **Catat datang**)
-  dan **Timbang isi** (pilih truk, **Bruto**, **Timbang isi**), lalu satu baris kecil untuk
-  pesan scan dan petunjuk desimal. Langkah 3 dan 4 tidak punya form: tombolnya ada di baris
-  tabel. Setelah **Timbang kosong** ditekan di baris truk, bar biru selebar layar muncul di
+- Di atas tab Timbangan ada dua form yang sama lebar: **1. Datang** (pilih truk, **Catat datang**;
+  lencana **Menunggu n** di judulnya = truk yang sudah datang tapi belum timbang isi) dan
+  **2. Timbang isi** (pilih truk, **Bruto**, **Timbang isi**), lalu satu baris kecil untuk
+  pesan scan dan petunjuk desimal. Langkah 3 dan 4 tidak punya form: tombolnya ada di kartu
+  papan truk (kolom **Timbang kosong** dan **Keluar**) dan di baris tabel. Strip empat langkah
+  yang dulu ada di atas form dibuang 8 Oktober 2026; papan truk menggantikannya. Setelah **Timbang kosong** ditekan di baris truk, bar biru selebar layar muncul di
   bawah kedua form: **Timbang kosong** dengan plat truknya, kolom **Tara**, **Simpan**,
-  **Batal**, satu baris; langkah 3 di strip ikut menyala biru selama bar itu terbuka. Di layar
-  sempit strip jadi 2 x 2 lalu satu kolom, dan kedua form bertumpuk. Kalau support menyalakan
+  **Batal**, satu baris; kolom **Timbang kosong** di papan ikut menyala biru selama bar itu
+  terbuka. Di layar sempit kedua form bertumpuk. Kalau support menyalakan
   **Scanner QR** di tab Setelan, di atas strip muncul **satu kolom Scan QR truk** untuk
   mengetik plat dengan tangan. Scan dengan scanner jalan **dari tab mana pun**, tanpa klik
   apa pun dulu, dan hasilnya muncul sebagai popup di tengah layar. Plat
@@ -364,8 +361,8 @@ didaftarkan di tab Truk; kalau tidak ada yang
 menunggu, daftarnya seperti biasa. Daftar itu diperbarui tiap 15 detik tanpa mengubah plat yang
 sudah dipilih, dan tidak dibangun ulang selama sedang dibuka. Pilih truk, Bruto dan tombol **Timbang isi** berada
 satu baris; petunjuk desimal ada di bawah form itu dan juga muncul kalau kursor diam di kolom
-Bruto. Strip langkah berdiri dalam satu baris mulai lebar layar sekitar 960 px, dan kedua form
-berdampingan mulai sekitar 1.100 px; di layar lebih sempit keduanya bertumpuk.
+Bruto. Kedua form berdampingan mulai lebar layar sekitar 1.100 px; di layar lebih sempit keduanya
+bertumpuk.
 
 **Batal datang.** Kalau truk yang dicatat datang ternyata tidak akan ditimbang (salah pilih truk
 di dropdown, atau truknya ditolak di gerbang), tekan **Batal datang** di baris **Datang**-nya.
@@ -1101,7 +1098,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.28 | 8 Oktober 2026 | §3.4: papan truk empat kolom di tab Timbangan, di atas tabel. §3.1: layar masuk terbelah dua (foto kamera dengan kotak deteksi dan tiga keterangan, form dengan tombol akun berinisial dan tombol ID / EN). §3.2: tombol Lepas dan antrean bongkar 44 px dan tidak terpotong di 1366 px. §3.4: Timbangan memakai dua kotak Neto hari ini dan Tiket hari ini; plat di tabel bergaya pelat nomor; JK ungu di ringkasan Rekap. Menu kiri yang disembunyikan tidak lagi kena tombol Tab, menu ⋯ kartu line bisa ditutup dengan Esc. |
+| 2.28 | 8 Oktober 2026 | §3.3, §3.4: papan truk empat kolom di tab Timbangan, di atas tabel; strip empat langkah di atas form dibuang. §3.1: layar masuk terbelah dua (foto kamera dengan kotak deteksi dan tiga keterangan, form dengan tombol akun berinisial dan tombol ID / EN). §3.2: tombol Lepas dan antrean bongkar 44 px dan tidak terpotong di 1366 px. §3.4: Timbangan memakai dua kotak Neto hari ini dan Tiket hari ini; plat di tabel bergaya pelat nomor; JK ungu di ringkasan Rekap. Menu kiri yang disembunyikan tidak lagi kena tombol Tab, menu ⋯ kartu line bisa ditutup dengan Esc. |
 | 2.27 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi tulisan AutoGrade, tanggal, perusahaan, pil AutoERP / Cloud Photo, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |
 | 2.26 | 7 Oktober 2026 | §3.2 dan §3.5: gambar kamera di kartu line utuh dengan bentuk asli kamera (tidak dipotong, tidak gepeng); angka garis capture dan kotak area deteksi dibaca sebagai skala 1280 x 720 yang direntangkan ke seluruh gambar, bukan piksel video. Angka yang sudah tersimpan tidak berubah artinya. |
 | 2.25 | 7 Oktober 2026 | §3.2, §3.3, §3.5, §7: **Update now** melepas truk sendiri (konsol bertanya dulu, lalu layar penuh menunggu sampai selesai, notifikasi hasil sesudah halaman termuat ulang). Scan QR jalan dari tab mana pun dan hasilnya popup yang menutup sendiri; berat diketik di popup. Saklar support **Timbangan dummy** di Mode Developer (30.000 / 10.000 kg, pita oranye). |

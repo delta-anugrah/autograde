@@ -150,8 +150,8 @@ _TAHAP = {  # stage from the backend -> CSS class, KAMUS key
     "timbang_kosong": ("tahap-kosong", "tahapTimbangKosong"),
     "selesai": ("tahap-selesai", "tahapSelesai"),
 }
-_LANGKAH = {"lbDatang": "tahap-datang", "lbGerbangMasuk": "tahap-bongkar",
-            "lbGerbangKeluar": "tahap-kosong", "lbPergi": "tahap-selesai"}
+# Steps 1 and 2 name the forms; 3 and 4 are board columns since 2026-10-08 (no label there).
+_LANGKAH = {"lbDatang": "tahap-datang", "lbGerbangMasuk": "tahap-bongkar"}
 
 
 def _kepala_tabel() -> str:

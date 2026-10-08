@@ -683,13 +683,12 @@ def test_strip_empat_langkah_dan_dua_form_yang_lebarnya_ditentukan_layar():
     assert "2.1fr" not in HTML and "1.6fr" not in HTML
     alat = _aturan(".tools.timbang-alat")
     assert "display:grid" in alat and "grid-template-columns:minmax(0,1fr)" in alat
-    strip = HTML.split("@media (min-width:960px) {", 1)[1][:200].replace(" ", "")
-    assert ".timbang-langkah{grid-template-columns:repeat(4,minmax(0,1fr))" in strip
+    # The step strip went on 2026-10-08 (the board shows the four steps); the two forms stay equal.
     aksi = HTML.split("@media (min-width:1100px) {", 1)[1][:200].replace(" ", "")
     assert ".timbang-aksi{grid-template-columns:repeat(2,minmax(0,1fr))" in aksi
     blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
-    assert blok.count('class="langkah-ruas') == 4
-    assert blok.count('class="timbang-form') == 2
+    assert blok.count('class="langkah-ruas') == 0
+    assert blok.count('class="timbang-form ') == 2
 
 
 def test_tombol_utama_timbangan_selebar_sama():
