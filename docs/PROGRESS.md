@@ -18,6 +18,25 @@ Next:           ...
 
 ---
 
+## 2026-10-08 · vision · Detection boxes and FPS drawn like the console design (PR #TBD)
+Changed:        Owner report on v1.26.1 at Lampung: the boxes and the FPS on the line video did not look
+                like the console mockup. Cause: both are burned into the picture by the line (OpenCV),
+                not drawn by console.html, and the new-console spec left them alone ("The FPS text stays
+                where it is"). Now draw_boxes draws rounded boxes (jari_kotak) in the mockup palette
+                (COLOR_PASS #71d99c, COLOR_FAIL #ed747f, COLOR_TP #f6c763; colour still follows the
+                verdict) with the class name as a filled pill in the box colour and near-black text
+                (pil_label, text at 0.75 of FONT_SCALE so the label keeps about its old height).
+                The FPS is pipeline.draw_fps: a 55% black pill top-right with light "15 fps" text
+                (pil_fps); posisi_fps is gone. The saved evidence photo gets the same boxes and labels
+                (same draw_boxes), no FPS. Manual v2.30, konsol-autograde skill.
+Validated:      ruff check src/ tests/ scripts/smoke_image.py → All checks passed.
+                pytest tests/unit tests/e2e tests/integration → exit 0, 6135 passed, 48 skipped.
+                Rendered a Lampung photo at BORDER_THICKNESS 8 / FONT_SCALE 2.5 / FONT_THICKNESS 5 on the
+                861x720 stream and the 1224x1024 photo: rounded boxes, filled pills, fps pill top-right.
+Not validated:  Not seen on the Lampung PC yet (needs a release). Browser suite not run locally: no
+                console.html change, CI runs it.
+Next:           Release, then check the line video and a photo popup at Lampung.
+
 ## 2026-10-08 · console · Lampung v1.26.0 polish: scan popup, header, Rekap, button icons (PR #259)
 Changed:        Owner feedback after testing v1.26.0 at Lampung. Scan popup #scan-popup: solid background
                 (the see-through one vanished over the camera video), colour and step number from

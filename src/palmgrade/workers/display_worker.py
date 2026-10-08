@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_STREAM
 from ..domain.setelan_grading import UKURAN_LABEL_BAWAAN
-from ..domain.skala_tampilan import TANPA_SKALA, posisi_fps, skala_ke, ukuran_muat
+from ..domain.skala_tampilan import TANPA_SKALA, skala_ke, ukuran_muat
 from .runtime_state import RuntimeState
 
 if TYPE_CHECKING:  # annotation only: the pipeline module pulls in cv2 and ultralytics, and
@@ -130,15 +130,11 @@ class DisplayWorker:
             ),
         )
 
-        # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable).
-        # Top-right since 2026-10-08: the console's line card covers the top-left with its name chip.
-        cv = self._cv
-        fps_text = f"{self.state.inference_fps:.0f} FPS"
-        (lebar_teks, _), _ = cv.getTextSize(fps_text, cv.FONT_HERSHEY_SIMPLEX, 1.0, 5)
-        tempat = posisi_fps(display.shape[1], lebar_teks)
-        cv.putText(display, fps_text, tempat, cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 5, cv.LINE_AA)
-        cv.putText(display, fps_text, tempat, cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, cv.LINE_AA)
+        # YOLO inference FPS (from FrameProcessingWorker), drawn in stream space so it stays one
+        # size: a dark pill in the top-right corner, as in the console design (2026-10-08).
+        display = self.pipeline.draw_fps(display, self.state.inference_fps)
 
+        cv = self._cv
         _, buf = cv.imencode(".jpg", display, [int(cv.IMWRITE_JPEG_QUALITY), JPEG_QUALITY_STREAM])
         with self.state.frame_condition:
             self.state.latest_frame = buf.tobytes()

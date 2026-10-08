@@ -19,7 +19,7 @@ cv2 = pytest.importorskip("cv2")
 pytest.importorskip("torch")
 
 from palmgrade.core.config import Settings  # noqa: E402
-from palmgrade.core.constants import COLOR_FAIL, COLOR_PASS, COLOR_ROI, COLOR_TRIGGER  # noqa: E402
+from palmgrade.core.constants import COLOR_FAIL, COLOR_LABEL_TEKS, COLOR_PASS, COLOR_ROI, COLOR_TRIGGER  # noqa: E402
 from palmgrade.domain.skala_tampilan import skala_ke, ukuran_muat  # noqa: E402
 from palmgrade.pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline  # noqa: E402
 from palmgrade.workers.display_worker import DisplayWorker  # noqa: E402
@@ -148,17 +148,17 @@ def test_tanpa_skala_gambar_bukti_tidak_berubah_satu_piksel_pun():
 
 
 def test_label_tetap_terbaca_di_atas_kotaknya():
-    """The label is drawn in the box colour just above the box, about as tall as before."""
+    """The label is drawn in the box colour just above the box, at stream size.
+
+    Since 2026-10-08 it is a filled pill, so its height is read from a strip taller than the
+    pill: a label drawn at sensor size would fill all 87 rows."""
     pipeline = RealtimeInspectionPipeline(_Registry(), _settings())
     baru = _baru(pipeline, _sensor(), _hasil())
-    sx, sy = STREAM_W / SENSOR_W, STREAM_H / SENSOR_H
-    x1, y1 = round(MATANG[0] * sx), round(MATANG[1] * sy)
 
-    di_atas = baru[max(0, y1 - 40):y1 - 3, x1:x1 + 120]
-    baris_hijau = np.flatnonzero((di_atas == np.array(COLOR_PASS, dtype=np.uint8)).all(axis=2).any(axis=1))
+    tinggi = _baris_label(baru, MATANG, COLOR_PASS)
 
-    assert baris_hijau.size >= 12, "the label above the ripe box is missing or too small to read"
-    assert baris_hijau.size <= 36, "the label was drawn at sensor size on the stream frame"
+    assert tinggi >= 12, "the label above the ripe box is missing or too small to read"
+    assert tinggi <= 60, "the label was drawn at sensor size on the stream frame"
 
 
 def test_satu_render_penuh_garis_capture_dan_roi_di_tempat_yang_disetel():
@@ -238,3 +238,34 @@ def test_ukuran_label_dari_konsol_membesarkan_tulisan_bukan_kotaknya():
     tinggi_besar = _baris_label(besar, MATANG, COLOR_PASS)
     assert 1.6 * tinggi_biasa <= tinggi_besar <= 2.4 * tinggi_biasa, (tinggi_biasa, tinggi_besar)
     assert _tepi(besar, MATANG, COLOR_PASS) == _tepi(biasa, MATANG, COLOR_PASS), "the box itself must not move"
+
+
+# ------------------------------------------------- console design overlay (2026-10-08)
+# The console mockup draws the label as a filled pill in the box colour with dark text, and the
+# FPS as a dark pill top-right. v1.26.1 still drew bare coloured text for both.
+
+
+def test_label_adalah_pil_berwarna_dengan_teks_gelap():
+    pipeline = RealtimeInspectionPipeline(_Registry(), _settings())
+    baru = _baru(pipeline, _sensor(), _hasil())
+    sx, sy = STREAM_W / SENSOR_W, STREAM_H / SENSOR_H
+    x1, y1 = round(MATANG[0] * sx), round(MATANG[1] * sy)
+    pita = baru[max(0, y1 - 60):y1, x1:x1 + 120]
+
+    isi = int((pita == np.array(COLOR_PASS, dtype=np.uint8)).all(axis=2).sum())
+    teks = int((pita == np.array(COLOR_LABEL_TEKS, dtype=np.uint8)).all(axis=2).sum())
+
+    assert isi > 1000, "the label has no filled pill behind it"
+    assert teks > 50, "the class name is not written in dark text on the pill"
+
+
+def test_fps_adalah_pil_gelap_di_pojok_kanan_atas():
+    pipeline = RealtimeInspectionPipeline(_Registry(), _settings())
+    terang = np.full((720, 861, 3), 200, dtype=np.uint8)
+
+    out = pipeline.draw_fps(terang, 15.0)
+
+    pojok = out[:80, -200:]
+    assert int((pojok < 120).all(axis=2).sum()) > 2000, "no dark pill in the top-right corner"
+    assert int((pojok > 215).all(axis=2).sum()) > 50, "the fps text is not light on the pill"
+    assert (out[:80, :200] == 200).all(), "something was drawn top-left, under the console's name chip"
