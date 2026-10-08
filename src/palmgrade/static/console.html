@@ -409,7 +409,10 @@
      on an outdoor touchscreen is slow. The password is still required. */
   /* Small pills that wrap; a mill with many accounts scrolls the list, not the page, so Masuk
      stays on the first screen (review PR 4+5). Address only (owner 2026-10-08). */
-  .gerbang-nama { display:flex; flex-wrap:wrap; gap:8px; max-height:min(30vh, 14rem); overflow-y:auto; }
+  /* 4 px of room all round (pulled back by the margin, so nothing moves): a hovered chip lifts
+     1 px with a shadow, and the scrolling list cut its top edge (owner 2026-10-08). */
+  .gerbang-nama { display:flex; flex-wrap:wrap; gap:8px; max-height:min(30vh, 14rem); overflow-y:auto;
+                  padding:4px; margin:-4px; }
   .gerbang-nama:empty { display:none; }
   .gerbang-op { min-height:44px; max-width:100%; padding:0 16px; border-radius:var(--r-pill);
                 border:1.5px solid var(--line); background:none; color:var(--fg); letter-spacing:0;
