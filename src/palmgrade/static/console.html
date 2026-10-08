@@ -92,6 +92,12 @@
           --tinggi-1:0 1px 2px rgba(12,19,16,.05), 0 3px 10px rgba(12,19,16,.07);
           --tinggi-2:0 2px 4px rgba(12,19,16,.06), 0 12px 28px rgba(12,19,16,.12);
           --pad:20px;
+          /* One button size for the whole screen (Lampung 2026-10-08): every action button is this
+             tall, and a text button at least this wide, so a row of them lines up. 44 px is the
+             touch minimum; the line card's Reject and Piston stay taller on purpose. */
+          --tinggi-tombol:44px; --lebar-tombol:9.5rem;
+          /* The header row: status pills, the clock chip and the round buttons share this height. */
+          --tinggi-kepala:48px;
           --r-kartu:18px;
           --bayang-kartu:0 1px 2px rgba(10,18,32,.06), 0 10px 28px rgba(10,18,32,.07);
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
@@ -133,7 +139,7 @@
   .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   /* Status pill (spec §4): AutoERP, Foto cloud, PLC in the header; a dot plus words, never
      colour alone. */
-  .pil { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:0 13px;
+  .pil { display:inline-flex; align-items:center; gap:8px; min-height:var(--tinggi-kepala); padding:0 14px;
          border-radius:999px; background:var(--card); border:1px solid var(--line);
          font-size:.85rem; font-weight:700; }
   .pil .titik { flex:none; width:8px; height:8px; border-radius:50%; background:var(--muted); }
@@ -142,14 +148,18 @@
   /* `position` + `z-index`: a tooltip under a top-bar button lies over the tally strip. */
   #topbar { position:relative; z-index:30; display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px;
             padding:14px var(--pad) 12px; }
-  #menu-samping { flex:none; width:44px; min-width:44px; padding:0; color:var(--muted); background:var(--card); border-color:var(--line); }
+  #menu-samping { flex:none; width:var(--tinggi-kepala); min-width:var(--tinggi-kepala); height:var(--tinggi-kepala); padding:0; color:var(--muted); background:var(--card); border-color:var(--line); }
   .sub-judul { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; font-size:.85rem; color:var(--muted); }
   .sub-judul > span:empty { display:none; }
+  .sub-judul #perusahaan:has(+ #info-sistem:not([hidden]))::after { content:"\00B7"; margin-left:12px; }
   .pil-baris { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-left:auto; }
   /* Grid, not a wrapping flex row: a wrapping row is as wide as all its items in one line. */
-  .jam.pil { display:inline-grid; grid-template-columns:auto auto; align-items:baseline; gap:0 6px; padding:4px 14px; }
-  .jam.pil #segar { grid-column:1 / -1; line-height:1.2; }
-  .jam.pil #jam { font:600 1.45rem/1.2 var(--angka); letter-spacing:0; }
+  /* Same height as the AutoERP pill and the round buttons (Lampung 2026-10-08): the clock and
+     its "Updated" line are packed tighter instead of making the chip taller. */
+  .jam.pil { display:inline-grid; grid-template-columns:auto auto; align-items:baseline; align-content:center;
+             gap:0 6px; padding:0 16px; height:var(--tinggi-kepala); }
+  .jam.pil #segar { grid-column:1 / -1; line-height:1.15; font-size:.7rem; }
+  .jam.pil #jam { font:600 1.3rem/1.1 var(--angka); letter-spacing:0; }
   h1 { font-size:1.5rem; margin:0; font-weight:800; letter-spacing:-.015em;
        display:flex; align-items:center; gap:10px; }
   /* Tombol berikon di kepala layar: ikon dan kata di tengah vertikal, satu jarak. */
@@ -180,9 +190,11 @@
   .tombol-ikon svg { flex:none; }
   .merek { display:flex; flex-direction:column; gap:1px; }
   /* Menjorok sejajar huruf pertama AUTOGRADE (pil hijau .7rem + jarak 10px). */
-  #info-sistem { align-self:flex-start; min-height:0; padding:0;
+  /* Same type as the company name beside it (Lampung 2026-10-08: the monospace line looked
+     like a stray log line). */
+  #info-sistem { align-self:baseline; min-height:0; padding:0;
                  background:none; border:0; border-radius:0; text-align:left;
-                 font-family:var(--kode); font-size:.74rem; font-weight:600; color:var(--muted); }
+                 font:inherit; font-weight:600; color:var(--muted); }
   #info-sistem:hover { color:var(--fg); text-decoration:underline; }
   /* Tingkat dari server, sama dengan banner langganan. */
   #info-sistem[data-tingkat="warning"] { color:var(--warn); }
@@ -215,9 +227,10 @@
      and without it the whole page scrolled sideways by 19 px (found 2026-10-03). */
   #topbar .aksi { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end;
                   gap:8px; max-width:100%; }
-  #topbar .aksi button { min-width:44px; min-height:44px; border-radius:var(--r-pill); }
+  /* Every header control is --tinggi-kepala tall: pills, clock, layout picker, round buttons. */
+  #topbar .aksi button { min-width:var(--tinggi-kepala); height:var(--tinggi-kepala); min-height:0; border-radius:var(--r-pill); }
   /* Round icon buttons (owner 2026-10-07): refresh, language, theme. */
-  #topbar .aksi :is(#segarkan, #bahasa, #tema) { width:44px; padding:0; font-size:.8rem; }
+  #topbar .aksi :is(#segarkan, #bahasa, #tema) { width:var(--tinggi-kepala); padding:0; font-size:.8rem; }
   #topbar .aksi #bahasa svg { display:none; }
   .tata .pilih-tombol { gap:8px; padding-left:12px; }
   /* Icon only in the header; the open list names every choice and marks the current one. */
@@ -463,7 +476,7 @@
   .halaman .pilih { flex:0 0 7rem; }
   /* Pushes the buttons to the far end, so the pair sits where a thumb reaches. */
   .halaman-tombol { margin-left:auto; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; max-width:100%; }
-  .halaman-tombol button { min-height:2.8rem; }
+  .halaman-tombol button { min-height:var(--tinggi-tombol); }
   .halaman-tombol button:disabled { opacity:.45; cursor:default; }
   /* Nomor halaman. Lebar minimum dijaga supaya "7" dan "653" sama besar dan deretannya
      tidak bergeser saat halaman berganti - target yang bergerak sulit ditekan. */
@@ -478,27 +491,30 @@
   /* ---- tab Riwayat ---- */
   /* Kotak saringan berdiri sendiri, bukan `.tools`: kotak itu dirancang menempel ke
      tabel di bawahnya, dan di sini di bawahnya ringkasan. */
-  .riwayat-saring { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 16px;
-                    padding:14px 16px; background:var(--panel2); border:1px solid var(--line);
-                    border-radius:var(--r-md); }
+  .riwayat-saring { display:grid; gap:14px; padding:16px 18px; background:var(--panel2);
+                    border:1px solid var(--line); border-radius:var(--r-md); }
+  /* One row = one question; every control in it is --tinggi-tombol tall and sits on one
+     baseline, the quick ranges included, so nothing floats half a row up. */
+  .riwayat-baris { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 14px; }
+  .riwayat-periode { padding-bottom:14px; border-bottom:1px solid var(--line); }
   .riwayat-isian { display:grid; gap:6px; }
   /* `display` di atas dan milik `.halaman` mengalahkan `[hidden]` bawaan browser:
      tanpa dua baris ini saringan Hasil dan pager tetap tampil di Per hari. */
   #riwayat-hasil-grup[hidden], #riwayat-halaman[hidden] { display:none; }
-  .riwayat-isian input { min-height:2.6rem; }
+  .riwayat-isian input { min-height:var(--tinggi-tombol); }
   .riwayat-isian input[type="date"] { font-family:var(--angka); }
   .riwayat-isian input.plat { width:11rem; text-transform:uppercase; }
-  .riwayat-isian input.plat::placeholder { text-transform:none; font-family:inherit; font-weight:400; }
+  .riwayat-isian input.plat::placeholder { text-transform:none; font-family:var(--font); font-size:1rem; font-weight:400; letter-spacing:0; }
   .riwayat-isian .pilih { width:11rem; }
-  .riwayat-isian .pilih-tombol { min-height:2.6rem; }
+  .riwayat-isian .pilih-tombol { min-height:var(--tinggi-tombol); }
   .riwayat-cepat { display:flex; flex-wrap:wrap; gap:6px; }
-  .riwayat-cepat button { min-height:44px; padding:8px 14px; font-size:.85rem; border-radius:var(--r-pill); }
+  .riwayat-cepat button { min-height:var(--tinggi-tombol); padding:8px 16px; font-size:.9rem; border-radius:var(--r-pill); }
   /* Rentang yang sedang dipakai: filter chip (spec §4), biru merek seperti sub-tab yang terpilih. */
   .riwayat-cepat button.aktif { background:var(--merek-tint); color:var(--merek); border-color:var(--merek); }
-  .riwayat-aksi { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
-  .riwayat-aksi button { min-height:2.6rem; min-width:9rem; }
-  .riwayat-maks { flex:1 1 100%; }
-  .riwayat-pesan { flex:1 1 100%; margin:0; padding:8px 10px; border-radius:var(--r-sm);
+  .riwayat-aksi { display:flex; flex-wrap:wrap; gap:10px; margin-left:auto; }
+  .riwayat-aksi button { min-height:var(--tinggi-tombol); min-width:var(--lebar-tombol); }
+  .riwayat-maks { flex:1 1 100%; margin-top:-4px; }
+  .riwayat-pesan { margin:0; padding:8px 10px; border-radius:var(--r-sm);
                    background:var(--warn-bg); color:var(--warn); font-weight:700; }
   .riwayat-pesan:empty { display:none; }
   /* Angka periode, gaya yang sama dengan strip "Hari ini": dibaca sekali pandang. */
@@ -554,7 +570,8 @@
                   padding:10px 16px; border-radius:var(--r-md); background:var(--panel2); border:1px solid var(--line); }
   #tot-neto { font:700 2rem/1.1 var(--angka); font-variant-numeric:tabular-nums; }
   #tot-tiket { font-weight:700; }
-  .timbang-alat { --tinggi-timbang:2.9rem; --lebar-aksi-timbang:9rem; }
+  /* Wider than --lebar-tombol: "Record arrival" plus its icon must stay one line at 1366 px. */
+  .timbang-alat { --tinggi-timbang:var(--tinggi-tombol); --lebar-aksi-timbang:11.5rem; }
   /* `.tools.timbang-alat`, bukan `.timbang-alat`: aturan `.tools` di bawah (flex,
      `align-items:center`) datang belakangan dan akan menang. */
   .tools.timbang-alat { display:grid; grid-template-columns:minmax(0, 1fr); align-items:stretch;
@@ -609,7 +626,7 @@
   .timbang-alat .timbang-kontrol .pilih { flex:1 1 9rem; min-width:9rem; }
   .timbang-alat .timbang-kontrol input.plat { flex:1 1 9rem; min-width:0; max-width:none; }
   .timbang-alat .timbang-kontrol input.kg { flex:0 0 7.5rem; min-width:0; }
-  .timbang-alat .timbang-kontrol button { flex:0 0 var(--lebar-aksi-timbang); }
+  .timbang-alat .timbang-kontrol button { flex:0 0 var(--lebar-aksi-timbang); white-space:nowrap; }
   /* HP: tombol utama yang turun ke baris kedua selebar formnya, bukan sepotong di kiri. */
   @media (max-width:599px) {
     .timbang-alat .timbang-kontrol button { flex:1 1 100%; }
@@ -671,7 +688,7 @@
   .papan-rincian { font-size:.78rem; color:var(--muted2); text-align:right; }
   .papan-erp { align-self:flex-start; padding:3px 9px; border-radius:var(--r-pill); background:var(--acc-bg);
                color:var(--acc); font-size:.75rem; font-weight:800; }
-  .papan-kartu button { min-height:46px; margin-top:2px; }
+  .papan-kartu button { min-height:var(--tinggi-tombol); margin-top:2px; }
   .papan-kosong { margin:0; padding:18px 10px; border:1px dashed var(--line-kuat); border-radius:var(--r-md);
                   color:var(--muted2); font-size:.85rem; text-align:center; }
   .papan-lain { min-height:44px; background:none; border:0; color:var(--merek); font-weight:800; }
@@ -839,7 +856,7 @@
      under the queue's edge (screenshot pass, PR 5). */
   .truk-grup-atas { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 8px; margin-bottom:4px; }
   .truk-grup .plat { font-size:1.3rem; }
-  .truk-grup button { min-height:44px; padding:0 14px; }
+  .truk-grup button { min-height:var(--tinggi-tombol); padding:0 14px; }
   .truk-sup { overflow:hidden; font-weight:700; white-space:nowrap; text-overflow:ellipsis; }
   .truk-ket { overflow:hidden; color:var(--muted2); font-size:.8rem; white-space:nowrap; text-overflow:ellipsis; }
   /* Last Sync (2026-09-27), a pill each in the header since 2026-10-07: dot + name + time;
@@ -995,7 +1012,7 @@
   /* Tombol Tambah akun berdiri sendiri di atas, tanpa kotak `.tools`: kotak itu
      dirancang menempel ke tabel di bawahnya, dan di sini yang di bawahnya form. */
   .akun-alat { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
-  .akun-alat button { min-height:2.6rem; }
+  .akun-alat button { min-height:var(--tinggi-tombol); }
   #akun-tambah { margin-bottom:12px; }
   /* `.setelan-form` memakai display:grid, yang mengalahkan `[hidden]` bawaan browser:
      tanpa baris ini form tidak pernah tertutup (ketemu di browser 2026-09-26). */
@@ -1003,7 +1020,7 @@
   #akun-tambah .setelan-grup-isi { padding:0; }
   #akun-tambah input, #akun-tambah .pilih { max-width:22rem; }
   .akun-form-tombol { display:flex; gap:8px; flex-wrap:wrap; }
-  .akun-form-tombol button { min-height:2.6rem; }
+  .akun-form-tombol button { min-height:var(--tinggi-tombol); }
   .akun-form-catatan { margin:0; }
   .akun-pesan { margin:0; padding:8px 10px; border-radius:var(--r-sm);
                 background:var(--warn-bg); color:var(--warn); }
@@ -1124,24 +1141,50 @@
   #tirai-pembaruan p { margin:0; max-width:32rem; }
   /* Hasil scan di tengah layar, hilang sendiri (user 2026-10-07). Di bawah tirai (45) dan di atas
      toast (40). Tidak menangkap klik kecuali saat menunggu berat ketikan: kamera di belakangnya
-     tetap bisa disentuh selama 4 detik itu. */
-  #scan-popup { position:fixed; z-index:42; left:50%; top:50%; transform:translate(-50%,-50%);
+     tetap bisa disentuh selama 4 detik itu. Latarnya PADAT (kartu + warna langkah di atasnya):
+     latar tembus pandang hilang di atas video kamera (Lampung 2026-10-08, v1.26.0). Warna per
+     langkah sama dengan kolom papan Timbangan: datang abu, timbang isi kuning, timbang kosong
+     biru, keluar hijau; gagal tetap merah. */
+  #scan-popup { --warna-tahap:var(--acc); --latar-tahap:var(--acc-bg);
+                position:fixed; z-index:42; left:50%; top:50%; transform:translate(-50%,-50%);
                 width:min(36rem, calc(100vw - 2 * var(--pad))); box-sizing:border-box;
-                display:grid; gap:8px; justify-items:center; padding:24px 28px; text-align:center;
-                border:3px solid; border-radius:var(--r-lg); box-shadow:var(--tinggi-2);
+                display:grid; gap:10px; justify-items:center; padding:26px 28px 24px; text-align:center;
+                border:3px solid var(--warna-tahap); border-top-width:10px; border-radius:var(--r-lg);
+                background:linear-gradient(var(--latar-tahap), var(--latar-tahap)), var(--card);
+                color:var(--fg); box-shadow:0 0 0 1px var(--bayang), 0 24px 64px rgba(0,0,0,.55);
                 font-size:1.15rem; font-weight:600; pointer-events:none; }
   #scan-popup[hidden] { display:none; }
   #scan-popup[data-jenis="berat"] { pointer-events:auto; }
-  #scan-popup[data-jenis="sukses"] { background:var(--acc-bg); border-color:var(--acc); color:var(--acc); }
-  #scan-popup[data-jenis="gagal"] { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); }
-  #scan-popup[data-jenis="berat"] { background:var(--warn-bg); border-color:var(--warn); color:var(--warn); }
+  #scan-popup[data-langkah="datang"]         { --warna-tahap:var(--muted); --latar-tahap:var(--panel2); }
+  #scan-popup[data-langkah="timbang_isi"]    { --warna-tahap:var(--warn); --latar-tahap:var(--warn-bg); }
+  #scan-popup[data-langkah="timbang_kosong"] { --warna-tahap:var(--info); --latar-tahap:var(--info-bg); }
+  #scan-popup[data-langkah="keluar"]         { --warna-tahap:var(--acc); --latar-tahap:var(--acc-bg); }
+  #scan-popup[data-jenis="gagal"] { --warna-tahap:var(--danger-line); --latar-tahap:var(--danger-bg); color:var(--danger-fg); }
   #scan-popup p, #scan-popup ul { margin:0; padding:0; list-style:none; }
-  #scan-popup .scan-popup-judul { font-size:1rem; text-transform:uppercase; letter-spacing:.08em; }
-  #scan-popup .plat-besar { font-family:var(--angka); font-size:2.6rem; font-weight:700; line-height:1.1;
+  /* The step as a chip with its number, like the board's column heads. */
+  #scan-popup .scan-popup-judul { display:inline-flex; align-items:center; gap:10px; padding:4px 14px 4px 4px;
+                                  border-radius:var(--r-pill); background:var(--latar-tahap);
+                                  border:1px solid var(--warna-tahap); color:var(--warna-tahap);
+                                  font-size:1.05rem; font-weight:800; }
+  #scan-popup .scan-popup-judul::before { display:grid; place-items:center; width:2rem; height:2rem;
+                                          border-radius:var(--r-pill); background:var(--warna-tahap);
+                                          color:var(--card); font:700 1.1rem var(--angka); }
+  #scan-popup[data-langkah="datang"] .scan-popup-judul::before { content:"1"; }
+  #scan-popup[data-langkah="timbang_isi"] .scan-popup-judul::before { content:"2"; }
+  #scan-popup[data-langkah="timbang_kosong"] .scan-popup-judul::before { content:"3"; }
+  #scan-popup[data-langkah="keluar"] .scan-popup-judul::before { content:"4"; }
+  #scan-popup[data-langkah=""] .scan-popup-judul { padding-left:14px; }
+  #scan-popup li { color:var(--fg); }
+  #scan-popup[data-jenis="gagal"] li { color:var(--danger-fg); }
+  /* The plate as a plate (the board's chipPlat look), the biggest thing on the popup. */
+  #scan-popup .plat-besar { padding:6px 18px; border-radius:var(--r-sm); background:var(--plat-bg); color:var(--plat-fg);
+                            box-shadow:inset 0 0 0 2px rgba(255,255,255,.35);
+                            font-family:var(--angka); font-size:2.6rem; font-weight:700; line-height:1.1;
                             letter-spacing:.04em; text-transform:uppercase; overflow-wrap:anywhere; }
   #scan-popup-isian { display:flex; align-items:center; gap:10px; }
   #scan-popup-isian[hidden] { display:none; }
   #scan-popup-berat { width:11rem; font-family:var(--angka); font-size:2rem; font-weight:700; text-align:right; }
+  #scan-popup-petunjuk { color:var(--muted); font-size:1rem; }
   #scan-popup-galat { color:var(--danger-fg); }
   @keyframes restart-jalan { from { transform:translateX(-100%); } to { transform:translateX(250%); } }
   /* Tanpa gerak, bar 40% yang diam terbaca "40% selesai": dibuat penuh dan redup. */
@@ -1182,7 +1225,7 @@
   .body { padding:10px 14px 14px; display:grid; gap:10px; }
   /* "More" menu of a line card: the manual controls, out of the operator's daily path. */
   details.lagi { position:relative; flex:none; }
-  details.lagi > summary { list-style:none; display:grid; place-items:center; width:50px; min-height:52px;
+  details.lagi > summary { list-style:none; display:grid; place-items:center; width:44px; min-height:52px;
                            border-radius:14px; border:1px solid var(--line-kuat); background:var(--panel2);
                            color:var(--muted); cursor:pointer; }
   details.lagi > summary::-webkit-details-marker { display:none; }
@@ -1223,6 +1266,10 @@
      the other half. A long label wraps inside its own button and never widens the row. */
   .assign { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }
   .assign .pilih { grid-column:span 2; }
+  /* In the card's more menu (380 px) the picker takes the whole row and Tugaskan / Lepas share the
+     next: with their icons, four columns squeezed the words into each other (2026-10-08). */
+  .lagi-isi .assign { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .lagi-isi .assign .pilih { grid-column:1 / -1; }
   .assign button { min-width:0; padding-left:8px; padding-right:8px; }
   /* Lepas or Lepas paksa (tombolLepas), rewritten by the poll: the slot itself is no box. */
   .slot-lepas { display:contents; }
@@ -1230,7 +1277,7 @@
   .slot-piston { display:contents; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
-                  border-radius:12px; padding:10px 14px; font:inherit; min-height:44px; }
+                  border-radius:12px; padding:10px 14px; font:inherit; min-height:var(--tinggi-tombol); }
   button { background:var(--panel2); }
   :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline:2px solid var(--merek); outline-offset:2px; }
   /* Sibuk: tombol yang sedang menunggu server (denganSibuk). Klik berikutnya
@@ -1243,6 +1290,67 @@
                          border-right-color:transparent; border-radius:50%;
                          animation:putar-sibuk .7s linear infinite; }
   @keyframes putar-sibuk { to { transform:rotate(360deg); } }
+  /* Button icons (Lampung 2026-10-08, v1.26.0: "every button gets an icon, every button the same
+     size"). `data-ikon="<name>"` on a button draws its icon as a CSS mask in `::before`, in the
+     text colour: a language switch rewrites the button text (`data-t`) without dropping the icon,
+     and buttons drawn from JS only carry the attribute. The list below is written by
+     scripts/ikon_tombol.py (one stroke style for all of them; add an icon there). While busy the
+     spinner (`button.sibuk::before`) takes the icon's place. Tabs, sub-tabs, filter chips,
+     dropdown triggers and photo buttons get none: they are choices, not actions. */
+  button[data-ikon] { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+  button[data-ikon][hidden] { display:none; }
+  :where(button[data-ikon]:not(.tombol-ikon)) { min-width:var(--lebar-tombol); }
+  /* Inside a table cell or the narrow truck / queue cards the content decides the width: the
+     minimum would push a button past the card edge at 1366 px. */
+  :where(td, .antrean-aksi, .truk-grup) button { min-width:0; }
+  /* The queue column is about 190 px wide at 1366 px: "Tugaskan sekarang" plus an icon no
+     longer fits on one line, so below 1600 px those two buttons show their words only. */
+  @media (max-width:1599px) { .antrean-aksi button[data-ikon]:not(.sibuk)::before { display:none; } }
+  button[data-ikon]::before { content:""; flex:none; width:1.2em; height:1.2em; background:currentColor;
+                              -webkit-mask:var(--ikon) center / contain no-repeat;
+                              mask:var(--ikon) center / contain no-repeat; }
+  button.sibuk[data-ikon]::before { width:.85em; height:.85em; margin-right:0; background:none;
+                                    -webkit-mask:none; mask:none; }
+  /* ikon-tombol:mulai, ditulis scripts/ikon_tombol.py */
+  button[data-ikon="cari"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2211%22 cy=%2211%22 r=%227%22%2F%3E%3Cpath d=%22M20 20l-4-4%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="unduh"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M12 3v12M7 10l5 5 5-5M5 21h14%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="unggah"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M12 15V3M7 8l5-5 5 5M5 21h14%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="simpan"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M5 12.5l4.5 4.5L19 7%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="tambah"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M12 5v14M5 12h14%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="tutup"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M6 6l12 12M18 6L6 18%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="hapus"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="segarkan"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="cetak"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M7 9V3h10v6M7 17H4v-8h16v8h-3M7 14h10v7H7z%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="lihat"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z%22%2F%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%223%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="qr"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Crect x=%223%22 y=%223%22 width=%227%22 height=%227%22 rx=%221%22%2F%3E%3Crect x=%2214%22 y=%223%22 width=%227%22 height=%227%22 rx=%221%22%2F%3E%3Crect x=%223%22 y=%2214%22 width=%227%22 height=%227%22 rx=%221%22%2F%3E%3Cpath d=%22M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="timbang"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M4 17a8 8 0 1 1 16 0M12 17l4-5M3 21h18%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="datang"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M5 21V4M5 4h12l-2.5 4L17 12H5%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="pergi"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M9 4H5v16h4M14 7l5 5-5 5M19 12H9%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="tugaskan"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M5 12h14M13 6l6 6-6 6%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="lepas"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M9 15l-2 2a3.5 3.5 0 0 1-5-5l2-2M15 9l2-2a3.5 3.5 0 0 1 5 5l-2 2M4 4l16 16%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="tolak"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%229%22%2F%3E%3Cpath d=%22M5.6 5.6l12.8 12.8%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="piston"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Crect x=%228%22 y=%223%22 width=%228%22 height=%227%22 rx=%221%22%2F%3E%3Cpath d=%22M12 10v7M6 17h12M4 21h16%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="kirim"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M21 3L10 14M21 3l-7 18-4-7-7-4z%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="reset"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M4 12a8 8 0 1 0 2.34-5.66M4 4v5h5%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="restart"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M12 3v8M6.34 6.34a8 8 0 1 0 11.32 0%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="keluar"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M15 4h4v16h-4M10 17l-5-5 5-5M5 12h11%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="masuk"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M15 4h4v16h-4M10 17l5-5-5-5M15 12H3%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="kunci"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%228%22 cy=%2215%22 r=%224%22%2F%3E%3Cpath d=%22M11 12l9-9M16.5 6.5l3 3%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="peran"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="akun-mati"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%229%22 cy=%228%22 r=%224%22%2F%3E%3Cpath d=%22M2 21a7 7 0 0 1 14 0M17 8l5 5M22 8l-5 5%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="akun-hidup"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%229%22 cy=%228%22 r=%224%22%2F%3E%3Cpath d=%22M2 21a7 7 0 0 1 14 0M16 11l2 2 4-4%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="akun-tambah"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%229%22 cy=%228%22 r=%224%22%2F%3E%3Cpath d=%22M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="sebelum"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M15 18l-6-6 6-6%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="berikut"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M9 18l6-6-6-6%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="rekam"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%229%22%2F%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%223.5%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="stop"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Crect x=%226%22 y=%226%22 width=%2212%22 height=%2212%22 rx=%222%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="jalankan"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M7 4l13 8-13 8z%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="periksa"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%229%22%2F%3E%3Cpath d=%22M8 12l3 3 5-6%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="waktu"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%229%22%2F%3E%3Cpath d=%22M12 7v5l3 2%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="daftar"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="ganti"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M4 8h13l-3-3M20 16H7l3 3%22%2F%3E%3C%2Fsvg%3E"); }
+  button[data-ikon="lewati"] { --ikon:url("data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%22M5 5l9 7-9 7zM19 5v14%22%2F%3E%3C%2Fsvg%3E"); }
+  /* ikon-tombol:selesai */
   button { cursor:pointer; font-weight:700;
            transition:background-color .12s ease, border-color .12s ease,
                       box-shadow .12s ease, transform .12s ease; }
@@ -1280,15 +1388,20 @@
      2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek.
      `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
      bukan mendorong tombol tetangganya. */
-  .aksi-line { display:flex; align-items:stretch; gap:10px; }
+  .aksi-line { display:flex; align-items:stretch; gap:5px; }
   .aksi-line button.reject, .aksi-line button.piston { min-height:52px; border-radius:14px; }
-  .slot-piston > button, .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px;
+  .slot-piston > button, .aksi-line > button { flex:1 1 0; min-width:0; padding-left:4px; padding-right:4px;
                         display:flex; align-items:center; justify-content:center; }
   /* Setengah kartu itu sempit: spasi huruf dan petunjuk pintas dibuat lebih
      rapat supaya "REJECT MANUAL" + pintasnya masih satu baris di layar 1680 px
      ke atas. Di layar lebih sempit labelnya turun baris di dalam tombolnya. */
-  .aksi-line .pintas { margin-left:8px; }
-  button.reject { border-width:1.5px; font-size:.95rem; font-weight:800;
+  /* With its icon, "Manual Reject" + its key hint stays one line on the 1680 px card (Lampung,
+     2026-10-08) while Reject and Piston keep one width: tighter padding, gap, hint and a 44 px
+     more button. About 16 px to spare: CI's Linux Chromium draws the text a few px wider. */
+  .aksi-line .pintas { margin-left:4px; font-size:.64rem; padding:1px 4px; }
+  .aksi-line button[data-ikon] { gap:4px; }
+  .aksi-line button[data-ikon]:not(.sibuk)::before { width:1em; height:1em; }
+  button.reject { border-width:1.5px; font-size:.9rem; font-weight:800;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* The keyboard hint is printed on the button, so the shortcut never has to be
      remembered - and it follows the panel order the operator arranged. */
@@ -1395,7 +1508,7 @@
     font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   #pita-dummy[hidden] { display:none; }
   #pita-sesi span { flex:1 1 16rem; }
-  #pita-sesi button { min-height:2.6rem; min-width:9rem; }
+  #pita-sesi button { min-height:var(--tinggi-tombol); min-width:var(--lebar-tombol); }
   /* Pita pembaruan: kabar baik, jadi tanpa denyut dan tanpa merah. Seluruh pita satu tombol
      (target besar untuk sarung tangan), × di pojok seperti pita disk. */
   #pita-pembaruan { margin:10px var(--pad) 0; }
@@ -1418,7 +1531,7 @@
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
   .assign button, .assign .pilih-tombol, .tools button, .tools input, #tally .pilih-tombol,
-  #tabs button, button.reject, button.piston { min-height:2.6rem; }
+  #tabs button, button.reject, button.piston { min-height:var(--tinggi-tombol); }
 
   /* ---- dropdown ---- */
   /* A real listbox, not a styled <select>. The native picker draws its rows in
@@ -1547,6 +1660,12 @@
      chosen one is fully opaque with a doubled outline; the others are dimmed. No tick. */
   #log-level button { min-width:7rem; border-width:2px; background:transparent; opacity:.6; }
   #log-level button[data-nilai=""] { color:var(--fg); border-color:var(--fg); }
+  /* Level in the table (Lampung 2026-10-08): ERROR red, WARNING yellow, the same colours as the
+     filter buttons above it, as a chip so the word still reads without the colour. */
+  .log-tingkat { display:inline-block; padding:2px 10px; border-radius:var(--r-pill); border:1px solid;
+                 font-family:var(--font); font-size:.8rem; font-weight:800; letter-spacing:.02em; }
+  .log-tingkat[data-level="ERROR"], .log-tingkat[data-level="CRITICAL"] { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
+  .log-tingkat[data-level="WARNING"] { color:var(--warn); background:var(--warn-bg); border-color:var(--warn); }
   #log-level button[data-nilai="WARNING"] { color:var(--warn); border-color:var(--warn); }
   #log-level button[data-nilai="ERROR"] { color:var(--rej); border-color:var(--rej); }
   #log-level button:hover:not(:disabled) { opacity:1; box-shadow:none; }
@@ -1904,11 +2023,11 @@
   /* A confirm text may hold short paragraphs separated by a blank line (cutoff, 2026-10-05). */
   #konfirmasi-pesan { white-space:pre-line; }
   .modal-tombol { display:flex; flex-wrap:wrap; gap:12px; justify-content:flex-end; padding-top:6px; }
-  .modal-tombol > button { flex:1 1 0; min-width:9rem; min-height:48px;
+  .modal-tombol > button { flex:1 1 0; min-width:var(--lebar-tombol); min-height:var(--tinggi-tombol);
                            display:inline-flex; gap:8px; align-items:center; justify-content:center; }
   /* Tombol yang digambar ulang dari data (Pasang sekarang) ikut baris tombol tanpa pembungkus. */
   .modal-slot { display:contents; }
-  .modal-slot > button { flex:1 1 0; min-width:9rem; min-height:48px; justify-content:center; }
+  .modal-slot > button { flex:1 1 0; min-width:var(--lebar-tombol); min-height:var(--tinggi-tombol); justify-content:center; }
   .modal-tombol > [hidden] { display:none; }
   #model-modal { width:min(92vw, 36rem); }
   #model-modal ul { margin:0; padding-left:1.2rem; display:grid; gap:8px; }
@@ -1936,7 +2055,7 @@
   .impor-batch { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:8px 10px;
                  border:1px solid var(--line); border-radius:var(--r-sm); }
   .impor-batch .muted { font-size:.85rem; }
-  .impor-batch button { margin-left:auto; min-height:2.4rem; min-width:7rem; }
+  .impor-batch button { margin-left:auto; min-height:var(--tinggi-tombol); min-width:var(--lebar-tombol); }
   .impor-batch[data-status="undone"] { opacity:.7; }
   /* Janjang dari impor CSV, di tampilan Per janjang tab Riwayat. */
   .label-impor { display:inline-block; margin-left:6px; padding:2px 6px; border:1px solid var(--line-kuat);
@@ -2058,7 +2177,7 @@
           data-t-lb="menuSembunyikan" data-t-tip="tipMenuSamping" data-tip-sisi="awal"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg></button>
   <div class="merek">
     <h1 id="judul-tampilan">AutoGrade</h1>
-    <span class="sub-judul"><span id="hari-kerja"></span><span id="perusahaan"></span>
+    <span class="sub-judul"><span id="perusahaan"></span>
       <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button></span>
   </div>
   <span class="pil-baris">
@@ -2120,7 +2239,7 @@
 <div id="pita-alarm" hidden></div>
 <div id="pita-disk" hidden></div>
 <!-- Batch 5.7: 15 minutes before the session ends. Any touch renews it; the button is the spare. -->
-<div id="pita-sesi" role="status" hidden><span id="pita-sesi-teks"></span><button type="button" id="pita-sesi-perpanjang" class="utama" data-t="btnPerpanjangSesi">Perpanjang</button></div>
+<div id="pita-sesi" role="status" hidden><span id="pita-sesi-teks"></span><button type="button" id="pita-sesi-perpanjang" class="utama" data-t="btnPerpanjangSesi" data-ikon="waktu">Perpanjang</button></div>
 <div id="toasts" aria-live="polite"></div>
 <div id="slip-cetak" aria-hidden="true"></div>
 
@@ -2182,7 +2301,7 @@
                   aria-pressed="false" data-t-lb="lihatSandi">Lihat</button>
         </div>
       </div>
-      <button type="button" id="gerbang-masuk" class="utama" data-t="gerbangMasuk">Masuk</button>
+      <button type="button" id="gerbang-masuk" class="utama" data-t="gerbangMasuk" data-ikon="masuk">Masuk</button>
       <p id="gerbang-pesan" role="alert"></p>
       <p class="gerbang-catatan" data-t="gerbangCatatan">Akun AutoERP dan akun lokal sama-sama bisa dipakai, juga saat internet putus.</p>
       <!-- The header's ID / EN button sits behind the gate; these two reach the same switch. -->
@@ -2309,13 +2428,13 @@
     </div>
     <span id="grading-rentang" class="muted"></span>
     <span class="halaman-tombol">
-      <button type="button" id="grading-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <button type="button" id="grading-prev" data-t="halamanSebelum" disabled data-ikon="sebelum">Sebelumnya</button>
       <!--
         Nomor halaman, dirakit di JS. 130.506 baris pada 200 per halaman = 653
         halaman: tanpa ini, halaman 300 berarti 299 kali klik Berikutnya.
       -->
       <span id="grading-nomor" class="halaman-nomor"></span>
-      <button type="button" id="grading-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+      <button type="button" id="grading-next" data-t="halamanBerikut" disabled data-ikon="berikut">Berikutnya</button>
     </span>
   </div>
 </section>
@@ -2329,14 +2448,14 @@
   <div class="tools">
     <input id="plat" class="plat" maxlength="11" data-t-ph="phPlat"
            placeholder="KT 2509 ABC" autocomplete="off">
-    <button id="daftar" class="utama" data-t="btnDaftar" disabled>Daftar truk manual</button>
+    <button id="daftar" class="utama" data-t="btnDaftar" disabled data-ikon="tambah">Daftar truk manual</button>
     <!--
       Kartu QR untuk ditempel di kaca truk atau dikirim ke HP supir. Sekali cetak untuk
       semua truk: menempel satu per satu berarti membuka halaman ini puluhan kali.
       Cetaknya lewat dialog print browser — halaman di sandbox tidak bisa memaksa
       unduhan berkas, jadi tombol "Download PDF" akan diam-diam tidak melakukan apa pun.
     -->
-    <button id="cetak-qr" data-t="btnCetakQr">Cetak QR truk</button>
+    <button id="cetak-qr" data-t="btnCetakQr" data-ikon="qr">Cetak QR truk</button>
   </div>
   <div class="tabel">
     <table>
@@ -2421,7 +2540,7 @@
             <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
             <div class="pilih-panel" role="listbox" hidden></div>
           </div>
-          <button id="datang" class="utama" data-t="btnDatang" disabled>Catat datang</button>
+          <button id="datang" class="utama" data-t="btnDatang" disabled data-ikon="datang">Catat datang</button>
         </div>
       </div>
       <span id="scan-datang-pesan" class="scan-pesan timbang-kaki kaki-datang" role="status"></span>
@@ -2437,7 +2556,7 @@
           <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
                  data-t-title="hintDesimal" title="Desimal: titik atau koma, mis. 14820,5"
                  aria-describedby="bruto-petunjuk" inputmode="decimal" autocomplete="off">
-          <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang isi</button>
+          <button id="masuk" class="utama" data-t="btnMasuk" disabled data-ikon="timbang">Timbang isi</button>
         </div>
       </div>
       <p class="catatan timbang-kaki kaki-isi"><span
@@ -2461,8 +2580,8 @@
       <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
              data-t-ph="phTara" placeholder="Tara (kg)">
       <span class="tara-tombol">
-        <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
-        <button type="button" id="tara-batal" class="bahaya" data-t="btnBatal">Batal</button>
+        <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara" data-ikon="simpan">Simpan</button>
+        <button type="button" id="tara-batal" class="bahaya" data-t="btnBatal" data-ikon="tutup">Batal</button>
       </span>
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
@@ -2538,6 +2657,9 @@
     halaman di server, karena sebulan bisa jutaan baris.
   -->
   <div class="riwayat-saring">
+    <!-- Two rows (Lampung 2026-10-08, the buttons wrapped anywhere): the period (dates + quick
+         ranges), then what to look at (line, plate, result) with the actions on the right. -->
+    <div class="riwayat-baris riwayat-periode">
     <label class="riwayat-isian"><span class="lb" data-t="riwayatDari">Dari</span>
       <input type="date" id="riwayat-dari"></label>
     <label class="riwayat-isian"><span class="lb" data-t="riwayatSampai">Sampai</span>
@@ -2549,6 +2671,9 @@
       <button type="button" data-cepat="bulanini" data-t="riwayatBulanIni">Bulan ini</button>
       <button type="button" data-cepat="bulanlalu" data-t="riwayatBulanLalu">Bulan lalu</button>
     </div>
+    <small class="muted riwayat-maks" data-t="riwayatMaks">Paling panjang 31 hari</small>
+    </div>
+    <div class="riwayat-baris">
     <div class="riwayat-isian"><span class="lb" data-t="thLine">Line</span>
       <!-- Pilihannya dirakit dari line yang sedang tampil (siapkanLineRiwayat). -->
       <div class="pilih" id="riwayat-line" data-nilai="">
@@ -2575,13 +2700,13 @@
       </div>
     </div>
     <div class="riwayat-aksi">
-      <button type="button" id="riwayat-tampilkan" class="utama" data-t="riwayatTampilkan">Tampilkan</button>
-      <button type="button" id="riwayat-csv" data-t="riwayatCsv">Unduh CSV</button>
+      <button type="button" id="riwayat-tampilkan" class="utama" data-t="riwayatTampilkan" data-ikon="cari">Tampilkan</button>
+      <button type="button" id="riwayat-csv" data-t="riwayatCsv" data-ikon="unduh">Unduh CSV</button>
       <!-- Support saja: dibuang dari halaman untuk akun lain (aturTabDeveloper);
            yang menjaga tetap server (403). Unduh CSV tetap untuk semua operator. -->
-      <button type="button" id="riwayat-impor" data-dev="1" data-t="riwayatImpor">Impor CSV</button>
+      <button type="button" id="riwayat-impor" data-dev="1" data-t="riwayatImpor" data-ikon="unggah">Impor CSV</button>
     </div>
-    <small class="muted riwayat-maks" data-t="riwayatMaks">Paling panjang 31 hari</small>
+    </div>
     <p id="riwayat-pesan" class="riwayat-pesan" role="alert"></p>
   </div>
   <div id="riwayat-ringkasan" class="riwayat-ringkasan"></div>
@@ -2616,9 +2741,9 @@
     </div>
     <span id="riwayat-rentang" class="muted"></span>
     <span class="halaman-tombol">
-      <button type="button" id="riwayat-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <button type="button" id="riwayat-prev" data-t="halamanSebelum" disabled data-ikon="sebelum">Sebelumnya</button>
       <span id="riwayat-nomor" class="halaman-nomor"></span>
-      <button type="button" id="riwayat-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+      <button type="button" id="riwayat-next" data-t="halamanBerikut" disabled data-ikon="berikut">Berikutnya</button>
     </span>
   </div>
   <p class="muted riwayat-catatan" data-t="riwayatCatatanFoto">Tanggal di tab ini tanggal kerja, sama dengan tab Grading.</p>
@@ -2650,8 +2775,8 @@
   <div class="halaman">
     <span id="log-rentang" class="muted"></span>
     <span class="halaman-tombol">
-      <button type="button" id="log-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
-      <button type="button" id="log-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+      <button type="button" id="log-prev" data-t="halamanSebelum" disabled data-ikon="sebelum">Sebelumnya</button>
+      <button type="button" id="log-next" data-t="halamanBerikut" disabled data-ikon="berikut">Berikutnya</button>
     </span>
   </div>
 </section>
@@ -2787,7 +2912,7 @@
           <!-- The PC's own box (each line's `.env`), read from the lines (2026-10-05): shown here
                and as the inputs' placeholder, so "empty" no longer means an unknown box. -->
           <p class="muted" id="set-roi-bawaan" aria-live="polite"></p>
-          <button type="button" id="set-roi-reset" class="bahaya" data-t="btnRoiReset">Kembalikan ke bawaan</button>
+          <button type="button" id="set-roi-reset" class="bahaya" data-t="btnRoiReset" data-ikon="reset">Kembalikan ke bawaan</button>
           <small class="muted" data-t="bantuKotak">Angka pada skala 1280 x 720 yang direntangkan ke seluruh gambar, apa pun bentuk kameranya: 0 = tepi kiri atau atas, 1280 = tepi kanan, 720 = tepi bawah. Janjang di luar kotak tidak dihitung. Isi keempatnya, atau kosongkan keempatnya untuk memakai setelan bawaan PC. 0 semua = seluruh gambar.</small>
           <label class="saklar">
             <input id="set-tampil-roi" type="checkbox" checked>
@@ -2839,7 +2964,7 @@
     </div>
 
     <div class="tools lepas">
-      <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
+      <button id="set-simpan" class="utama" data-t="btnSimpanSetelan" data-ikon="simpan">Simpan</button>
       <span id="set-sumber" class="muted"></span>
     </div>
     <p id="set-pesan" role="alert"></p>
@@ -2875,7 +3000,7 @@
       </div>
     </div>
     <div class="tools lepas">
-      <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan">Simpan penugasan</button>
+      <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan" data-ikon="simpan">Simpan penugasan</button>
     </div>
   </div>
 
@@ -2903,7 +3028,7 @@
       </div>
     </div>
     <div class="tools lepas">
-      <button id="set-scanner-simpan" class="utama" data-t="btnSimpanScanner">Simpan scanner</button>
+      <button id="set-scanner-simpan" class="utama" data-t="btnSimpanScanner" data-ikon="simpan">Simpan scanner</button>
     </div>
   </div>
 
@@ -2926,7 +3051,7 @@
       </div>
     </div>
     <div class="tools lepas">
-      <button id="set-slip-simpan" class="utama" data-t="btnSimpanSlip">Simpan slip</button>
+      <button id="set-slip-simpan" class="utama" data-t="btnSimpanSlip" data-ikon="simpan">Simpan slip</button>
     </div>
   </div>
 
@@ -2947,7 +3072,7 @@
       </div>
     </div>
     <div class="tools lepas">
-      <button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled>Simpan hari kerja</button>
+      <button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled data-ikon="simpan">Simpan hari kerja</button>
     </div>
   </div>
 
@@ -2975,7 +3100,7 @@
           <b data-t="bahayaRestartJudul">Restart semua line</b>
           <small class="muted" data-t="bahayaRestartTeks">Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.</small>
         </div>
-        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol" data-ikon="restart">Restart</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="restart" hidden></div>
       <div class="bahaya-baris" data-bahaya="logout">
@@ -2983,7 +3108,7 @@
           <b data-t="bahayaLogoutJudul">Logout paksa semua akun</b>
           <small class="muted" data-t="bahayaLogoutTeks">Semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu sendiri.</small>
         </div>
-        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol" data-ikon="keluar">Logout semua</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="logout" hidden></div>
       <div class="bahaya-baris" data-bahaya="rekaman">
@@ -2991,7 +3116,7 @@
           <b data-t="bahayaRekamanJudul">Hapus rekaman video</b>
           <small class="muted" data-t="bahayaRekamanTeks">Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.</small>
         </div>
-        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol" data-ikon="hapus">Hapus rekaman</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="rekaman" hidden></div>
       <div class="bahaya-baris" data-bahaya="transaksi">
@@ -2999,7 +3124,7 @@
           <b data-t="bahayaTransaksiJudul">Hapus data transaksi</b>
           <small class="muted" data-t="bahayaTransaksiTeks">Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol" data-ikon="hapus">Hapus data transaksi</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="transaksi" hidden></div>
       <div class="bahaya-baris" data-bahaya="semua">
@@ -3007,7 +3132,7 @@
           <b data-t="bahayaSemuaJudul">Hapus semua data</b>
           <small class="muted" data-t="bahayaSemuaTeks">Data transaksi, akun yang dibuat di PC ini, truk, dan supplier hilang permanen. Setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol" data-ikon="hapus">Hapus semua data</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="semua" hidden></div>
     </div>
@@ -3069,7 +3194,7 @@
   -->
   <div class="tools">
     <span id="antrean-ringkas" class="muted"></span>
-    <button type="button" id="antrean-kirim-ulang" data-t="btnKirimUlang">Kirim Ulang</button>
+    <button type="button" id="antrean-kirim-ulang" data-t="btnKirimUlang" data-ikon="kirim">Kirim Ulang</button>
   </div>
   <div class="tabel">
     <table>
@@ -3119,7 +3244,7 @@
     `OperatorAdmin`); layar cuma tidak menawarkan tombol yang pasti ditolak.
   -->
   <div class="akun-alat">
-    <button type="button" id="akun-tambah-buka" class="utama" data-t="akunTambahTombol">Tambah akun</button>
+    <button type="button" id="akun-tambah-buka" class="utama" data-t="akunTambahTombol" data-ikon="akun-tambah">Tambah akun</button>
   </div>
   <!-- `novalidate`: salah isian dijawab server sebagai kode yang diterjemahkan
        layar, bukan tooltip browser dalam bahasa sistem. -->
@@ -3151,8 +3276,8 @@
     </div>
     <p class="muted akun-form-catatan" data-t="akunTambahCatatan">Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.</p>
     <div class="akun-form-tombol">
-      <button type="submit" id="akun-tambah-simpan" class="utama" data-t="akunSimpan">Simpan</button>
-      <button type="button" id="akun-tambah-batal" class="bahaya" data-t="btnBatal">Batal</button>
+      <button type="submit" id="akun-tambah-simpan" class="utama" data-t="akunSimpan" data-ikon="simpan">Simpan</button>
+      <button type="button" id="akun-tambah-batal" class="bahaya" data-t="btnBatal" data-ikon="tutup">Batal</button>
     </div>
     <p id="akun-tambah-pesan" class="akun-pesan" role="alert"></p>
   </form>
@@ -3249,7 +3374,7 @@
     </div>
 
     <div class="tools lepas">
-      <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan">Simpan &amp; Restart</button>
+      <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan" data-ikon="simpan">Simpan &amp; Restart</button>
     </div>
   </div>
   </div>
@@ -3259,7 +3384,7 @@
     the line's capture thread. Read-only until phase 2 adds change, Simpan and Kembalikan ke baku.
   -->
     <p class="muted" data-t="setelanKameraInfo">Nilai yang dipakai kamera sekarang. Mengubahnya menyusul di versi berikutnya; sampai itu lewat MVS.</p>
-    <button type="button" id="setelan-kamera-baca" data-t="setelanKameraBacaUlang">Segarkan</button>
+    <button type="button" id="setelan-kamera-baca" data-t="setelanKameraBacaUlang" data-ikon="segarkan">Segarkan</button>
     <div id="setelan-kamera-kartu" class="kartu-grid"></div>
   </div>
   <div id="sub-model-deteksi" class="sub-line" hidden>
@@ -3312,7 +3437,7 @@
     </div>
 
     <div class="tools lepas">
-      <button type="button" id="model-simpan" class="utama" data-t="btnModelSimpan">Simpan &amp; Restart</button>
+      <button type="button" id="model-simpan" class="utama" data-t="btnModelSimpan" data-ikon="simpan">Simpan &amp; Restart</button>
     </div>
 
     <strong data-t="modelSemuaJudul">Semua model di PC ini</strong>
@@ -3351,8 +3476,8 @@
   -->
   <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
     <b id="plc-konfirmasi-teks"></b>
-    <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
-    <button type="button" id="plc-konfirmasi-batal" class="bahaya" data-t="btnBatal">Batal</button>
+    <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan" data-ikon="jalankan">Jalankan</button>
+    <button type="button" id="plc-konfirmasi-batal" class="bahaya" data-t="btnBatal" data-ikon="tutup">Batal</button>
   </div>
   <!--
     Peta alamat, statis: daftar yang dipegang tim PLC (23 Sep 2026), ditaruh di
@@ -3448,7 +3573,7 @@
       </div>
     </details>
     <div class="tools lepas">
-      <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan">Simpan setelan</button>
+      <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan" data-ikon="simpan">Simpan setelan</button>
     </div>
   </div>
 
@@ -3478,8 +3603,8 @@
     <ul id="model-modal-daftar"></ul>
     <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
     <div class="modal-tombol">
-      <button type="button" id="model-modal-batal" class="bahaya" data-t="btnBatal">Batal</button>
-      <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
+      <button type="button" id="model-modal-batal" class="bahaya" data-t="btnBatal" data-ikon="tutup">Batal</button>
+      <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan" data-ikon="ganti">Ganti &amp; Restart</button>
     </div>
   </div>
 </dialog>
@@ -3496,8 +3621,8 @@
     <h2 id="konfirmasi-judul"></h2>
     <p id="konfirmasi-pesan"></p>
     <div class="modal-tombol">
-      <button type="button" id="konfirmasi-tidak" class="bahaya">Batal</button>
-      <button type="button" id="konfirmasi-ya" class="utama">Lanjutkan</button>
+      <button type="button" id="konfirmasi-tidak" class="bahaya" data-ikon="tutup">Batal</button>
+      <button type="button" id="konfirmasi-ya" class="utama" data-ikon="periksa">Lanjutkan</button>
     </div>
   </div>
 </dialog>
@@ -3518,7 +3643,7 @@
   sebagai "operator sedang sibuk". Menutup sendiri (4 detik sukses, 8 detik gagal); popup berat
   ketikan menutup saat disimpan, Esc, scan QR lain, atau 60 detik tanpa tombol.
 -->
-<div id="scan-popup" role="status" aria-live="polite" data-jenis="sukses" hidden>
+<div id="scan-popup" role="status" aria-live="polite" data-jenis="sukses" data-langkah="" hidden>
   <p id="scan-popup-judul" class="scan-popup-judul"></p>
   <ul id="scan-popup-baris"></ul>
   <div id="scan-popup-isian" hidden>
@@ -3540,13 +3665,13 @@
     <p class="muted" data-t="imporPenjelasan">Pakai CSV Per janjang dari Unduh CSV, dari PC ini atau PC lain. Janjang yang sudah ada dilewati. Tanggal hari ini dan sesudahnya tidak diimpor karena masih berjalan.</p>
     <div class="impor-pilih">
       <input type="file" id="impor-berkas" accept=".csv,text/csv">
-      <button type="button" id="impor-periksa" data-t="imporPeriksa">Periksa</button>
+      <button type="button" id="impor-periksa" data-t="imporPeriksa" data-ikon="periksa">Periksa</button>
     </div>
     <p id="impor-pesan" class="riwayat-pesan" role="alert"></p>
     <div id="impor-hasil" hidden></div>
     <div class="modal-tombol">
-      <button type="button" id="impor-tutup" class="bahaya" data-t="btnTutup">Tutup</button>
-      <button type="button" id="impor-jalankan" class="utama" hidden>Impor</button>
+      <button type="button" id="impor-tutup" class="bahaya" data-t="btnTutup" data-ikon="tutup">Tutup</button>
+      <button type="button" id="impor-jalankan" class="utama" hidden data-ikon="unggah">Impor</button>
     </div>
     <h3 data-t="imporDaftar">Impor sebelumnya</h3>
     <p class="muted" data-t="imporCatatanBatal">Batalkan menghapus janjang impor itu saja. Truk yang ditambahkannya tetap ada.</p>
@@ -3575,7 +3700,7 @@
     <dl id="info-sistem-daftar" class="daftar-definisi"></dl>
     <div id="pembaruan-isi"></div>
     <div class="modal-tombol">
-      <button type="button" id="info-sistem-tutup" class="bahaya" data-t="btnTutup">Tutup</button>
+      <button type="button" id="info-sistem-tutup" class="bahaya" data-t="btnTutup" data-ikon="tutup">Tutup</button>
       <div id="info-sistem-pasang" class="modal-slot"></div>
     </div>
   </div>
@@ -4900,13 +5025,12 @@ $("menu-samping").addEventListener("click", () => {
   terapkanMenuSamping();
 });
 
-// Under the view title: the work date and the company on the licence. No PLC pill (review
+// Under the view title: the company on the licence, then the version and licence (#info-sistem).
+// No date there since Lampung 2026-10-08 (owner): the clock shows the calendar date; with a
+// support-set day cutoff the working day itself shows in Rekap. No PLC pill (review
 // 2026-10-07): the line status says whether a piston was asked for, not whether the PLC
 // answers, so a pill could only stay green with the cable out. Diagnostik shows the PLC.
 function tulisKepala(s) {
-  const tgl = hariKerja ? new Date(`${hariKerja}T00:00:00`) : null;
-  $("hari-kerja").textContent = tgl && !Number.isNaN(tgl.getTime())
-    ? tgl.toLocaleDateString(lokal(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
   $("perusahaan").textContent = (s.lisensi && s.lisensi.perusahaan) || "";
 }
 
@@ -5919,7 +6043,7 @@ function isiTruk(a) {
 function tombolPiston(l) {
   const p = l.plc || {};
   if (!p.reachable || p.piston_requested === null || p.piston_requested === undefined)
-    return `<button class="piston" data-aksi="piston" disabled title="${esc(t("pistonMati"))}">${esc(t("pistonMati"))}</button>`;
+    return `<button class="piston" data-aksi="piston" data-ikon="piston" disabled title="${esc(t("pistonMati"))}">${esc(t("pistonMati"))}</button>`;
   const menunggu = p.piston_requested && p.piston_open === false;
   // piston_open === null with piston_requested true = PLC_DI_MANUAL not set
   // yet: follow the request (show as open) but say it is not confirmed by
@@ -5928,7 +6052,7 @@ function tombolPiston(l) {
   const terbuka = p.piston_open === true || belumKonfirmasi;
   const teks = menunggu ? t("pistonMenunggu") : terbuka ? t("btnPistonTutup") : t("btnPistonBuka");
   const catatan = belumKonfirmasi ? ` (${t("pistonBelumKonfirmasi")})` : "";
-  return `<button class="piston${terbuka ? " terbuka" : ""}" data-aksi="piston"
+  return `<button class="piston${terbuka ? " terbuka" : ""}" data-aksi="piston" data-ikon="piston"
      data-buka="${terbuka ? "0" : "1"}"${menunggu ? " disabled" : ""}>${esc(teks)}${esc(catatan)}<span class="pintas"></span></button>`;
 }
 
@@ -6006,10 +6130,10 @@ function bisaLepasPaksa(l) {
 // `tulisKalauBeda`, so it follows the line going silent and coming back.
 function tombolLepas(l) {
   if (!bisaLepasPaksa(l)) {
-    return `<button class="bahaya" data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>`;
+    return `<button class="bahaya" data-aksi="lepas" data-ikon="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>`;
   }
   const sibuk = lepasPaksaBerjalan.has(l.line_code);
-  return `<button class="bahaya pekat${sibuk ? " sibuk" : ""}" data-aksi="lepas-paksa"`
+  return `<button class="bahaya pekat${sibuk ? " sibuk" : ""}" data-aksi="lepas-paksa" data-ikon="lepas"`
     + ` title="${esc(t("lepasPaksaTitle"))}"${sibuk ? ' aria-busy="true"' : ""}>${esc(t("btnLepasPaksa"))}</button>`;
 }
 
@@ -6293,7 +6417,7 @@ function kartuLine(l, sekarang = Date.now()) {
     <div class="bar-kelas" aria-hidden="true">${htmlBarKelas(l)}</div>
     <div class="body">
       <div class="aksi-line">
-        <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
+        <button class="reject" data-aksi="tolak" data-ikon="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
         <span class="slot-piston">${tombolPiston(l)}</span>
         <details class="lagi">
           <summary aria-label="${esc(t("menuLineLagi").replace("{line}", l.name || l.line_code))}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></summary>
@@ -6301,7 +6425,7 @@ function kartuLine(l, sekarang = Date.now()) {
             <div class="truk">${isiTruk(l.assignment)}</div>
             <div class="assign">
               ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
-              <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
+              <button class="utama" data-aksi="tugaskan" data-ikon="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
               <span class="slot-lepas">${tombolLepas(l)}</span>
             </div>
             <span class="ord"><span class="lb">${esc(t("urutanKartu"))}</span>
@@ -6460,7 +6584,7 @@ function barisMenunggu(a) {
     <td class="num">${KOSONG}</td>
     <td class="num">${KOSONG}</td>
     <td class="num">${KOSONG}</td>
-    <td><button class="bahaya" data-aksi="batal-datang" data-arrival="${esc(a.id)}">${esc(t("btnBatalDatang"))}</button></td>
+    <td><button class="bahaya" data-aksi="batal-datang" data-ikon="tutup" data-arrival="${esc(a.id)}">${esc(t("btnBatalDatang"))}</button></td>
   </tr>`;
 }
 
@@ -6494,11 +6618,11 @@ function durasiAntre(w) {
 // server nyatakan selesai tanpa Keluar (`tanpa_scan_4`: lewat 24 jam, atau truknya sudah
 // datang lagi) tidak punya tombol lagi; label kuningnya di tempat tombol Keluar.
 function aksiTiket(w) {
-  if (w.tare_kg == null) return `<button data-aksi="keluar">${esc(t("btnTimbangKosong"))}</button>`;
+  if (w.tare_kg == null) return `<button data-aksi="keluar" data-ikon="timbang">${esc(t("btnTimbangKosong"))}</button>`;
   if (w.tanpa_scan_4) {
     return `<span class="tag peringatan" title="${esc(t("tanpaScan4Judul"))}">${esc(t("tanpaScan4"))}</span>`;
   }
-  if (!w.left_at) return `<button data-aksi="pergi">${esc(t("btnPergi"))}</button>`;
+  if (!w.left_at) return `<button data-aksi="pergi" data-ikon="pergi">${esc(t("btnPergi"))}</button>`;
   return "";
 }
 
@@ -7269,7 +7393,8 @@ function teksPopupScan(h) {
   } else if (dipasang.length) {
     baris.push(t("scanDipasang").replace("{line}", dipasang.map((d) => namaKartuLine(d.line_code)).join(", ")));
   }
-  return { jenis: "sukses", judul: nama.charAt(0).toUpperCase() + nama.slice(1), baris };
+  return { jenis: "sukses", langkah: NAMA_LANGKAH[h.langkah] ? h.langkah : "datang",
+           judul: nama.charAt(0).toUpperCase() + nama.slice(1), baris };
 }
 
 // The popup itself. A <div>, never a <dialog> (see the comment on #scan-popup). One at a time: a
@@ -7294,11 +7419,13 @@ function tutupPopupScan() {
   jagaFokusScan();
 }
 
-function tampilkanPopupScan({ jenis, judul = "", baris = [], petunjuk = "", durasiMs }) {
+function tampilkanPopupScan({ jenis, langkah = "", judul = "", baris = [], petunjuk = "", durasiMs }) {
   clearTimeout(timerPopupScan);
   popupBerat = null;
   const el = $("scan-popup");
   el.dataset.jenis = jenis;
+  // The step picks the colour and the number chip, the same as the Timbangan board columns.
+  el.dataset.langkah = langkah;
   $("scan-popup-judul").textContent = judul;
   $("scan-popup-judul").hidden = !judul;
   const daftar = $("scan-popup-baris");
@@ -7422,7 +7549,8 @@ async function mintaBerat(h) {
   const kosong = h.langkah === "timbang_kosong";
   const nama = t(kosong ? "scanLangkahKosong" : "scanLangkahIsi");
   tampilkanPopupScan({
-    jenis: "berat", judul: nama.charAt(0).toUpperCase() + nama.slice(1), baris: [h.plate_number || ""],
+    jenis: "berat", langkah: kosong ? "timbang_kosong" : "timbang_isi",
+    judul: nama.charAt(0).toUpperCase() + nama.slice(1), baris: [h.plate_number || ""],
     petunjuk: t("scanKetikBeratPopup"), durasiMs: DURASI_POPUP_BERAT_DIAM_MS,
   });
   popupBerat = {
@@ -8433,10 +8561,21 @@ $("keluar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
 // langsung naik. Satu toast per truk (tiga line = satu kalimat, bukan tiga toast
 // yang membuang toast suksesnya dari TOAST_MAKS), tanpa "tugaskan lagi": menugaskan
 // lagi akan menimpa truk berikutnya. Saklar mati: per line seperti dulu (D13).
-const pelepasanSudahDiumumkan = new Set();
+//
+// The announced ids survive a reload of this browser tab (sessionStorage): Update now reloads
+// the page, and announcing every release of the last hour again pushed the "installed" toast
+// out of TOAST_MAKS (found 2026-10-08). The last 200 ids are kept.
+const KUNCI_PELEPASAN = "autograde.pelepasanDiumumkan";
+const pelepasanSudahDiumumkan = new Set((() => {
+  try { return JSON.parse(sessionStorage.getItem(KUNCI_PELEPASAN) || "[]"); } catch (e) { return []; }
+})());
 function umumkanPelepasanOtomatis(daftar, otomatis) {
   const baru = (daftar || []).filter((r) => !pelepasanSudahDiumumkan.has(r.id));
   baru.forEach((r) => pelepasanSudahDiumumkan.add(r.id));
+  if (baru.length) {
+    try { sessionStorage.setItem(KUNCI_PELEPASAN, JSON.stringify([...pelepasanSudahDiumumkan].slice(-200))); }
+    catch (e) { /* without sessionStorage a reload announces them once more */ }
+  }
   if (!otomatis) {
     baru.forEach((r) => {
       const truk = r.plate_number || r.truck_id;
@@ -8471,8 +8610,8 @@ function htmlAntreanBongkar(daftar, aktif) {
        <b class="antrean-no">${i + 1}</b>
        <b class="antrean-plat">${esc(a.plate_number)}</b>
        <span class="muted">${esc(teksMenit(a.menit) || "0 mnt")}</span>
-       <span class="antrean-aksi"><button data-aksi="pasang">${esc(t("btnTugaskanSekarang"))}</button>
-       <button class="bahaya" data-aksi="lewati">${esc(t("btnLewati"))}</button></span>
+       <span class="antrean-aksi"><button data-aksi="pasang" data-ikon="tugaskan">${esc(t("btnTugaskanSekarang"))}</button>
+       <button class="bahaya" data-aksi="lewati" data-ikon="lewati">${esc(t("btnLewati"))}</button></span>
      </li>`).join("") + "</ol>";
 }
 
@@ -8504,7 +8643,7 @@ function htmlTrukDiLine(lines) {
   return `<span class="lb"><i class="titik-hidup"></i>${esc(t("trukDiLineJudul"))}</span>` + grup.map(({ a, lines: ls }) => `
     <div class="truk-grup" data-truk="${esc(a.truck_id)}" data-lines="${esc(ls.map((l) => l.line_code).join(","))}">
       <div class="truk-grup-atas"><b class="plat">${dash(a.plate_number)}</b>
-        <button class="bahaya" data-aksi="lepas-truk">${esc(t("btnLepas"))}</button></div>
+        <button class="bahaya" data-aksi="lepas-truk" data-ikon="lepas">${esc(t("btnLepas"))}</button></div>
       <span class="truk-sup">${dash(a.supplier_name)}</span>
       <span class="truk-ket">${dash(a.source_label)} · ${esc(t("trukDiLineDi").replace("{line}", ls.map((l) => l.name || l.line_code).join(", ")))}</span>
     </div>`).join("");
@@ -8954,14 +9093,14 @@ function kartuPapan(jenis, w) {
   let isi = "";
   if (jenis === "datang") {
     isi = `<span class="papan-meta">${esc(t("papanMetaDatang").replace("{jam}", jamMenit(w.arrived_at)))}</span>`
-      + `<button type="button" class="utama" data-papan="timbang-isi" data-plat="${esc(w.plate_number)}">${esc(t("btnMasuk"))}</button>`;
+      + `<button type="button" class="utama" data-ikon="timbang" data-papan="timbang-isi" data-plat="${esc(w.plate_number)}">${esc(t("btnMasuk"))}</button>`;
   } else if (jenis === "bongkar") {
     isi = `<span class="papan-meta">${esc(t("papanMetaBongkar").replace("{kg}", kg(w.gross_kg)).replace("{jam}", jamMenit(w.entered_at)))}</span>`
-      + `<button type="button" class="utama" data-papan="timbang-kosong" data-plat="${esc(w.plate_number)}"`
+      + `<button type="button" class="utama" data-ikon="timbang" data-papan="timbang-kosong" data-plat="${esc(w.plate_number)}"`
       + ` data-ref="${esc(w.ref ?? "")}" data-masuk="${esc(w.entered_at ?? "")}">${esc(t("btnTimbangKosong"))}</button>`;
   } else if (jenis === "kosong") {
     isi = `<span class="papan-meta">${esc(t("papanMetaKosong").replace("{jam}", jamMenit(w.exited_at)))}</span>${neto}${erp}`
-      + (w.tanpa_scan_4 ? "" : `<button type="button" data-papan="pergi" data-id="${esc(w.id)}">${esc(t("btnPergi"))}</button>`);
+      + (w.tanpa_scan_4 ? "" : `<button type="button" data-ikon="pergi" data-papan="pergi" data-id="${esc(w.id)}">${esc(t("btnPergi"))}</button>`);
   } else {
     isi = `<span class="papan-meta">${esc(t("papanMetaSelesai").replace("{jam}", jamMenit(w.left_at)))}</span>${neto}${erp}`;
   }
@@ -8978,7 +9117,7 @@ function gambarPapan() {
     let html = tampil.map((w) => kartuPapan(kolom, w)).join("")
       || `<p class="papan-kosong">${esc(t("papanKosong"))}</p>`;
     const sisa = daftar.length - tampil.length;
-    if (sisa > 0) html += `<button type="button" class="papan-lain" data-papan="rekap">${esc(t("papanLain").replace("{n}", sisa))}</button>`;
+    if (sisa > 0) html += `<button type="button" class="papan-lain" data-ikon="berikut" data-papan="rekap">${esc(t("papanLain").replace("{n}", sisa))}</button>`;
     tulisKalauBeda($(`papan-isi-${kolom}`), html);
   });
 }
@@ -9113,7 +9252,7 @@ function rasioRiwayat(acc, total) {
 
 function barisRiwayatHari(r) {
   const lihat = r.total
-    ? `<button type="button" class="riwayat-lihat" data-lihat="truk"
+    ? `<button type="button" class="riwayat-lihat" data-ikon="daftar" data-lihat="truk"
          data-tanggal="${esc(r.work_date)}">${esc(t("riwayatLihatTruk"))}</button>` : "";
   return `<tr>
     <td class="key">${esc(tanggalRiwayat(r.work_date))}</td>
@@ -9132,11 +9271,11 @@ function barisRiwayatHari(r) {
 function barisRiwayatTruk(r) {
   const plat = r.plate_number ? chipPlat(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`;
   const lihat = r.truck_id && r.plate_number
-    ? `<button type="button" class="riwayat-lihat" data-lihat="janjang"
+    ? `<button type="button" class="riwayat-lihat" data-ikon="daftar" data-lihat="janjang"
          data-tanggal="${esc(r.work_date)}" data-plat="${esc(r.plate_number)}">${esc(t("riwayatLihatJanjang"))}</button>` : "";
   // Batch 5.9: Print while support has the slip switched on (`slipCetak`, from the poll).
   const cetak = slipCetak && r.truck_id && r.plate_number
-    ? ` <button type="button" class="riwayat-lihat" data-cetak="1" data-tanggal="${esc(r.work_date)}"
+    ? ` <button type="button" class="riwayat-lihat" data-ikon="cetak" data-cetak="1" data-tanggal="${esc(r.work_date)}"
          data-truk="${esc(r.truck_id)}">${esc(t("btnCetakSlip"))}</button>` : "";
   return `<tr>
     <td>${esc(tanggalRiwayat(r.work_date))}</td>
@@ -9433,7 +9572,7 @@ function barisImpor(b) {
     <span class="muted">${esc(mulai)} · ${esc(b.imported_by)}</span>
     <span>${esc(jumlah)} · ${esc(rentangImpor(b.date_from, b.date_to))}</span>
     <span class="pill">${esc(status)}</span>${batal}
-    ${bisaBatal ? `<button type="button" class="bahaya" data-batal="${esc(b.id)}">${esc(t("imporBatal"))}</button>` : ""}
+    ${bisaBatal ? `<button type="button" class="bahaya" data-ikon="tutup" data-batal="${esc(b.id)}">${esc(t("imporBatal"))}</button>` : ""}
   </div>`;
 }
 
@@ -9810,7 +9949,7 @@ const LOG_PER = 50;
 function barisLog(r) {
   return `<tr>
     <td>${waktuLog(r)}</td>
-    <td class="key">${esc(r.level)}</td>
+    <td class="key"><span class="log-tingkat" data-level="${esc(r.level)}">${esc(r.level)}</span></td>
     <td>${sumberLog(r)}</td>
     <td>${pesanLog(r)}</td>
     <td class="num">${r.count > 1 ? "×" + r.count : ""}</td>
@@ -10262,7 +10401,7 @@ function barisAntreanLine(kode, d, sekarangMs) {
     : "";
   const tertua = d.tertua_at ? lamaProses(new Date(d.tertua_at * 1000), new Date(sekarangMs)) : null;
   const tombol = d.terjangkau && d.menunggu > 0
-    ? `<button type="button" data-kirim-ulang-line="${esc(kode)}">${esc(t("btnKirimUlang"))}</button>`
+    ? `<button type="button" data-ikon="kirim" data-kirim-ulang-line="${esc(kode)}">${esc(t("btnKirimUlang"))}</button>`
     : "";
   return `<tr data-line="${esc(kode)}">
     <td>${esc(kode)}</td>
@@ -10785,14 +10924,15 @@ function aksiAkun(a) {
   if (a.asal !== "lokal") return `<span class="muted">${esc(t("akunDiaturErp"))}</span>`;
   const saya = String(a.email || "").toLowerCase() === emailSaya;
   // Kelasnya memberi warna menurut akibatnya (gaya `.akun-tombol button.aksi-*`).
-  const tombol = (aksi, kunci, kelas) => `<button type="button" class="${kelas}" data-akun-aksi="${aksi}"
+  const tombol = (aksi, kunci, kelas, ikon) => `<button type="button" class="${kelas}" data-ikon="${ikon}" data-akun-aksi="${aksi}"
       data-email="${esc(a.email)}">${esc(t(kunci))}</button>`;
-  const isi = [tombol("sandi", "akunGantiSandi", "aksi-sandi")];
+  const isi = [tombol("sandi", "akunGantiSandi", "aksi-sandi", "kunci")];
   if (!saya) {
     const mati = a.keadaan === "mati";
     // Matikan = varian bahaya (F11, user 2026-10-03), bukan warna satu-satu.
-    isi.push(tombol("status", mati ? "akunAktifkan" : "akunMatikan", mati ? "aksi-aktifkan" : "bahaya"));
-    isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport", "aksi-role"));
+    isi.push(tombol("status", mati ? "akunAktifkan" : "akunMatikan", mati ? "aksi-aktifkan" : "bahaya",
+      mati ? "akun-hidup" : "akun-mati"));
+    isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport", "aksi-role", "peran"));
   }
   return `<span class="akun-tombol">${isi.join("")}</span>`
     + (saya ? `<span class="muted">${esc(t("akunSaya"))}</span>` : "");
@@ -10889,7 +11029,7 @@ function tutupPanelAkun() {
 // kuasa (jadikan support).
 function panelAkun(aksi, a) {
   const nama = a.nama || a.email;
-  const batal = `<button type="button" class="bahaya" data-akun-batal>${esc(t("btnBatal"))}</button>`;
+  const batal = `<button type="button" class="bahaya" data-ikon="tutup" data-akun-batal>${esc(t("btnBatal"))}</button>`;
   const lihat = `<button type="button" class="sandi-lihat" data-lihat-sandi aria-pressed="false"
       aria-label="${esc(t("lihatSandi"))}">${esc(t("lihatSingkat"))}</button>`;
   const pesan = `<p class="akun-pesan" role="alert"></p>`;
@@ -10903,7 +11043,7 @@ function panelAkun(aksi, a) {
              placeholder="${esc(t("lbSandi"))}" aria-label="${esc(t("lbSandi"))}">${lihat}</span>
       <span class="sandi-baris"><input type="password" data-akun-sandi-ulang autocomplete="new-password"
              placeholder="${esc(t("lbSandiUlang"))}" aria-label="${esc(t("lbSandiUlang"))}">${lihat}</span>
-      <button type="button" class="utama" data-akun-jalankan>${esc(t("akunSimpan"))}</button>
+      <button type="button" class="utama" data-ikon="simpan" data-akun-jalankan>${esc(t("akunSimpan"))}</button>
       ${batal}${pesan}
     </div>`;
   }
@@ -10916,7 +11056,7 @@ function panelAkun(aksi, a) {
       : ["akunSupportTanya", "akunYaUbah", true]);
   return `<div class="akun-panel${awas ? " awas" : ""}">
     <p>${esc(t(tanya).replace("{nama}", nama))}</p>
-    <button type="button" class="${awas ? "bahaya pekat" : "utama"}" data-akun-jalankan>${esc(t(ya))}</button>
+    <button type="button" class="${awas ? "bahaya pekat" : "utama"}" data-ikon="periksa" data-akun-jalankan>${esc(t(ya))}</button>
     ${batal}${pesan}
   </div>`;
 }
@@ -11418,13 +11558,13 @@ function panelBahaya(aksi, r) {
     ? `<ul class="${kelas}">${items.map((i) => `<li>${esc(teksKode(awalan(i), i))}</li>`).join("")}</ul>`
     : "";
   const ketik = BAHAYA_HAPUS.has(aksi);
-  let tombol = `<button type="button" class="bahaya" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
+  let tombol = `<button type="button" class="bahaya" data-ikon="tutup" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
   if (!hambatan.length) {
     if (ketik) {
       tombol += `<input data-bahaya-ketik autocomplete="off" autocapitalize="characters"
         spellcheck="false" placeholder="${esc(t("bahayaKetikHapus"))}" aria-label="${esc(t("bahayaKetikHapus"))}">`;
     }
-    tombol += `<button type="button" class="bahaya pekat" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
+    tombol += `<button type="button" class="bahaya pekat" data-ikon="jalankan" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
   }
   return `<p class="bahaya-akibat">${esc(akibatBahaya(aksi, r))}</p>`
     + (aksi === "transaksi" || aksi === "semua" ? `<p class="muted">${esc(t("bahayaTidakTersentuh"))}</p>` : "")
@@ -11456,7 +11596,7 @@ async function bukaPanelBahaya(aksi) {
     // "Memeriksa…" di belakangnya terbaca macet sesudah login.
     if (e.kode === "belum_masuk") return tutupPanelBahaya();
     panel.innerHTML = `<p class="bahaya-akibat">${esc(alasan(e, "gagalBahaya"))}</p>`
-      + `<div class="bahaya-tombol"><button type="button" class="bahaya" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
+      + `<div class="bahaya-tombol"><button type="button" class="bahaya" data-ikon="tutup" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
   }
 }
 
@@ -11632,8 +11772,8 @@ function barisRekam(b) {
     ? ["rekamTakTerbaca", "rekam-putus"]
     : (b.merekam ? ["rekamSedangMerekam", "rekam-merekam"] : ["rekamMati", "rekam-mati"]);
   const tombol = b.merekam
-    ? `<button type="button" data-rekam-stop="${esc(b.line_code)}">${esc(t("rekamStop"))}</button>`
-    : `<button type="button" class="utama" data-rekam-mulai="${esc(b.line_code)}"${b.terbaca ? "" : " disabled"}>${esc(t("rekamMulai"))}</button>`;
+    ? `<button type="button" data-ikon="stop" data-rekam-stop="${esc(b.line_code)}">${esc(t("rekamStop"))}</button>`
+    : `<button type="button" class="utama" data-ikon="rekam" data-rekam-mulai="${esc(b.line_code)}"${b.terbaca ? "" : " disabled"}>${esc(t("rekamMulai"))}</button>`;
   return `<tr>
     <td class="rekam-line kode-line">${esc(b.line_code)}</td>
     <td class="rekam-stat"><span class="rekam-status ${kelas}">${esc(t(kunci))}</span></td>

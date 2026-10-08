@@ -270,3 +270,11 @@ def test_kata_langkah_lama_tidak_ada_lagi_di_kamus_id():
     kamus_id = html[html.index("const KAMUS"):html.index("\n  en: {")]
     teks = " ".join(re.findall(r':"([^"]*)"', kamus_id)).lower()
     assert "timbang keluar" not in teks and "timbang masuk" not in teks
+
+
+def test_pelepasan_yang_sudah_diumumkan_selamat_dari_muat_ulang():
+    # 2026-10-08: Update now reloads the page; announcing the last hour's releases again pushed
+    # the "installed" toast out of TOAST_MAKS. The ids live in this tab's sessionStorage.
+    assert 'sessionStorage.getItem(KUNCI_PELEPASAN)' in HTML
+    blok = _fungsi("umumkanPelepasanOtomatis")
+    assert "sessionStorage.setItem(KUNCI_PELEPASAN" in blok and ".slice(-200)" in blok
