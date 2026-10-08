@@ -8,22 +8,70 @@ import numpy as np
 from ..core.config import Settings
 from ..core.constants import (
     COLOR_FAIL,
+    COLOR_FPS_LATAR,
+    COLOR_FPS_TEKS,
+    COLOR_LABEL_TEKS,
     COLOR_PASS,
     COLOR_ROI,
     COLOR_TP,
     COLOR_TRIGGER,
     FONT,
+    FPS_ALPHA,
+    FPS_FONT_SCALE,
+    FPS_FONT_THICKNESS,
     TRIGGER_THICKNESS,
 )
 from ..domain.garis_capture import MENDATAR, TEGAK
 from ..domain.grade_class import TP, grade_class_or_none, verdict_for_class
-from ..domain.skala_tampilan import TANPA_SKALA, garis_berskala, gaya_berskala, gaya_label, kotak_berskala
+from ..domain.skala_tampilan import (
+    TANPA_SKALA,
+    garis_berskala,
+    gaya_berskala,
+    gaya_label,
+    jari_kotak,
+    kotak_berskala,
+    pil_fps,
+    pil_label,
+)
 from .model_registry import ModelRegistry
 
 # Jarak garis pemicu dari tepi kanan frame saat ROI memenuhi layar. Cukup untuk
 # lepas dari bingkai video di browser dan tetap terbaca dari beberapa meter;
 # lebih jauh dari ini garisnya mulai berbohong soal di mana pemicunya.
 _TRIGGER_MARGIN = 6
+
+#: Text size inside a label pill, as a share of the `.env` label size (see `draw_boxes`).
+_TEKS_PIL = 0.75
+
+
+def _kotak_bulat(img: np.ndarray, kotak: tuple[int, int, int, int], warna, tebal: int, r: int) -> None:
+    """Box outline with rounded corners (console design 2026-10-08).
+
+    The straight sides are drawn without anti-aliasing so their pixels are exactly `warna`;
+    only the corner arcs are smoothed.
+    """
+    x1, y1, x2, y2 = kotak
+    if r <= 0:
+        cv2.rectangle(img, (x1, y1), (x2, y2), warna, tebal)
+        return
+    cv2.line(img, (x1 + r, y1), (x2 - r, y1), warna, tebal)
+    cv2.line(img, (x1 + r, y2), (x2 - r, y2), warna, tebal)
+    cv2.line(img, (x1, y1 + r), (x1, y2 - r), warna, tebal)
+    cv2.line(img, (x2, y1 + r), (x2, y2 - r), warna, tebal)
+    for pusat, sudut in (((x1 + r, y1 + r), 180), ((x2 - r, y1 + r), 270),
+                         ((x2 - r, y2 - r), 0), ((x1 + r, y2 - r), 90)):
+        cv2.ellipse(img, pusat, (r, r), sudut, 0, 90, warna, tebal, cv2.LINE_AA)
+
+
+def _isi_bulat(img: np.ndarray, kotak: tuple[int, int, int, int], warna, r: int) -> None:
+    """A filled rectangle with rounded corners: the label and FPS pills."""
+    x1, y1, x2, y2 = kotak
+    r = max(0, min(r, (x2 - x1) // 2, (y2 - y1) // 2))
+    cv2.rectangle(img, (x1 + r, y1), (x2 - r, y2), warna, -1)
+    cv2.rectangle(img, (x1, y1 + r), (x2, y2 - r), warna, -1)
+    if r > 0:
+        for pusat in ((x1 + r, y1 + r), (x2 - r, y1 + r), (x2 - r, y2 - r), (x1 + r, y2 - r)):
+            cv2.circle(img, pusat, r, warna, -1, cv2.LINE_AA)
 
 
 class RealtimeInspectionPipeline:
@@ -82,8 +130,8 @@ class RealtimeInspectionPipeline:
             # terbaca sebagai "lolos" padahal dia cuma penanda tangkai panjang.
             if kelas == TP:
                 color = COLOR_TP
-            # bounding box
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, bt)
+            # Bounding box with rounded corners, as in the console design (2026-10-08).
+            _kotak_bulat(frame, (x1, y1, x2, y2), color, bt, jari_kotak(bt, x2 - x1, y2 - y1))
             # Teks memakai nama kelas apa adanya (Ripe/Unripe/JK/TP), BUKAN
             # `.upper()`: operator menyebut kelasnya persis begini, dan JK yang
             # jadi "JK" sama saja sedangkan "UNRIPE" lebih sulit dipindai mata
@@ -101,10 +149,35 @@ class RealtimeInspectionPipeline:
             text = f"{kelas or label}"
             if tampilkan_confidence:
                 text = f"{text} {score * 100:.0f}%"
-            (tw, th), bl = cv2.getTextSize(text, FONT, fs, ft)
-            ty = y1 - jarak if y1 - th - jarak >= 0 else y1 + th + jarak
-            cv2.putText(frame, text, (x1, ty), FONT, fs, (0, 0, 0), ft + 4, cv2.LINE_AA)  # outline tebal
-            cv2.putText(frame, text, (x1, ty), FONT, fs, color, ft + 1, cv2.LINE_AA)      # teks warna, agak tebal
+            # Label = a pill filled in the box colour with near-black text on the box's top-left
+            # corner (console design 2026-10-08). It replaced coloured text with a black outline:
+            # dark on a solid colour reads from further away than colour on a busy conveyor.
+            # The text inside is `_TEKS_PIL` of the `.env` size, so the whole pill takes about the
+            # height the bare text took and `FONT_SCALE` keeps meaning "how big the label is".
+            fs_pil = fs * _TEKS_PIL
+            (tw, th), _ = cv2.getTextSize(text, FONT, fs_pil, ft)
+            pil, asal = pil_label(x1, y1, tw, th, jarak=jarak, lebar_gambar=frame.shape[1])
+            _isi_bulat(frame, pil, color, round((pil[3] - pil[1]) * 0.3))
+            cv2.putText(frame, text, asal, FONT, fs_pil, COLOR_LABEL_TEKS, ft, cv2.LINE_AA)
+        return frame
+
+    def draw_fps(self, frame: np.ndarray, fps: float) -> np.ndarray:
+        """Detection FPS as a dark see-through pill in the top-right corner (console design
+        2026-10-08). Drawn on the stream frame only, always the same size; the saved evidence
+        photo has none. Top-right because the console's line card covers the top-left with its
+        name chip."""
+        teks = f"{fps:.0f} fps"
+        (tw, th), _ = cv2.getTextSize(teks, FONT, FPS_FONT_SCALE, FPS_FONT_THICKNESS)
+        (x1, y1, x2, y2), asal = pil_fps(frame.shape[1], tw, th)
+        x2, y2 = min(x2, frame.shape[1]), min(y2, frame.shape[0])
+        if x2 <= x1 or y2 <= y1:
+            return frame
+        potong = frame[y1:y2, x1:x2]
+        lapis = potong.copy()
+        # Pixels outside the rounded pill stay equal in both, so blending leaves them untouched.
+        _isi_bulat(lapis, (0, 0, x2 - x1 - 1, y2 - y1 - 1), COLOR_FPS_LATAR, (y2 - y1) // 2)
+        cv2.addWeighted(lapis, FPS_ALPHA, potong, 1 - FPS_ALPHA, 0, dst=potong)
+        cv2.putText(frame, teks, asal, FONT, FPS_FONT_SCALE, COLOR_FPS_TEKS, FPS_FONT_THICKNESS, cv2.LINE_AA)
         return frame
 
     def roi_in_stream_space(

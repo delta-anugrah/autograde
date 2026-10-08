@@ -107,15 +107,50 @@ def gaya_berskala(
     )
 
 
-#: Margin and baseline of the FPS text on the stream, in stream pixels.
+# ── Overlay shapes from the console design (2026-10-08) ─────────────────────────────────────
+# The console mockup draws the FPS as a dark pill in the top-right corner and each detection
+# label as a filled pill in the box colour on the box's top-left corner. These are the numbers;
+# `RealtimeInspectionPipeline` does the drawing.
+
+Kotak = tuple[int, int, int, int]
+Titik = tuple[int, int]
+
+#: Space between the FPS pill and the picture's top and right edges, in stream pixels.
 TEPI_FPS = 12
-GARIS_DASAR_FPS = 36
 
 
-def posisi_fps(lebar_gambar: int, lebar_teks: int) -> tuple[int, int]:
-    """Where the FPS text starts: the picture's top-right corner (2026-10-08).
+def pil_fps(lebar_gambar: int, lebar_teks: int, tinggi_teks: int) -> tuple[Kotak, Titik]:
+    """The FPS pill (x1, y1, x2, y2) and where its text starts (baseline).
 
-    The console's line card floats its name chip over the top-left corner, where the text used
-    to be. On a picture narrower than the text it falls back to the left margin.
+    Top-right because the console's line card floats its name chip over the top-left corner.
+    On a picture narrower than the pill it falls back to the left margin.
     """
-    return max(TEPI_FPS, lebar_gambar - lebar_teks - TEPI_FPS), GARIS_DASAR_FPS
+    pad_x, pad_y = round(tinggi_teks * 0.8), round(tinggi_teks * 0.55)
+    lebar, tinggi = lebar_teks + 2 * pad_x, tinggi_teks + 2 * pad_y
+    x1 = max(TEPI_FPS, lebar_gambar - TEPI_FPS - lebar)
+    y1 = TEPI_FPS
+    return (x1, y1, x1 + lebar, y1 + tinggi), (x1 + pad_x, y1 + pad_y + tinggi_teks)
+
+
+def pil_label(
+    x1: int, y1: int, lebar_teks: int, tinggi_teks: int, *, jarak: int, lebar_gambar: int
+) -> tuple[Kotak, Titik]:
+    """The label pill of a box whose top-left corner is (x1, y1), and where its text starts.
+
+    Left edge on the box's left edge, `jarak` above its top. A box touching the top of the
+    picture gets the pill just inside its top instead, and a box at the right edge pulls the
+    pill back in, so the class name is never cut off. The bottom padding holds the descender
+    ("p" in Ripe).
+    """
+    pad_x, pad_y = round(tinggi_teks * 0.55), round(tinggi_teks * 0.45)
+    lebar, tinggi = lebar_teks + 2 * pad_x, tinggi_teks + 2 * pad_y
+    atas = y1 - jarak - tinggi
+    if atas < 0:
+        atas = y1 + jarak
+    kiri = max(0, min(x1, lebar_gambar - lebar))
+    return (kiri, atas, kiri + lebar, atas + tinggi), (kiri + pad_x, atas + pad_y + tinggi_teks)
+
+
+def jari_kotak(border: int, lebar: int, tinggi: int) -> int:
+    """Corner radius of a detection box: grows with its border, never past a quarter of a side."""
+    return max(0, min(2 * border + 3, lebar // 4, tinggi // 4))
