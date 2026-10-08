@@ -121,9 +121,9 @@ def test_language_buttons_on_the_gate_reuse_the_header_switch():
     assert re.search(r'\$\("bahasa"\)\.click\(\)', HTML)
 
 
-def test_account_chips_are_small_pills_that_wrap():
+def test_account_chips_are_small_pills_in_a_scrolling_list():
     aturan = re.search(r"\.gerbang-nama \{([^}]*)\}", HTML).group(1)
-    assert "flex-wrap:wrap" in aturan and "overflow-y:auto" in aturan
+    assert "overflow-y:auto" in aturan  # one column of equal chips since 2026-10-08
     chip = re.search(r"\.gerbang-op \{([^}]*)\}", HTML).group(1)
     assert "min-height:44px" in chip and "border-radius:var(--r-pill)" in chip
 
@@ -162,3 +162,9 @@ def test_the_chip_list_leaves_room_for_the_hover_lift_and_focus_ring():
     top edge. The list pads 4 px and pulls the same back, so nothing moves."""
     aturan = re.search(r"\.gerbang-nama \{([^}]*)\}", HTML).group(1)
     assert "padding:4px" in aturan and "margin:-4px" in aturan
+
+
+def test_account_chips_are_all_one_width():
+    """Owner 2026-10-08: every chip the same width, one column as wide as the form."""
+    aturan = re.search(r"\.gerbang-nama \{([^}]*)\}", HTML).group(1)
+    assert "display:grid" in aturan and "grid-template-columns:minmax(0, 1fr)" in aturan

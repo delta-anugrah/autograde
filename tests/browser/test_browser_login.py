@@ -117,3 +117,10 @@ def test_a_hovered_chip_is_not_cut_by_its_list(halaman):
         " return { atas: c.top - r.top, padding: parseFloat(getComputedStyle(el).paddingTop) }; }"
     )
     assert daftar["atas"] >= 2, daftar
+
+
+def test_account_chips_share_one_width(halaman):
+    halaman.wait_for_function("() => document.querySelectorAll('#gerbang-nama .gerbang-op').length >= 2")
+    lebar = halaman.locator("#gerbang-nama .gerbang-op").evaluate_all(
+        "(els) => els.map((el) => Math.round(el.getBoundingClientRect().width))")
+    assert len(lebar) >= 2 and len(set(lebar)) == 1, lebar
