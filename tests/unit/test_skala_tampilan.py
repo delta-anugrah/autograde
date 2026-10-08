@@ -139,3 +139,21 @@ def test_garis_kecil_tidak_hilang_dari_gambar_sesudah_diskala():
     """A flat line at 1 on a 2000x500 source (scale 0.44) must stay a line on screen: detection
     still uses it, so drawing nothing would hide a working capture line."""
     assert garis_berskala(1, True, (1.0, 320 / 720)) == 1
+
+
+# ── FPS text on the stream (2026-10-08) ─────────────────────────────────────────────────────
+# The console's new line card floats its "Line 1 · ONLINE" chip over the picture's top-left
+# corner, where the FPS text used to be drawn: it moves to the top-right corner.
+
+
+def test_fps_text_sits_in_the_top_right_corner():
+    from palmgrade.domain.skala_tampilan import posisi_fps
+
+    assert posisi_fps(861, 90) == (861 - 90 - 12, 36)
+    assert posisi_fps(1280, 90) == (1280 - 90 - 12, 36)
+
+
+def test_fps_text_never_starts_left_of_the_margin_on_a_tiny_picture():
+    from palmgrade.domain.skala_tampilan import posisi_fps
+
+    assert posisi_fps(60, 90) == (12, 36)

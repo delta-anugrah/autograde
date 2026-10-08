@@ -155,3 +155,10 @@ def test_first_language_is_english_only_for_a_new_browser(tersimpan, harapan):
     jejak = re.search(r"^const JEJAK_KONSOL = .*$", HTML, re.M).group(0)
     awal = jejak + "\nconst ambil = (k) => (" + json.dumps(tersimpan) + ")[k] || '';"
     assert jalankan(["bahasaAwal"], "bahasaAwal(ambil)", tambahan=awal) == harapan
+
+
+def test_the_chip_list_leaves_room_for_the_hover_lift_and_focus_ring():
+    """Owner 2026-10-08: a hovered chip lifts 1 px with a shadow, and the scrolling list cut its
+    top edge. The list pads 4 px and pulls the same back, so nothing moves."""
+    aturan = re.search(r"\.gerbang-nama \{([^}]*)\}", HTML).group(1)
+    assert "padding:4px" in aturan and "margin:-4px" in aturan

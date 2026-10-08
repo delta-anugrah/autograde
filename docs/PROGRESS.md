@@ -34,7 +34,10 @@ Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a L
                 camera); now only `.feed` images. Owner feedback 2026-10-08: sign-in headline and photo centred;
                 Penugasan line checkboxes centred on their word; Timbangan board (four columns, Datang /
                 Bongkar / Timbang kosong / Selesai, card buttons reuse the table flows) above the table,
-                which stays (owner chose to keep it; reverses spec §9 Q3). No endpoint, payload or rule change.
+                which stays (owner chose to keep it; reverses spec §9 Q3); step strip dropped; sign-in English
+                for a new browser, email-only chips, photo turning Ripe/Unripe; one Save on Developer Mode;
+                Settings as stacked collapsible sections; the line writes its FPS text top-right (the card's
+                name chip covers top-left). No endpoint, payload or rule change.
 Validated:      ruff check . → All checks passed. pytest tests/unit → 5454 passed, 28 skipped; tests/e2e + tests/integration →
                 618 passed, 20 skipped. Browser chromium →
                 204 passed; firefox → 204 passed. Final review (fable): 0 critical, 2 important fixed with tests

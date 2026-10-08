@@ -106,3 +106,14 @@ def test_the_sign_in_photo_turns_to_the_next_class(halaman):
     expect(bingkai).to_have_attribute("data-kelas", "ripe")
     expect(bingkai).to_have_attribute("data-kelas", "unripe", timeout=6_000)
     expect(halaman.locator(".gerbang-deteksi span")).to_have_text(kamus(halaman, "clsUnripe"))
+
+
+def test_a_hovered_chip_is_not_cut_by_its_list(halaman):
+    chip = halaman.locator("#gerbang-nama .gerbang-op").first
+    chip.hover()
+    halaman.wait_for_timeout(300)
+    daftar = halaman.locator("#gerbang-nama").evaluate(
+        "(el) => { const r = el.getBoundingClientRect(); const c = el.firstElementChild.getBoundingClientRect();"
+        " return { atas: c.top - r.top, padding: parseFloat(getComputedStyle(el).paddingTop) }; }"
+    )
+    assert daftar["atas"] >= 2, daftar
