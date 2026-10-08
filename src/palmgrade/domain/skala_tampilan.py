@@ -105,3 +105,17 @@ def gaya_berskala(
         font_thickness=max(1, round(font_thickness * faktor)),
         jarak_label=max(1, round(JARAK_LABEL * faktor)),
     )
+
+
+#: Margin and baseline of the FPS text on the stream, in stream pixels.
+TEPI_FPS = 12
+GARIS_DASAR_FPS = 36
+
+
+def posisi_fps(lebar_gambar: int, lebar_teks: int) -> tuple[int, int]:
+    """Where the FPS text starts: the picture's top-right corner (2026-10-08).
+
+    The console's line card floats its name chip over the top-left corner, where the text used
+    to be. On a picture narrower than the text it falls back to the left margin.
+    """
+    return max(TEPI_FPS, lebar_gambar - lebar_teks - TEPI_FPS), GARIS_DASAR_FPS

@@ -58,7 +58,8 @@ def test_tema_gelap_mengisi_semua_warna_tema_terang():
 def test_tanpa_container_query_baru():
     # Lampung's kiosk Firefox version is unknown (spec §8). The one container query that
     # already shipped (Setelan, support only) stays; the new look adds none.
-    assert HTML.count("@container") == 1 and HTML.count("container-type") == 1
+    # The one that shipped (Setelan's detection box) went with the stacked sections on 2026-10-08.
+    assert HTML.count("@container") == 0 and HTML.count("container-type") == 0
 
 
 def test_komponen_dasar_memakai_token_baru():

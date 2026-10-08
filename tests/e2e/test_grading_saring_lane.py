@@ -68,7 +68,7 @@ def test_the_line_filter_brings_back_only_that_line_drawn_with_small_photos(raki
             return (await klien.get(f"/api/console/history?{alamat}")).json()
 
     jawab = asyncio.run(tanya())
-    html = jalankan(["waktu", "selFoto", "barisRecent"],
+    html = jalankan(["chipPlat", "waktu", "selFoto", "barisRecent"],
                     f"{json.dumps(jawab['items'])}.map(barisRecent).join('')", tambahan=_LAYAR)
 
     assert jawab["total"] == 2

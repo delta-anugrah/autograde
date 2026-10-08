@@ -26,7 +26,8 @@ def test_pita_dummy_mengikuti_polling():
 
 
 def test_saklar_dummy_di_mode_developer_dan_kamus_dua_bahasa():
-    assert 'id="set-dummy"' in HTML and 'id="set-dummy-simpan"' in HTML
+    # One Save on Developer Mode (owner 2026-10-08): the main Simpan also saves the dummy switch.
+    assert 'id="set-dummy"' in HTML and 'id="set-dummy-simpan"' not in HTML
     assert '"/api/console/dev/timbangan-dummy"' in _fungsi("muatDummy")
     assert "await muatDummy();" in HTML
     for kunci in ("lbTimbanganDummy", "pitaTimbanganDummy", "dummyTersimpan", "timbangDummy"):
@@ -35,3 +36,10 @@ def test_saklar_dummy_di_mode_developer_dan_kamus_dua_bahasa():
 
 def test_kotak_timbangan_menyebut_dummy_bukan_belum_tersambung():
     assert '"timbangDummy"' in _fungsi("gambarTimbanganLive")
+
+
+def test_the_main_save_also_saves_the_dummy_switch_when_it_changed():
+    simpan = HTML.split('$("set-simpan").addEventListener', 1)[1].split("\n}));", 1)[0]
+    assert '"/api/console/dev/timbangan-dummy"' in simpan
+    assert '$("set-dummy").checked !== dummyTersimpanNilai' in simpan
+    assert "dummyTersimpanNilai = Boolean(r.aktif)" in _fungsi("muatDummy")

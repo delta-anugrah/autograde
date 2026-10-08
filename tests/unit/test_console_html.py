@@ -683,13 +683,12 @@ def test_strip_empat_langkah_dan_dua_form_yang_lebarnya_ditentukan_layar():
     assert "2.1fr" not in HTML and "1.6fr" not in HTML
     alat = _aturan(".tools.timbang-alat")
     assert "display:grid" in alat and "grid-template-columns:minmax(0,1fr)" in alat
-    strip = HTML.split("@media (min-width:960px) {", 1)[1][:200].replace(" ", "")
-    assert ".timbang-langkah{grid-template-columns:repeat(4,minmax(0,1fr))" in strip
+    # The step strip went on 2026-10-08 (the board shows the four steps); the two forms stay equal.
     aksi = HTML.split("@media (min-width:1100px) {", 1)[1][:200].replace(" ", "")
     assert ".timbang-aksi{grid-template-columns:repeat(2,minmax(0,1fr))" in aksi
     blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
-    assert blok.count('class="langkah-ruas') == 4
-    assert blok.count('class="timbang-form') == 2
+    assert blok.count('class="langkah-ruas') == 0
+    assert blok.count('class="timbang-form ') == 2
 
 
 def test_tombol_utama_timbangan_selebar_sama():
@@ -730,7 +729,7 @@ def test_bar_tara_di_kotak_alat_timbangan_satu_warna_dengan_langkah_3():
     blok = HTML.split('<div id="tara-grup"', 1)[1].split("</div>", 1)[0]
     for id_ in ("tara-plat", "tara-nilai", "tara-simpan", "tara-batal", "scan-keluar-pesan"):
         assert f'id="{id_}"' in blok, id_
-    alat = HTML.split('<div class="tools timbang-alat">', 1)[1].split('<div class="tabel">', 1)[0]
+    alat = HTML.split('<div class="tools timbang-alat berdiri">', 1)[1].split('id="papan-timbang"', 1)[0]
     assert '<div id="tara-grup"' in alat
     assert "var(--info)" in _aturan(".tara-grup")
     # Langkah 3 di strip menyala selama bar terbuka.
@@ -1312,7 +1311,7 @@ def test_kotak_area_deteksi_bisa_diatur_dan_kosong_berarti_null():
     for kunci in ("subConveyor", "subGaris", "subKotak", "bantuKotak", "labelRoiX1", "labelRoiY2"):
         assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in both languages"
     blok = HTML.split('data-setelan-grup="kamera"', 1)[1].split('data-setelan-grup="dev"', 1)[0]
-    assert blok.count('<fieldset class="setelan-sub">') == 3
+    assert blok.count('<details class="setelan-bagian"') == 3
 
 
 def test_kelompok_diagnostik_tertutup_dan_yang_dibuka_diingat():

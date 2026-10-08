@@ -51,7 +51,7 @@ def _panel() -> str:
 
 
 def _node(fungsi: list[str], ekspresi: str):
-    skrip = _STUB + "\n".join(_fungsi(f) for f in fungsi) + f"\nconsole.log(JSON.stringify({ekspresi}));"
+    skrip = _STUB + "\n".join(_fungsi(f) for f in ("chipPlat", *fungsi)) + f"\nconsole.log(JSON.stringify({ekspresi}));"
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
     assert hasil.returncode == 0, hasil.stderr[-800:]
     return json.loads(hasil.stdout)
@@ -238,4 +238,5 @@ def test_tombol_cepat_ditandai_tiap_tanggal_berubah():
     for id_ in ("riwayat-dari", "riwayat-sampai"):
         assert re.search(rf'\$\("{id_}"\)\.addEventListener\("input", tandaiCepat\)', HTML), id_
     aturan = re.search(r"\.riwayat-cepat button\.aktif\s*\{([^}]*)\}", HTML)
-    assert aturan and "background:var(--acc)" in aturan.group(1).replace(" ", "")
+    # The chosen range is a filter chip in the brand blue since PR 5 (spec §4).
+    assert aturan and "color:var(--merek)" in aturan.group(1).replace(" ", "")

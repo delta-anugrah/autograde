@@ -90,6 +90,10 @@ def test_kotak_tools_selalu_menempel_ke_tabel():
             continue
         if "lepas" in simpul.kelas or _di_dalam_dialog(simpul):
             continue
+        # Timbangan's tools box stands alone since the board (2026-10-08) sits between it and
+        # the table; it closes its own frame (`test_timbangan_tools_box_closes_its_own_frame`).
+        if "timbang-alat" in simpul.kelas:
+            continue
         saudara = simpul.induk.anak
         berikut = saudara[saudara.index(simpul) + 1] if simpul is not saudara[-1] else None
         if berikut is None or berikut.tag != "div" or "tabel" not in berikut.kelas:
@@ -120,3 +124,9 @@ def test_area_cetak_qr_tetap_anak_langsung_section_truk():
     boleh memutus itu."""
     simpul = next(s for s in _semua(_pohon()) if s.attrs.get("id") == "qr-cetak")
     assert simpul.induk.attrs.get("id") == "sec-truk"
+
+
+def test_timbangan_tools_box_closes_its_own_frame():
+    aturan = _aturan_css(".tools.timbang-alat.berdiri")
+    assert "border-bottom:1px solid var(--line)" in aturan and "border-radius:var(--r-md)" in aturan
+    assert 'class="tools timbang-alat berdiri"' in HTML

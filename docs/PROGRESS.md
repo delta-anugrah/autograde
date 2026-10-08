@@ -18,6 +18,40 @@ Next:           ...
 
 ---
 
+## 2026-10-08 · console · New look: split sign-in, Timbangan and the other views (PR #257)
+Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a Lampung camera still (JPEG 54 KB as
+                a CSS data URI, scripts/tanam_foto_masuk.py, assets/masuk/masuk.jpg), one detection box, three
+                facts; form with account chips (initials, name, email, aria-pressed via tandaiOperator, two to a
+                row, own scroll), labels, note, ID / EN buttons reusing #bahasa; hero gone below 900 px. Timbangan
+                (§5.3): title row with two tiles (#tot-neto, #tot-tiket), step arrows in a 24 px gap, forms as
+                cards. Other views (§5.5): brand-blue selection (sub-tabs, Rekap quick ranges), inner boxes with a
+                hairline, plates in tables as plate chips (chipPlat), Rekap summary JK violet; undefined tokens
+                --r, --aksen, --kartu fixed (Setelan fields were square). Review #256 minors: hidden rail out of
+                the Tab order, truck card and queue buttons 44 px and wrapping at 1366 px, Esc closes the more
+                menu, no row flash on a filter change, grading filter tests no longer fail after the penugasan
+                tests. Bug from #256 found by CI: the load/error listeners on #lines took the photo strip
+                too (a square thumbnail replaced the camera shape; a strip error could read as a cut
+                camera); now only `.feed` images. Owner feedback 2026-10-08: sign-in headline and photo centred;
+                Penugasan line checkboxes centred on their word; Timbangan board (four columns, Datang /
+                Bongkar / Timbang kosong / Selesai, card buttons reuse the table flows) above the table,
+                which stays (owner chose to keep it; reverses spec §9 Q3); step strip dropped; sign-in English
+                for a new browser, email-only chips, photo turning Ripe/Unripe; one Save on Developer Mode;
+                Settings as stacked collapsible sections; the line writes its FPS text top-right (the card's
+                name chip covers top-left). No endpoint, payload or rule change.
+Validated:      ruff check . → All checks passed. pytest tests/unit → 5454 passed, 28 skipped; tests/e2e + tests/integration →
+                618 passed, 20 skipped. Browser chromium →
+                204 passed; firefox → 204 passed. Final review (fable): 0 critical, 2 important fixed with tests
+                (photo squashed at 960x1080, many accounts pushed Masuk below 768 px). Screenshots light/dark at
+                1366, 1440, 1920 from the local demo (sawit/scripts/demo-konsol).
+Not validated:  Lampung kiosk Firefox; real cameras and a real PLC scale (demo used video lines and a simulated
+                scale); a mill with many synced AutoERP accounts at the gate (tested with 9 fake accounts).
+Decisions:      No logo and no live numbers on the sign-in (owner removed the logo 2026-10-07; a still is not
+                data). Akun buttons keep their equal width (operator request 2026-09-29). Table plates reuse
+                the .plat chip component.
+Next:           Owner looks at the screenshots and the demo, then merge to staging. Deferred minors: focus after
+                Esc, nowrap assertion for table plates, KAMUS key for the gate's language label, token radii on
+                the gate.
+
 ## 2026-10-07 · console · New look: fonts, tokens, left rail, Grading in one screen (PR 2+3)
 Changed:        console.html restyle and re-layout (spec sawit/docs/superpowers/specs/2026-10-07-autograde-konsol-baru-design.md
                 §4, §5.1, §5.2). Embedded fonts (scripts/tanam_font.py, assets/fonts, OFL); tokens --merek, class colours

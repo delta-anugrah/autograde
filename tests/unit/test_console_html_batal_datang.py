@@ -41,7 +41,7 @@ def _kamus(bahasa: str) -> dict[str, str]:
 
 
 def _jalankan(ekspresi: str, *fungsi: str):
-    skrip = _STUB + "".join(_fungsi(f) for f in fungsi) + f"\nprocess.stdout.write(JSON.stringify({ekspresi}));"
+    skrip = _STUB + "".join(_fungsi(f) for f in ("chipPlat", *fungsi)) + f"\nprocess.stdout.write(JSON.stringify({ekspresi}));"
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
     assert hasil.returncode == 0, hasil.stderr[-800:]
     return json.loads(hasil.stdout)
