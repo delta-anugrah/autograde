@@ -78,7 +78,7 @@ def test_tiket_tanpa_nomor_ditulis_netral_bukan_strip():
 
 
 def test_tanda_ada_di_sel_plat_baris_timbangan():
-    assert "${dash(w.plate_number)}${tandaErp(w)}" in _fungsi("barisTimbangan")
+    assert "${chipPlat(w.plate_number)}${tandaErp(w)}" in _fungsi("barisTimbangan")
 
 
 @pytest.mark.parametrize("bahasa", ["id", "en"])

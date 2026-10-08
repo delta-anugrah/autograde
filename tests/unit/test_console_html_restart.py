@@ -218,8 +218,9 @@ def test_load_tanpa_gambar_tidak_menghapus_offline():
 const dilepas = [];
 const diselesaikan = [];
 const selesaikanRestart = (kartu, img) => diselesaikan.push(img.naturalWidth);
-const buatImg = (lebar) => ({ naturalWidth: lebar, closest: () => ({
-  classList: { remove: (k) => dilepas.push([lebar, k]) } }) });
+const rasioFeed = new Map();
+const buatImg = (lebar) => ({ naturalWidth: lebar, naturalHeight: 720, parentElement: { style: {} },
+  closest: () => ({ dataset: { line: "line-1" }, classList: { remove: (k) => dilepas.push([lebar, k]) } }) });
 """
     hasil = _jalan(["feedMemuat"], (
         "(feedMemuat(buatImg(0)), feedMemuat(buatImg(1280)), [dilepas, diselesaikan])"), tambahan=stub)
@@ -277,6 +278,8 @@ const isiTruk = () => "";
 const tombolPiston = () => "";
 const tombolSambungUlang = () => "";
 const tombolLepas = () => "";
+const gayaRasioFeed = () => "";
+const htmlBarKelas = () => "";
 """
 
 
@@ -515,9 +518,11 @@ def test_css_menyembunyikan_tulisan_kamera_putus_selama_restart():
 
 def test_kartu_line_punya_slot_restart_di_dalam_kotak_kamera():
     kartu = fungsi("kartuLine")
-    feed = kartu.split('<div class="feed">', 1)[1].split("</div>", 1)[0]
+    # The box carries the remembered picture ratio since 2026-10-07: `<div class="feed"${...}>`.
+    buka = '<div class="feed"${gayaRasioFeed(l.line_code)}>'
+    feed = kartu.split(buka, 1)[1].split("</div>", 1)[0]
     assert '<div class="slot-restart">' in kartu
-    assert kartu.index('<div class="slot-restart">') > kartu.index('<div class="feed">')
+    assert kartu.index('<div class="slot-restart">') > kartu.index(buka)
     assert "<img" in feed
 
 

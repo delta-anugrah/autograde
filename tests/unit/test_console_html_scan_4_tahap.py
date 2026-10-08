@@ -54,17 +54,20 @@ def _blok_alat() -> str:
 
 
 def test_empat_tahap_berurutan_dalam_satu_baris_alat():
+    # Since 2026-10-08 the strip is gone: steps 1 and 2 name the forms, 3 and 4 are board columns.
     blok = _blok_alat()
-    urutan = [blok.index(f'data-t="{k}"') for k in ("lbDatang", "lbGerbangMasuk", "lbGerbangKeluar", "lbPergi")]
+    urutan = [blok.index(f'data-t="{k}"') for k in ("lbDatang", "lbGerbangMasuk")]
     assert urutan == sorted(urutan)
     assert len(re.findall(r'class="tools\b', blok)) == 1
+    papan = HTML.split('id="papan-timbang"', 1)[1]
+    assert papan.index('data-kolom="kosong"') < papan.index('data-kolom="selesai"')
 
 
 def test_satu_kolom_scan_tersembunyi_sampai_saklar_scanner_nyala():
     blok = _blok_alat()
     tag = re.search(r'<div id="scan-otomatis-grup"[^>]*>', blok)
     assert tag and " hidden" in tag.group(0)
-    assert blok.index('id="scan-otomatis-grup"') < blok.index('class="timbang-langkah"')
+    assert blok.index('id="scan-otomatis-grup"') < blok.index('class="timbang-aksi"')
 
 
 def test_jalan_cadangan_tanpa_scanner():

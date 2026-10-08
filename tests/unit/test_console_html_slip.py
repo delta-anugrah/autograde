@@ -47,7 +47,7 @@ const tanggalRiwayat = (d) => d; const rasioRiwayat = () => "66%";
 
 
 def _baris(slip_cetak: bool, baris: dict) -> str:
-    return jalankan(["barisRiwayatTruk"], f"barisRiwayatTruk({json.dumps(baris)})",
+    return jalankan(["chipPlat", "barisRiwayatTruk"], f"barisRiwayatTruk({json.dumps(baris)})",
                     tambahan=_STUB + f"let slipCetak = {json.dumps(slip_cetak)};")
 
 

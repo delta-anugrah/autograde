@@ -572,14 +572,13 @@ def test_pertanyaan_scan_dijawab_dengan_scan_ulang():
     assert "scanUlang = { qr, dibuka: Date.now()" in badan and "scanUlang = null" in badan
 
 
-def test_timbangan_belum_siap_membuka_kotak_berat_yang_lama():
-    """Tanpa timbangan live (atau angkanya belum layak) layar membuka kotak yang sudah ada:
-    bruto untuk timbang isi (plat terpilih, kursor di bruto), bar tara untuk timbang kosong."""
-    badan = _badan("mintaBerat", '$("scan-otomatis").addEventListener')
-    assert "tanyaTara(h.weighing)" in badan
-    assert 'pilihNilai($("plat-timbang"), plat)' in badan and 'bruto").focus()' in badan
-    # Truck list on screen reloads every 60 s: a fresh truck is loaded before it is picked.
-    assert badan.index("muatTrucks()") < badan.index('pilihNilai($("plat-timbang")')
+def test_timbangan_belum_siap_membuka_popup_berat_bukan_kotak_di_tab():
+    """Tanpa timbangan live (atau angkanya belum layak) layar membuka popup ketik berat, dari tab
+    mana pun (2026-10-07); kotak bruto dan bar tara tidak disentuh. Rinciannya di
+    `test_console_html_scan_popup.py`."""
+    badan = _badan("mintaBerat", "function galatPopupScan")
+    assert 'jenis: "berat"' in badan and "popupBerat = {" in badan and 'scan-popup-berat' in badan
+    assert "tanyaTara(" not in badan and 'pilihNilai($("plat-timbang")' not in badan
 
 
 def test_enter_di_bruto_menimbang_isi():
@@ -587,11 +586,11 @@ def test_enter_di_bruto_menimbang_isi():
     assert '"Enter"' in blok and '$("masuk").click()' in blok
 
 
-def test_toast_sukses_menyebut_langkah_plat_dan_supplier():
-    fn = _fungsi("teksScan")
+def test_hasil_scan_menyebut_langkah_plat_dan_supplier_di_popup_bukan_toast():
+    fn = _fungsi("teksPopupScan")
     assert "h.plate_number" in fn and "h.supplier" in fn and "kg(h.kg)" in fn
     badan = _badan("tanganiScan", "async function mintaBerat")
-    assert "toastSukses(teksScan(" in badan and "toastPeringatan(" in badan
+    assert "tampilkanPopupScan(" in badan and "toastSukses(" not in badan
 
 
 def test_fokus_tidak_direbut_dari_kolom_lain_dialog_atau_daftar():
@@ -604,7 +603,7 @@ def test_fokus_tidak_direbut_dari_kolom_lain_dialog_atau_daftar():
 def test_kamus_kolom_scan_ada_di_dua_bahasa():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
-        for kunci in ("lbScanOtomatis", "phScanOtomatis", "scanKetikBruto", "scanKetikTara",
+        for kunci in ("lbScanOtomatis", "phScanOtomatis",
                       "konfirmasiScanJudul", "konfirmasiScan", "btnCatatScan", "scanBelumAda",
                       "scanTrukNonaktif", "scanGanda", "scanLangkahDatang", "scanLangkahIsi",
                       "scanLangkahKosong"):
@@ -684,13 +683,12 @@ def test_strip_empat_langkah_dan_dua_form_yang_lebarnya_ditentukan_layar():
     assert "2.1fr" not in HTML and "1.6fr" not in HTML
     alat = _aturan(".tools.timbang-alat")
     assert "display:grid" in alat and "grid-template-columns:minmax(0,1fr)" in alat
-    strip = HTML.split("@media (min-width:960px) {", 1)[1][:200].replace(" ", "")
-    assert ".timbang-langkah{grid-template-columns:repeat(4,minmax(0,1fr))" in strip
+    # The step strip went on 2026-10-08 (the board shows the four steps); the two forms stay equal.
     aksi = HTML.split("@media (min-width:1100px) {", 1)[1][:200].replace(" ", "")
     assert ".timbang-aksi{grid-template-columns:repeat(2,minmax(0,1fr))" in aksi
     blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
-    assert blok.count('class="langkah-ruas') == 4
-    assert blok.count('class="timbang-form') == 2
+    assert blok.count('class="langkah-ruas') == 0
+    assert blok.count('class="timbang-form ') == 2
 
 
 def test_tombol_utama_timbangan_selebar_sama():
@@ -731,7 +729,7 @@ def test_bar_tara_di_kotak_alat_timbangan_satu_warna_dengan_langkah_3():
     blok = HTML.split('<div id="tara-grup"', 1)[1].split("</div>", 1)[0]
     for id_ in ("tara-plat", "tara-nilai", "tara-simpan", "tara-batal", "scan-keluar-pesan"):
         assert f'id="{id_}"' in blok, id_
-    alat = HTML.split('<div class="tools timbang-alat">', 1)[1].split('<div class="tabel">', 1)[0]
+    alat = HTML.split('<div class="tools timbang-alat berdiri">', 1)[1].split('id="papan-timbang"', 1)[0]
     assert '<div id="tara-grup"' in alat
     assert "var(--info)" in _aturan(".tara-grup")
     # Langkah 3 di strip menyala selama bar terbuka.
@@ -1242,13 +1240,12 @@ def test_tanggal_langganan_tidak_menampilkan_jam():
     assert "hour" not in fn and "minute" not in fn
 
 
-def test_deretan_tab_turun_baris_bukan_meluap():
-    """14 tab support tidak muat di layar 1024 px. Tanpa flex-wrap tiap tab
-    tidak bisa menyusut di bawah lebar labelnya, dan seluruh halaman bergeser
-    ke samping (terukur 1338 px di layar 1024, 2026-09-26). Dengan wrap, tab
-    baru turun baris kalau memang tidak muat, jadi layar lebar tetap satu baris."""
-    aturan = re.search(r"#tabs\s*\{([^}]*)\}", HTML).group(1)
-    assert "flex-wrap:wrap" in aturan.replace(" ", "")
+def test_rel_tab_bergulir_tegak_bukan_melebarkan_halaman():
+    """14 support tabs once widened the page sideways (1338 px on a 1024 px screen,
+    2026-09-26). Since 2026-10-07 they stand in a fixed left rail that scrolls on its own
+    (spec §5.1), so they can never push the page wider."""
+    aturan = re.search(r"#tabs\s*\{([^}]*)\}", HTML).group(1).replace(" ", "")
+    assert "position:fixed" in aturan and "overflow:hiddenauto" in aturan
 
 
 def test_reject_dan_piston_berdampingan_sama_lebar():
@@ -1314,7 +1311,7 @@ def test_kotak_area_deteksi_bisa_diatur_dan_kosong_berarti_null():
     for kunci in ("subConveyor", "subGaris", "subKotak", "bantuKotak", "labelRoiX1", "labelRoiY2"):
         assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in both languages"
     blok = HTML.split('data-setelan-grup="kamera"', 1)[1].split('data-setelan-grup="dev"', 1)[0]
-    assert blok.count('<fieldset class="setelan-sub">') == 3
+    assert blok.count('<details class="setelan-bagian"') == 3
 
 
 def test_kelompok_diagnostik_tertutup_dan_yang_dibuka_diingat():

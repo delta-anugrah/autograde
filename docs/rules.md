@@ -214,8 +214,8 @@ end of this file.
     `""` yang lolos apa adanya akan ditolak validasi UUID palmgrade-api.
     **Satu pengecualian: Lepas paksa** (keputusan user 2026-10-04,
     `POST /api/console/lines/{line_code}/force-release`, `services/lepas_paksa.py`). Line yang
-    mati tidak pernah mendengar Lepas, jadi truknya dulu tertinggal di konsol: Update now ditolak
-    (aturan 38), penugasan otomatis tertahan (aturan 36), dan line yang menyala lagi menarik truk
+    mati tidak pernah mendengar Lepas, jadi truknya dulu tertinggal di konsol: Update now berhenti dengan
+    `pembaruan_lepas_gagal` (aturan 38; lepas paksa dulu), penugasan otomatis tertahan (aturan 36), dan line yang menyala lagi menarik truk
     yang sudah pulang itu lewat `GET /internal/penugasan`. Tombolnya cuma muncul di kartu yang
     memegang truk selama status line tidak terbaca sama sekali (`sebab_kode` `tak_terjangkau`),
     menggantikan Lepas, dengan konfirmasi. Server yang memutuskan, bukan layar: Lepas biasa dicoba
@@ -365,7 +365,7 @@ end of this file.
     setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
-    **Satu kolom scan di tab Timbangan** (user 2026-10-06, menggantikan empat kolom per
+    **Satu kolom scan di tab Timbangan** (sejak 2026-10-07 scan jalan di semua tab, lihat di bawah; user 2026-10-06, menggantikan empat kolom per
     langkah). Markup-nya `hidden`; saklar **Scanner QR** di tab Setelan (support saja, bawaan
     mati, kunci `setelan_scanner_qr` di `sync_state`, 2026-10-05) memunculkannya di semua layar
     lewat polling 2 detik. Daftar plat, **Catat datang**, dan tombol di baris tiket tetap ada.
@@ -379,8 +379,8 @@ end of this file.
     selain itu = datang. Ini **bukan** menebak: langkahnya diturunkan dari data yang sudah ada,
     dan QR tetap cuma membawa plat. Datang dan keluar tetap ditulis `GateService`, berat tetap
     ditulis `record_weighing` (aturan 15). Berat diambil dari timbangan live kalau layak
-    (aturan 39); kalau tidak, jawabannya `perlu_berat` dan layar membuka kotak lama yang sudah
-    terisi platnya (Bruto, atau bar tara), operator mengetik angka lalu Enter. Truk yang belum
+    (aturan 39); kalau tidak, jawabannya `perlu_berat` dan layar membuka popup berat yang sudah
+    terisi platnya, operator mengetik angka lalu Enter. Truk yang belum
     terdaftar boleh datang tapi tidak ditimbang (`belum_terdaftar`), truk nonaktif juga tidak
     (`nonaktif`). **Bacaan ganda:** layar membuang QR yang sama dalam 2 detik
     (`JEDA_BACA_ULANG_MS`), dan server menjawab `perlu_konfirmasi` untuk datang, timbang isi,
@@ -391,13 +391,28 @@ end of this file.
     ganda tidak boleh menjawab pertanyaannya sendiri); QR lain = Batal; Esc = Batal. Tanpa itu satu QR yang terbaca dua kali mencatat timbang
     isi dengan berat apa pun yang sedang di jembatan, atau timbang kosong dengan berat timbang
     isinya sendiri. Keluar tidak pernah ditanya: jam keluar yang terlalu cepat tidak merugikan.
-    Kolomnya **memegang fokus** selama tab Timbangan terbuka (`jagaFokusScan`), tapi tidak
-    pernah merebutnya dari kolom ketik lain, daftar pilihan yang terbuka, atau dialog; jadi
-    scanner langsung dipakai tanpa klik. Enter datang dari scanner sendiri (terbukti
-    2026-10-06 dengan CASHCOW HC-4208DB lewat Bluetooth di Mac, skill `scanner-qr`). Toast
-    tiap scan yang berhasil menyebut langkah, plat, berat, dan supplier. **Hasil scan punya
-    `#scan-otomatis-pesan` sendiri, bukan banner global**: `refresh()` membersihkan banner
-    tiap kali berhasil, jadi pesan scan hilang dalam 2 detik (ketemu di browser).
+    **Scan dari tab mana pun (user 2026-10-07).** Penangkap tombol fase-capture di
+    `document` (`tangkapScan`) mengumpulkan ketikan scanner di tab apa pun, tanpa kolom yang
+    harus difokuskan: jeda antar huruf paling lama 100 ms, Enter paling lama 500 ms sesudah
+    huruf terakhir, minimal 3 karakter. Larian cepat yang putus di tengah = bacaan gagal
+    ("Scan tidak terbaca, ulangi scan"), tidak pernah dikirim setengah. Kolom `#scan-otomatis`
+    di tab Timbangan tetap ada untuk mengetik plat dengan tangan dan tetap **memegang fokus**
+    selama tab itu terbuka (`jagaFokusScan`, tidak pernah merebut dari kolom ketik lain, daftar
+    terbuka, atau dialog), tapi scan tidak bergantung padanya. Spasi+N (Manual Reject) dan P+N (piston) dijaga `ledakanScan()`: baru dianggap
+    ketikan scanner kalau sudah ada 3 karakter cepat, jadi plat `B 1995 SME` (ada " 1") tidak
+    menembakkan Reject, dan menahan Spasi lalu menekan 1 dengan tangan tetap me-reject. Enter
+    datang dari scanner sendiri (terbukti 2026-10-06 dengan CASHCOW HC-4208DB lewat Bluetooth
+    di Mac, skill `scanner-qr`). **Hasilnya popup, bukan toast** (`#scan-popup`, `div` bukan
+    dialog): sukses menutup sendiri dalam 4 detik, gagal dan peringatan 8 detik, isinya
+    langkah, plat, berat, supplier, dan line menurut urutan kartu (`teksPopupScan`). Berat yang
+    belum bisa diambil dari timbangan (`perlu_berat`) membuka popup berat dengan kolom angka:
+    Enter menyimpan, scan QR yang sama = simpan, scan QR lain menutupnya dan mengirim QR itu,
+    Esc atau 60 detik tanpa tombol menutupnya; huruf tidak pernah masuk jadi berat. Bar tara
+    dan kotak Bruto di tab Timbangan tidak disentuh lagi oleh scan, tetap untuk ketik tangan,
+    dan satu pembentuk muatan (`muatanBruto`/`muatanTara`) dipakai bersama. **Hasil scan tidak
+    lewat banner global**: `refresh()` membersihkan banner tiap berhasil, jadi pesan di sana
+    hilang dalam 2 detik (ketemu di browser); `#scan-otomatis-pesan` tinggal untuk peringatan
+    di bawah kolom.
     **`BUKAN_PLAT` kode tersendiri, bukan `PLAT_KOSONG`**: layar menerjemahkan per kode, dan
     QR berisi URL yang dijawab "tidak boleh kosong" adalah pesan salah di depan operator.
     Rute lama `POST /api/console/scan` dan `/scan/keluar` (`ScanService`, cuma mencari) masih
@@ -407,10 +422,10 @@ end of this file.
     dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan
     menerima teks apa pun tanpa validasi. Lalu dialog sendiri **juga** ditolak, dan
     alasannya lebih penting: lapisan yang menutup layar menghilangkan kamera line dan
-    strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
+    ringkasan hari ini sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
     pandangan justru saat paling butuh. (Ini soal mengisi angka; pertanyaan ya/tidak memakai
     `tanyaKonfirmasi`, coding standard F12.) Bar itu **tersembunyi sampai Timbang kosong ditekan
-    di baris tiket atau scan timbang kosong meminta beratnya**: kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
+    di baris tiket**: kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
     Platnya disebut di sebelahnya: operator melihat beberapa truk sehari sambil memegang
     HP supir. Angkanya divalidasi **di layar** sebelum dikirim, karena bolak-balik
     jaringan untuk hal yang terlihat di tempat itu satu detik yang hilang di gerbang;
@@ -487,7 +502,7 @@ end of this file.
     sandi pabrikan di akun yang sandinya sudah diganti, dan tidak boleh menghidupkan akun
     yang sudah sengaja dimatikan.
 21. **Lane developer: backend yang menjaga, layar cuma merapikan** (Task 14, 2026-09-15).
-    Ketujuh `/api/console/dev/*` (tabel di `docs/backend-overview.md` § HTTP Surface) lewat
+    Semua `/api/console/dev/*` (termasuk saklar Scanner QR dan Timbangan dummy) (tabel di `docs/backend-overview.md` § HTTP Surface) lewat
     `require_support`, itu yang
     sebenarnya menolak 403, dan tab developer yang disembunyikan dari operator biasa di
     `console.html` cuma kerapian, bukan pengaman: siapa pun yang tahu URL-nya tetap
@@ -592,7 +607,7 @@ end of this file.
     mereka: layar akan diam persis di saat penjelasan paling dibutuhkan. Yang ikut ke
     operator cuma tingkat keparahan, tanggal, dan nama perusahaan; nomor token tetap support-only, dan
     ada test yang menjaganya.
-    Data yang sama ditulis **di bawah tulisan AUTOGRADE untuk semua akun** (2026-09-28,
+    Data yang sama ditulis **di kepala layar, di bawah tulisan AutoGrade, untuk semua akun** (2026-09-28,
     `teksInfoSistem`): versi + "Lisensi s/d …", warnanya dari `severity` server, bukan
     dihitung ulang. Klik membuka kotak detail (`barisInfoSistem`), yang berbagi
     `barisLisensi` dengan tab Status (bagian Versi). Fitur lisensi mati = versi saja, supaya kata "mati"
@@ -815,7 +830,7 @@ end of this file.
     cloud lama (palmgrade-api) sudah mati dan AutoERP cuma menerima rekap per truk.
 
 27. **Last Sync: satu bagian, dua baris (AutoERP dan Cloud Photo), untuk semua operator** (2026-09-27).
-    Di ujung strip "Hari ini". Tiap baris menjawab dua hal yang sengaja dipisah: **jam** = kapan
+    Dua pil di kepala layar sejak 2026-10-07 (dulu di ujung strip "Hari ini"). Tiap pil menjawab dua hal yang sengaja dipisah: **jam** = kapan
     data terakhir benar-benar tersinkron, **warna** = apakah sambungannya hidup SEKARANG. Foto naik
     ke R2 tiap jam, jadi "13.05" pada pukul 13.50 itu normal; warna **tidak pernah** dihitung dari
     umur jam. Aturannya murni di `domain/sinkron.py`; pencatatnya SATU `StatusSinkron`
@@ -1248,17 +1263,17 @@ end of this file.
     Zone). **Bawaannya NYALA di semua line sejak 2026-10-05** (permintaan user; sebelumnya mati
     sampai support menyalakannya, keputusan D13): konsol yang belum pernah menyimpan saklar ini
     langsung menugaskan truk saat timbang isi. Baris tersimpan yang tidak terbaca dibaca MATI
-    (`domain/penugasan_line._tak_terbaca`), bukan bawaan. Selama mati strip antrean bongkar
-    tidak tampil. Hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
+    (`domain/penugasan_line._tak_terbaca`), bukan bawaan. Selama mati antrean bongkar (di kartu
+    truk layar Grading) tidak tampil; selama nyala ia tampil walau kosong. Hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
     saklar nyala langsung menjalankan `isi_line_otomatis()` (truk yang sudah menunggu naik
     sekarang); rute itu `async def` karena bertanya ke line (aturan 30). `baca_setelan` tidak pernah melempar (dibaca tiap polling
     `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.
     Penugasan tetap lewat `assign_truck` (aturan 13: line menerima dulu, baru dicatat); line
     yang tidak menjawab dilaporkan ke layar (`dipasang[].terpasang: false`) dan tidak pernah
     menggagalkan timbangan. Sebelum tiap line tiketnya dibaca lagi: tiket yang sudah dilewati
-    atau sudah bertara tidak dipasang ke line berikutnya. Jalan manual: dropdown Tugaskan/Lepas
-    per line, serta tombol **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di strip
-    antrean bongkar (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator).
+    atau sudah bertara tidak dipasang ke line berikutnya. Jalan manual: pemilih truk, Tugaskan,
+    dan Lepas di menu ⋯ tiap kartu line (Lepas per truk juga di kartu truk), serta tombol
+    **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di antrean bongkar (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator).
     **Tugaskan sekarang** hanya memakai line pilihan yang BEBAS (tidak pernah mengambil line
     dari truk lain) dan melewati pemeriksaan satu-truk-satu-waktu; ditolak
     `line_semua_terpakai` kalau tidak ada line pilihan yang bebas ATAU selama timbang kosong
@@ -1370,29 +1385,51 @@ end of this file.
     rename), penunggu systemd di host (sawit `autograde-update.path` +
     `autograde-update.service`, dipasang `pasang-penunggu-update.sh`) menjalankan
     `autograde _update-now` dan menjawab `result.json`. Tombol hanya muncul kalau `watcher` true
-    dan versi `staged` lebih baru dari `APP_VERSION` konsol. **Ditolak 409
-    `pembaruan_ada_truk` selama ada truk di-assign di line mana pun**, termasuk truk yang lupa
-    dilepas sejak hari kerja lalu (sumber `assignments`): pemasangan me-restart konsol dan
-    ketiga line. Truk di line yang mati dilepas lewat **Lepas paksa** (aturan 13). Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
+    dan versi `staged` lebih baru dari `APP_VERSION` konsol. **Pasang melepas sendiri
+    truk di line mana pun** (2026-10-07), termasuk truk yang lupa dilepas sejak hari kerja lalu
+    (sumber `assignments`), karena pemasangan me-restart konsol dan ketiga line. Urutannya di
+    bawah `pembaruan.kunci`: semua penolakan lain dulu (`periksa`), lalu `release_truck` per line
+    (tanpa mengisi line lagi), lalu penanda. Line yang tidak menjawab menghentikan pemasangan:
+    409 `pembaruan_lepas_gagal` (`params.line`), tanpa penanda; pakai **Lepas paksa** (aturan 13)
+    di line itu lalu tekan Pasang lagi. Line bertruk yang menurut poll status terakhir sudah
+    tidak terbaca (`reachable` false) ditolak dengan kode yang sama **sebelum** satu truk pun
+    dilepas; kalau line gagal di tengah jalan (termasuk galat tak terduga, tidak pernah 500),
+    `params.dilepas` menyebut line yang truknya sudah terlepas dan layar menyuruh menugaskannya lagi. Assign yang masih menunggu line tetap ditolak 409
+    `pembaruan_ada_truk`. Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
     berjalan. Penugasan otomatis (aturan 36) memakai kunci yang sama (2026-10-03): selama
     pemasangan truk yang timbang isi tetap di antrean bongkar, **Tugaskan sekarang** ditolak 409
     `pembaruan_berjalan`, dan tiap line yang ditugaskan otomatis lewat `menugaskan` seperti
     tombol manual (`PenugasanOtomatis.pakai_penjaga_pembaruan`, dipasang di
-    `console_deps.get_console_service` dengan singleton yang sama). Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa dan
-    tulis penanda; assign memegangnya cuma untuk mendaftar diri (`menugaskan`), lalu memanggil
-    line TANPA kunci, dan line yang assign-nya belum dijawab ikut menolak install. Jadi tidak ada
-    celah antara "tidak ada truk" dan penanda mendarat, dan line mati (10 detik) tidak membuat
-    assign di line lain antre. Server mengirim kode line, layar
+    `console_deps.get_console_service` dengan singleton yang sama). Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa, setiap
+    `release_truck`, dan tulis penanda; assign memegangnya cuma untuk mendaftar diri
+    (`menugaskan`), lalu memanggil line TANPA kunci, dan line yang assign-nya belum dijawab ikut
+    menolak install. Jadi tidak ada celah antara "tidak ada truk" dan penanda mendarat. Harganya:
+    selama Update now menunggu line yang diam (sampai batas waktu klien line), assign dan
+    penugasan otomatis di line lain antre di belakangnya. Kalau `status.json` berubah antara
+    `periksa` dan `pasang` (versi di-stage ulang), truk sudah terlepas dan pemasangan ditolak 409
+    `pembaruan_tidak_ada` (jarang, tidak berbahaya). Server mengirim kode line, layar
     menulis nama di kartunya (`namaLineDari`). `rolled_back` menyembunyikan versi itu sampai
     versi yang lebih baru di-stage; `failed` berarti belum dicoba (kunci launcher, promote
     dilewat, skrip terhenti) dan ditawarkan lagi. Penanda tanpa jawaban 20 menit
     (`BATAS_TUNGGU_S`) terbaca `timeout`; hasil tampil 24 jam. Kabar hasil cukup di layar dan
     tab Log (sekali per hasil, `.result-logged.json` bertahan lewat restart; gagal = ERROR
-    sampai Discord), tanpa notifikasi desktop (keputusan user 2026-10-02). Aturan murni:
+    sampai Discord), tanpa notifikasi desktop (keputusan user 2026-10-02). Rute pasangnya ada di
+    `routes/console_pembaruan.py`. **Layarnya (2026-10-07):** tombol Pasang bertanya dulu lewat
+    `tanyaKonfirmasi` dengan kalimat yang menyebut tiap truk dan line-nya (tanpa truk: cuma
+    kalimat restart). Sesudah 202, **tirai layar penuh**
+    `#tirai-pembaruan` menutup semuanya sampai halaman dimuat ulang; tirai itu `div`, bukan
+    `dialog.modal`, karena konsol dan line mati di bawahnya dan tidak ada yang boleh ditekan
+    (pengecualian F12, dijelaskan di komentarnya). Tirai mengalah pada gerbang login (sesi
+    habis di tengah jalan tidak boleh terkunci di belakang tirai). Penandanya
+    `sessionStorage` kunci `autograde.pasang` (cadangan di memori kalau penyimpanan ditolak)
+    kedaluwarsa 25 menit. **Toast sukses hanya kalau penunggu menjawab `ok` untuk versi
+    tujuan itu**; `rolled_back`, `failed`, `timeout`, atau tidak ada jawaban sama sekali =
+    toast gagal. Memuat ulang sesudah pasang tetap terjadi dengan tirai terpasang, toastnya
+    muncul sesudahnya. Aturan murni:
     `domain/pembaruan.py`; kontrak berkas: `docs/backend-overview.md` § Update now.
 
-39. **Timbangan live: dibaca konsol dari PLC, masuk tiket cuma lewat scan dan kalau layak** (2026-10-06). Angka besar di kotak
-    **Data timbangan** (strip "Hari ini") adalah berat di jembatan timbang SEKARANG, dibaca
+39. **Timbangan live: dibaca konsol dari PLC, masuk tiket cuma lewat scan dan kalau layak** (2026-10-06). Angka besar di kartu
+    **Timbangan sekarang** (layar Grading; dulu kotak "Data timbangan") adalah berat di jembatan timbang SEKARANG, dibaca
     konsol dari register kata PLC lewat MC Protocol (`plc/pembaca_timbangan.py`, worker
     `workers/timbangan_live_worker.py`, tiap `SCALE_POLL_MS`), di **sambungan sendiri**
     (`SCALE_PLC_PORT`, bawaan 1028; 1025-1027 dipegang tiga line, satu port satu pemakai), bukan
@@ -1414,6 +1451,16 @@ end of this file.
     Putus dicatat sekali saat mulai dan sekali saat pulih (aturan 33). Aturan murni:
     `domain/timbangan_live.py`; layar polling `GET /api/console/scale/live` tiap detik di semua
     tab (tiap 30 detik selama `tidak_dipakai`).
+    **Timbangan dummy (2026-10-07):** saklar support di Setelan > Mode Developer
+    (`GET/POST /api/console/dev/timbangan-dummy`, kunci `setelan_timbangan_dummy` di `sync_state`).
+    Menyala = scan timbang isi menyimpan **30.000 kg** dan timbang kosong **10.000 kg**, tanpa
+    peduli apa yang dibaca timbangan asli (dummy **menang** atas timbangan live, dan atas
+    "tidak layak"), dan baris itu ditandai `dummy: true` di jawaban scan. Datanya **tetap
+    dikirim ke AutoERP** (keputusan user 2026-10-07): dummy cuma menggantikan angkanya, bukan
+    jalurnya, jadi matikan sebelum kerja sungguhan. Pita oranye `#pita-dummy` di semua tab
+    mengingatkannya. Kotak timbangan live menulis **Dummy** hanya selama tidak ada timbangan
+    terpasang (`tidak_dipakai`); dengan timbangan terpasang kotak itu tetap menulis keadaan
+    timbangannya, tetapi scan tetap menyimpan berat dummy.
 
 ---
 
@@ -1441,7 +1488,10 @@ memang khas satu mesin.
 - `snake_case` files/functions, `PascalCase` classes, `UPPER_SNAKE` constants (`core/constants.py`) & env vars.
 - All paths via `Settings` (`core/config.py`): never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
-- ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+- ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **settings space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+  Since 2026-10-07 the stream picture keeps the camera's own ratio inside that box (1224×1024 becomes 861×720,
+  `domain/skala_tampilan.ukuran_muat`), so `DisplayWorker` maps the stored ROI and capture line onto the picture per axis
+  (`draw_roi(skala_setelan=...)`); the stored numbers keep their meaning and nothing is recalibrated.
   Since 2026-10-04 the box can also be set from the console (Settings, Camera & Conveyor), one box for all lines: `RuntimeState.roi_override` wins over `.env`, and `null` (never set, or an older console) leaves each line its own `ROI_*`. Never default it to zeros: that would reset a calibrated box to the full frame.
 - **Garis capture (biru, bertanda `CAPTURE`) menentukan KAPAN janjang difoto; ROI menentukan DI MANA.**
   Dua hal berbeda, sengaja dipisah sejak 2026-09-18. Janjang difoto saat kotaknya **menyentuh**
@@ -1453,7 +1503,7 @@ memang khas satu mesin.
   `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal, bawaannya **300** (`config.py`, compose, `.env.example`). **`0` = tidak ada
   garis**, dan itu perilaku sebelum fitur ini ada (semua janjang di dalam ROI difoto),
   tetap sah, tapi harus ditulis sendiri sejak bawaannya bukan lagi 0.
-  ⚠️ Angkanya ruang **stream** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
+  ⚠️ Angkanya ruang **setelan** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
   menyaring (`skala_garis_ke_frame`): melewatkan penskalaan itu bug yang sudah pernah terjadi di
   ROI (`bdcb300`): garis terlihat benar di layar sementara yang menyaring sepertiga frame.
   Kalau capture terasa terlalu cepat, **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.

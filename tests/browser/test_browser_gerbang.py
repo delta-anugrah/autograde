@@ -21,7 +21,9 @@ from playwright.sync_api import expect
 # Cells of a ticket row (`barisTimbangan` in console.html); Status is the first since 2026-10-02.
 _STATUS, _ANTRE, _TOTAL = 0, 3, 5
 _SALAH = re.compile(r"\bsalah\b")
-_LANGKAH = ("lbDatang", "lbGerbangMasuk", "lbGerbangKeluar", "lbPergi")
+# Steps 1 and 2 name the two forms; 3 and 4 are columns of the board since 2026-10-08.
+_LANGKAH = ("lbDatang", "lbGerbangMasuk")
+_KOLOM_PAPAN = ("tahapDatang", "tahapBongkar", "tahapTimbangKosong", "tahapSelesai")
 _WARNA = "(el) => [getComputedStyle(el).color, getComputedStyle(el).backgroundColor]"
 # The theme's own warning pair, resolved by the browser the same way as the tag's.
 _WARNA_PERINGATAN = """() => {
@@ -90,7 +92,8 @@ def test_four_labelled_steps_and_two_new_columns(halaman, scanner_mati):
     expect(kepala.first).to_have_text(kamus(halaman, "thStatus"))
     for kunci in ("thAntre", "thTotal"):
         expect(halaman.locator(f'#sec-timbangan th[data-t="{kunci}"]')).to_have_text(kamus(halaman, kunci))
-    expect(halaman.locator("#petunjuk-pergi")).to_have_text(kamus(halaman, "hintPergi"))
+    for kunci in _KOLOM_PAPAN:
+        expect(halaman.locator(f'#papan-timbang [data-t="{kunci}"]')).to_have_text(kamus(halaman, kunci))
 
 
 def test_arrival_by_picker_then_weigh_in_shows_queue_minutes(halaman, browser_name, penugasan_bersih):
@@ -267,9 +270,8 @@ def test_steps_and_forms_are_equal_width_and_height(halaman, lebar):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
     k = halaman.evaluate(_KOTAK_LANGKAH)
-    assert len(k["ruas"]) == 4 and len(k["form"]) == 2, k
-    assert len({r["top"] for r in k["ruas"]}) == 1, k["ruas"]
-    assert _sama([r["width"] for r in k["ruas"]]) and _sama([r["height"] for r in k["ruas"]]), k["ruas"]
+    # The four-segment strip went on 2026-10-08 (the board shows the steps).
+    assert len(k["ruas"]) == 0 and len(k["form"]) == 2, k
     assert len({f["top"] for f in k["form"]}) == 1, k["form"]
     assert _sama([f["width"] for f in k["form"]]) and _sama([f["height"] for f in k["form"]]), k["form"]
     assert _sama([c["height"] for c in k["kontrol"]]), k["kontrol"]
@@ -287,19 +289,17 @@ def test_steps_and_forms_stack_on_a_phone(halaman):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
     k = halaman.evaluate(_KOTAK_LANGKAH)
-    for kelompok in ("ruas", "form"):
-        atas = [r["top"] for r in k[kelompok]]
-        assert atas == sorted(set(atas)), k[kelompok]
-        assert _sama([r["width"] for r in k[kelompok]]), k[kelompok]
-    assert k["ruas"][-1]["bottom"] <= k["form"][0]["top"], k
+    atas = [r["top"] for r in k["form"]]
+    assert atas == sorted(set(atas)), k["form"]
+    assert _sama([r["width"] for r in k["form"]]), k["form"]
 
 
 # Where each control of the step area sits inside the toolbar. Relative to the toolbar, because
 # the page above it (line cards, the scroll) moves on its own between two polls.
 _POSISI_LANGKAH = """() => {
   const alat = document.querySelector('#sec-timbangan .timbang-alat').getBoundingClientRect();
-  return ['[data-t="lbDatang"]', '[data-t="lbGerbangMasuk"]', '[data-t="lbGerbangKeluar"]',
-          '[data-t="lbPergi"]', '#plat-datang', '#datang', '#plat-timbang', '#bruto', '#masuk']
+  return ['[data-t="lbDatang"]', '[data-t="lbGerbangMasuk"]',
+          '#plat-datang', '#datang', '#plat-timbang', '#bruto', '#masuk']
     .map((sel) => { const r = document.querySelector('#sec-timbangan ' + sel).getBoundingClientRect();
                     return [sel, Math.round(r.left - alat.left), Math.round(r.top - alat.top),
                             Math.round(r.width), Math.round(r.height)]; });
@@ -333,7 +333,7 @@ def test_the_waiting_list_never_moves_the_other_steps(halaman, konsol, browser_n
             expect(lencana).to_have_attribute("title", re.compile(re.escape(n)))
         assert halaman.evaluate(_POSISI_LANGKAH) == sebelum
         ruas = lencana.evaluate("(el) => [el.getBoundingClientRect().right,"
-                                " el.closest('.langkah-ruas').getBoundingClientRect().right]")
+                                " el.closest('.timbang-form').getBoundingClientRect().right]")
         assert ruas[0] <= ruas[1], ruas
     finally:
         # Every arrival is claimed by a weigh-in, then weighed out and gone: the console is
@@ -429,8 +429,7 @@ def test_status_badge_follows_the_four_steps_and_the_newest_row_leads(halaman, k
     expect(atas.locator("button")).to_have_count(1)
     expect(atas.locator('button[data-aksi="batal-datang"]')).to_have_count(1)
 
-    langkah = {"lbDatang": "tahap-datang", "lbGerbangMasuk": "tahap-bongkar",
-               "lbGerbangKeluar": "tahap-kosong", "lbPergi": "tahap-selesai"}
+    langkah = {"lbDatang": "tahap-datang", "lbGerbangMasuk": "tahap-bongkar"}
     for kunci, kelas in langkah.items():
         judul = halaman.locator(f'#sec-timbangan label[data-t="{kunci}"]')
         expect(judul).to_have_class(re.compile(rf"\b{kelas}\b"))
@@ -441,6 +440,12 @@ def test_status_badge_follows_the_four_steps_and_the_newest_row_leads(halaman, k
         judul = halaman.locator(f'#sec-timbangan label[data-t="{kunci}"]')
         assert badge.evaluate(_WARNA) == judul.evaluate(_WARNA)
 
+    def _sama_warna_kolom(kolom: str) -> None:
+        """Steps 3 and 4 live on the board: its column number wears the badge's text colour."""
+        badge = _lencana(_baris(halaman, nomor))
+        nomor_kolom = halaman.locator(f'#papan-timbang [data-kolom="{kolom}"] .papan-no')
+        assert badge.evaluate(_WARNA)[0] == nomor_kolom.evaluate(_WARNA)[0]
+
     _sama_warna("lbDatang")
     _isi(halaman, nomor)
     # Newest weigh-in first: the ticket just weighed in is the top row.
@@ -449,10 +454,10 @@ def test_status_badge_follows_the_four_steps_and_the_newest_row_leads(halaman, k
     _sama_warna("lbGerbangMasuk")
     _kosong(halaman, nomor)
     expect(_lencana(_baris(halaman, nomor))).to_have_text(kamus(halaman, "tahapTimbangKosong"))
-    _sama_warna("lbGerbangKeluar")
+    _sama_warna_kolom("kosong")
     _pergi(halaman, nomor)
     expect(_lencana(_baris(halaman, nomor))).to_have_text(kamus(halaman, "tahapSelesai"))
-    _sama_warna("lbPergi")
+    _sama_warna_kolom("selesai")
 
 
 # Width of every Status badge in the table, and the text each one shows.

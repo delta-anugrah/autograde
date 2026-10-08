@@ -57,6 +57,10 @@ class CvPalsu:
         self._jejak.append(("resize", frame.ukuran, ukuran))
         return FramePalsu(*ukuran, self._jejak, nama="kecil")
 
+    def getTextSize(self, teks: str, *_args) -> tuple[tuple[int, int], int]:  # noqa: N802 (cv2's name)
+        # Not a drawing step: measuring the FPS text to place it top-right (2026-10-08).
+        return (18 * len(teks), 22), 8
+
     def putText(self, frame: FramePalsu, teks: str, *_args) -> None:  # noqa: N802 (cv2's name)
         self._jejak.append(("putText", frame.ukuran, teks))
         frame.digambari.append("teks")

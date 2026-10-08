@@ -122,7 +122,7 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
                                              └→ MasterDataWorker  ← supplier + truk dari AutoERP  (kalau ERP_URL diisi)
                                                 ErpOutboxWorker   → truk baru (§4.B) + kunjungan truk (§4.C)
                                                 VisitResendWorker → kunjungan kemarin, sekali sehari
-PLC register D (MC Protocol, port 1028) → TimbanganLiveWorker → kotak "Data timbangan" (kalau SCALE_PLC_REGISTER diisi)
+PLC register D (MC Protocol, port 1028) → TimbanganLiveWorker → kartu "Timbangan sekarang" (kalau SCALE_PLC_REGISTER diisi)
 
 /console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
@@ -269,7 +269,7 @@ MODEL_FILE=best.pt
 CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
 
-# Stream (MJPEG — tidak mempengaruhi hasil simpan)
+# Kotak stream MJPEG (gambar dimuatkan dengan rasio asli kamera; juga grid angka ROI/garis capture; tidak mempengaruhi hasil simpan)
 STREAM_WIDTH=1280
 STREAM_HEIGHT=720
 ```
@@ -393,16 +393,22 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 ### Konsol operator (`APP_MODE=console`)
 
 Layar di **`/console`**: port 8100 di PC pabrik (image produksi) dan `make console`, 8000 lewat `make up` / `make up-console` dari source. Satu berkas HTML statis: vanilla JS, **tanpa
-build step, tanpa Node, tanpa CDN, tanpa webfont**, harus tetap kebuka saat internet mati.
-Isinya strip total hari kerja (dengan **Last Sync**: jam sinkron terakhir dan status sambungan ke
-AutoERP dan Cloud Photo), kartu kamera per line (assign/lepas truk, reject manual, piston),
-dan 5 tab operator: Grading, Truk, Timbangan, Rekap, **Riwayat** (grading hari-hari sebelumnya,
-maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 10 tab tambahan (Log sampai
-Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di
+build step, tanpa Node, tanpa CDN**, harus tetap kebuka saat internet mati (dua font, Plus Jakarta
+Sans dan Barlow Condensed, tertanam di berkasnya sebagai woff2 lewat `scripts/tanam_font.py`;
+foto layar masuk juga tertanam, satu JPEG ≤ 60 KB per kelas dari `assets/masuk/` lewat
+`scripts/tanam_foto_masuk.py`).
+Menu di kiri (bisa disembunyikan), kepala dengan pil **Last Sync** (AutoERP dan Cloud Photo),
+ringkasan hari kerja (janjang, timbangan live, truk di line dan antrean bongkar), kartu
+kamera per line (foto terakhir, reject manual, piston, menu ⋯ untuk assign/lepas truk),
+dan 4 tab operator: Grading, Truk, Timbangan, **Rekap** (hari ini dan hari-hari sebelumnya,
+maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 5 tab tambahan (Log, Status,
+Akun, Line, Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di
 `localStorage`.
 
 - **Login (Fase 4).** Layar tertutup gerbang sampai ada yang masuk: operator mengetik **email
-  dan sandi** (tombol nama yang ada cuma mengisi kolom email, sandinya tetap wajib), dan topbar
+  dan sandi** (tombol akun yang ada cuma mengisi kolom email, sandinya tetap wajib; sejak
+  2026-10-08 gerbangnya terbelah dua, foto kamera dengan satu kotak deteksi di kiri dan form di
+  kanan, plus tombol ID / EN), dan topbar
   menampilkan namanya plus tombol **Keluar**. Semua `/api/console/*` menjawab 401 tanpa cookie
   `konsol_sesi`; yang tetap terbuka cuma `/console`, daftar akun, dan `login`. Sesi berakhir 12 jam sesudah layar terakhir
   disentuh (geser, aturan 19; polling tidak memperpanjang), dan Reject Manual tercatat atas nama yang sedang masuk.
@@ -548,7 +554,7 @@ Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disim
 
 **Graceful startup**: app tetap jalan meskipun kamera belum terhubung saat startup. `health.detail.camera_connected` akan `false`, dan `FrameCaptureWorker` otomatis retry sampai kamera terdeteksi. Begitu kamera dicolok (dan MVS di-close), `camera_connected` berubah jadi `true` tanpa restart container.
 
-**MJPEG stream**: default encode di 1280×720 (dikontrol via `STREAM_WIDTH`/`STREAM_HEIGHT`). Frame asli Hikrobot 4K tetap disimpan ke disk; resize hanya untuk stream.
+**MJPEG stream**: gambar dimuatkan ke dalam kotak 1280×720 (`STREAM_WIDTH`/`STREAM_HEIGHT`) dengan rasio asli kamera, mis. 861×720 untuk kamera 1224×1024 (sejak 2026-10-07). Frame asli Hikrobot 4K tetap disimpan ke disk; resize hanya untuk stream.
 
 ---
 

@@ -17,18 +17,29 @@ truck stays in memory as on a line that was only cut off (Lepas paksa).
 
 from __future__ import annotations
 
-import base64
 import json
+import struct
 import threading
 import time
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from harness import port_bebas
 
-PNG_1PX = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-)
+
+def png_polos(lebar: int, tinggi: int) -> bytes:
+    """A plain grey PNG of the given size, built without Pillow (the browser suite needs no cv2)."""
+    def potong(jenis: bytes, isi: bytes) -> bytes:
+        return struct.pack(">I", len(isi)) + jenis + isi + struct.pack(">I", zlib.crc32(jenis + isi))
+    baris = b"".join(b"\x00" + b"\x80" * lebar for _ in range(tinggi))
+    return (b"\x89PNG\r\n\x1a\n" + potong(b"IHDR", struct.pack(">IIBBBBB", lebar, tinggi, 8, 0, 0, 0, 0))
+            + potong(b"IDAT", zlib.compress(baris)) + potong(b"IEND", b""))
+
+
+#: The shape of the Lampung camera picture since 2026-10-07 (1224x1024 kept at 861x720): 6:5.
+GAMBAR_KAMERA = png_polos(12, 10)
+
 STATUS_SEHAT = {
     "piston": {"requested": False, "confirmed_open": False},
     "alarms": [],
@@ -62,7 +73,7 @@ SETELAN_KAMERA = {
          "pilihan": ["Off", "Once", "Continuous"]},
     ],
 }
-_PERINTAH = ("/internal/assignment", "/internal/setelan")
+_PERINTAH = ("/internal/assignment", "/internal/setelan", "/internal/manual-reject")
 _SAMBUNG_ULANG = "/internal/camera/reconnect"
 
 
@@ -78,7 +89,7 @@ class _Penjawab(BaseHTTPRequestHandler):
         jalur = urlsplit(self.path).path
         if jalur == "/api/video_feed":
             if self.server.feed_ada:
-                self._kirim(200, PNG_1PX, "image/png")
+                self._kirim(200, GAMBAR_KAMERA, "image/png")
             else:
                 self._json(404, {"detail": "Not Found"})
         elif jalur == "/health":

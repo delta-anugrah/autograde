@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 
 import httpx
-from langkah import OPERATOR, kamus, masuk, plat
+from langkah import OPERATOR, buka_menu_line, kamus, masuk, plat
 from playwright.sync_api import expect
 
 # LineStatusWorker reads every line each second and the screen polls every 2 s: a silent
@@ -49,6 +49,7 @@ def test_a_silent_line_is_released_on_the_console_then_told_when_it_answers(
     assert line.truk == truck_id
     masuk(halaman, OPERATOR)
     kartu = halaman.locator('#lines .card[data-line="line-1"]')
+    buka_menu_line(kartu)
     expect(kartu.locator(".truk")).to_contain_text(nomor)
     expect(kartu.locator('button[data-aksi="lepas"]')).to_be_enabled()
 
@@ -73,6 +74,8 @@ def test_a_silent_line_is_released_on_the_console_then_told_when_it_answers(
         # By its text: signing in also announces older automatic releases as warnings.
         pesan = kamus(halaman, "sukLepasPaksa").replace("{line}", nama_line)
         expect(halaman.locator("#toasts .toast.peringatan", has_text=pesan)).to_be_visible()
+        # The tap on the dialog closed the card's menu (a tap outside closes it): open it again.
+        buka_menu_line(kartu)
         expect(kartu.locator(".truk .truk-kosong")).to_be_visible()
         expect(kartu.locator('button[data-aksi="lepas"]')).to_be_disabled()
         assert line.truk == truck_id, "cut off, the line still holds the departed truck"
@@ -91,6 +94,7 @@ def test_cancel_keeps_the_truck_on_the_card(halaman, lines, konsol, penugasan_be
     truck_id = _tugaskan(konsol, nomor)
     masuk(halaman, OPERATOR)
     kartu = halaman.locator('#lines .card[data-line="line-1"]')
+    buka_menu_line(kartu)
 
     line.atur_diam(True)
     try:

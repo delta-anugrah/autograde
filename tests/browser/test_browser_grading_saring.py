@@ -9,11 +9,28 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from langkah import OPERATOR, kamus, masuk
 from playwright.sync_api import expect
 
 # A 1x1 PNG: a real picture the browser decodes, from no server at all.
 PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+
+@pytest.fixture(autouse=True)
+def _tanpa_pengumuman_pelepasan(halaman):
+    """The console is shared by the session's tests: releases made by earlier tests (penugasan)
+    are announced again as warning toasts at sign-in, and they covered the truck picker (review
+    #256: the truck filter test failed when run right after the penugasan tests). These tests
+    are about the table, so the announcements are left out of `/api/console/state`."""
+
+    def jawab(route):
+        r = route.fetch()
+        isi = r.json()
+        isi["auto_releases"] = []
+        route.fulfill(response=r, json=isi)
+
+    halaman.route("**/api/console/state", jawab)
 
 
 def _baris(nomor: int, line: str, *, thumb: str | None) -> dict:
@@ -48,15 +65,19 @@ def test_the_line_filter_asks_the_server_and_page_one_follows(halaman):
     pilih = halaman.locator("#grading-line")
     pilih.locator(".pilih-tombol").click()
     expect(pilih.locator('[role="option"]').first).to_have_text(kamus(halaman, "saringSemuaLine"))
+    sesudah_pilih = len(diminta)
     pilih.locator('[role="option"][data-nilai="line-2"]').click()
 
     expect(halaman.locator("#recent tr")).to_have_count(1)
     expect(halaman.locator("#recent td.kode-line")).to_have_text("line-2")
-    terakhir = diminta[-1]
-    assert terakhir["line_code"] == "line-2" and terakhir["offset"] == "0" and "truck_id" not in terakhir
+    # The photo strips ask four rows per line on their own (2026-10-07), and a poll may land
+    # before or after the pick (review #256): look for the table's filtered request, not the last.
+    tabel = [d for d in diminta[sesudah_pilih:] if d["limit"] != "4"]
+    assert any(d.get("line_code") == "line-2" and d["offset"] == "0" and "truck_id" not in d for d in tabel), tabel
     # The 2 s poll keeps the filter.
+    sebelum = len(diminta)
     halaman.evaluate("() => refresh()")
-    assert diminta[-1]["line_code"] == "line-2"
+    assert any(d.get("line_code") == "line-2" and d["limit"] != "4" for d in diminta[sebelum:])
 
 
 def test_the_truck_filter_lists_the_trucks_and_says_when_nothing_matches(halaman):
@@ -66,10 +87,11 @@ def test_the_truck_filter_lists_the_trucks_and_says_when_nothing_matches(halaman
     pilih.locator(".pilih-tombol").click()
     pertama = pilih.locator('[role="option"]:not([data-nilai=""])').first
     truck_id = pertama.get_attribute("data-nilai")
+    sesudah_pilih = len(diminta)
     pertama.click()
 
     expect(halaman.locator("#recent td.kosong")).to_have_text(kamus(halaman, "kosongGradingSaring"))
-    assert diminta[-1]["truck_id"] == truck_id
+    assert any(d.get("truck_id") == truck_id for d in diminta[sesudah_pilih:] if d["limit"] != "4")
 
 
 def test_the_table_loads_the_small_photo_and_the_dialog_the_full_one(halaman):
@@ -92,3 +114,42 @@ def test_a_missing_small_photo_falls_back_to_the_full_one(halaman):
     expect(gambar).to_have_attribute("src", PNG + "#penuh1")
     expect(gambar).not_to_have_attribute("data-penuh", PNG + "#penuh1")
     assert gambar.evaluate("(img) => img.naturalWidth") == 1
+
+
+def test_the_photo_strips_stay_full_while_the_table_is_filtered(halaman):
+    """Spec 2026-10-07 §5.2: each line card shows that line's newest photos; filtering the
+    table to one line must not empty the other cards' strips."""
+    diminta = _jawab_history(halaman, [_baris(1, "line-1", thumb=PNG + "#kecil1"), _baris(2, "line-2", thumb=PNG + "#kecil2")])
+    masuk(halaman, OPERATOR)
+    strip_2 = halaman.locator('#lines .card[data-line="line-2"] .strip-item')
+    expect(strip_2).to_have_count(1)
+    pilih = halaman.locator("#grading-line")
+    pilih.locator(".pilih-tombol").click()
+    pilih.locator('[role="option"][data-nilai="line-1"]').click()
+    expect(halaman.locator("#recent tr")).to_have_count(1)
+    sebelum = len(diminta)
+    halaman.evaluate("() => refresh()")
+    expect(strip_2).to_have_count(1)
+    assert any(d.get("line_code") == "line-2" and d["limit"] == "4" for d in diminta[sebelum:]), diminta[sebelum:]
+
+
+def test_a_strip_photo_opens_the_full_photo(halaman):
+    _jawab_history(halaman, [_baris(1, "line-1", thumb=PNG + "#kecil1")])
+    masuk(halaman, OPERATOR)
+    foto = halaman.locator('#lines .card[data-line="line-1"] .strip-item')
+    expect(foto.locator("img")).to_have_attribute("src", PNG + "#kecil1")
+    foto.click()
+    expect(halaman.locator("#foto-modal")).to_be_visible()
+    expect(halaman.locator("#foto-besar")).to_have_attribute("src", PNG + "#penuh1")
+
+
+def test_a_new_filter_does_not_flash_the_first_row(halaman):
+    """Review #256: after a filter change every row is "new"; none of them may flash."""
+    _jawab_history(halaman, [_baris(1, "line-1", thumb=PNG + "#kecil1"), _baris(2, "line-2", thumb=PNG + "#kecil2")])
+    masuk(halaman, OPERATOR)
+    expect(halaman.locator("#recent tr")).to_have_count(2)
+    pilih = halaman.locator("#grading-line")
+    pilih.locator(".pilih-tombol").click()
+    pilih.locator('[role="option"][data-nilai="line-2"]').click()
+    expect(halaman.locator("#recent tr")).to_have_count(1)
+    expect(halaman.locator("#recent tr.baris-baru")).to_have_count(0)

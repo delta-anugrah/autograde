@@ -43,7 +43,10 @@ def test_the_detection_box_and_the_two_show_switches_reach_the_lines(halaman, li
         halaman.fill(f"#set-roi-{sisi}", nilai)
     halaman.uncheck("#set-tampil-garis")
     halaman.click("#set-simpan")
-    expect(halaman.locator("#toasts .toast.peringatan")).to_have_count(1)
+    # By its text: earlier tests leave automatic-release warnings that signing in announces,
+    # and a pointer resting on the stack pauses their countdown.
+    sebagian = kamus(halaman, "setelanTersimpanSebagian").replace("{lines}", "line-3")
+    expect(halaman.locator("#toasts .toast.peringatan", has_text=sebagian)).to_have_count(1)
     for kode in _HIDUP:
         isi = [isi for jalur, isi in lines[kode].diterima if jalur == "/internal/setelan"][-1]
         assert (isi["roi_x1"], isi["roi_y1"], isi["roi_x2"], isi["roi_y2"]) == (100, 50, 1180, 620), isi

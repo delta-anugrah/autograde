@@ -24,6 +24,7 @@ from ..domain.gerbang import (
     pilih_kedatangan,
     selesai_tanpa_scan_4,
 )
+from ..domain.timbangan_dummy import KUNCI_TIMBANGAN_DUMMY
 from ..domain.working_day import JENDELA_TANPA_KELUAR_DETIK, awal_kunjungan
 from ..repositories.console_repository import ConsoleStore
 from .hari_kerja import HariKerja
@@ -60,6 +61,16 @@ class GerbangKonsol:
         """Support only (route guard). WARNING with who, like the other Setelan switches."""
         self.store.set_state(KUNCI_SCANNER_QR, "1" if aktif else "0")
         logger.warning("Scanner QR %s, diubah oleh %s", "NYALA" if aktif else "MATI", diubah_oleh)
+        return {"aktif": aktif}
+
+    def timbangan_dummy(self) -> bool:
+        """Whether scans take the fixed dummy weights instead of the live scale."""
+        return self.store.get_state(KUNCI_TIMBANGAN_DUMMY) == "1"
+
+    def simpan_timbangan_dummy(self, aktif: bool, *, diubah_oleh: str) -> dict[str, bool]:
+        """Support only (route guard). WARNING with who: fake weights reach AutoERP while on."""
+        self.store.set_state(KUNCI_TIMBANGAN_DUMMY, "1" if aktif else "0")
+        logger.warning("Timbangan dummy %s, diubah oleh %s", "NYALA" if aktif else "MATI", diubah_oleh)
         return {"aktif": aktif}
 
     def kunjungan_terbawa(self, work_date: str) -> list[dict[str, Any]]:

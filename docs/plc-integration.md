@@ -358,7 +358,7 @@ tidak boleh mati karena kabel dicabut. Kelas klien, `PlcWorker`, `PulseScheduler
 ## Timbangan live (konsol, 2026-10-06)
 
 Berat di jembatan timbang masuk ke PLC, dan **konsol** (bukan line) membacanya dari register
-kata lewat MC Protocol, lalu menampilkannya di kotak **Data timbangan** (aturan 39). Sambungan
+kata lewat MC Protocol, lalu menampilkannya di kartu **Timbangan sekarang** di layar Grading (aturan 39). Sambungan
 sendiri: satu Open Setting satu pemakai, dan 1025-1027 dipegang tiga line, jadi panel perlu
 membuka port keempat (bawaan **1028**, Write to PLC + reset CPU saat line berhenti).
 

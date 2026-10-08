@@ -43,18 +43,17 @@ def test_ikon_tombol_kepala_di_tengah_vertikal():
     assert "display:inline-flex" in aturan and "align-items:center" in aturan
 
 
-def test_logo_bulat_di_tengah():
-    titik = _aturan("h1::before")
-    lebar = re.search(r"width:([^;]+);", titik).group(1)
-    tinggi = re.search(r"height:([^;]+);", titik).group(1)
-    assert lebar == tinggi and "border-radius:50%" in titik
-    assert "align-items:center" in _aturan("h1")
+def test_judul_dan_label_tanpa_huruf_kapital_renggang():
+    # New look (spec 2026-10-07 §4): no letter-spaced capitals; the logo lives in the rail.
+    assert "text-transform:uppercase" not in _aturan("h1") and "letter-spacing:.14em" not in _aturan("h1")
+    assert "text-transform:none" in _aturan(".lb")
+    assert "h1::before" not in HTML
 
 
 @butuh_node
-def test_syarat_lepas_truk_berwarna():
+def test_syarat_restart_berwarna():
     ikon = "const IKON_UNDUH = '<svg></svg>';"
     siap = "{terpasang:true, siap:'v1.23.0', berjalan:false, hasil:null}"
     html = jalankan(["tombolPasang", "teksHasilPembaruan", "htmlPembaruan"], f"htmlPembaruan({siap}, false)", tambahan=ikon)
-    assert 'class="pembaruan-syarat"' in html and "Lepas semua truk dulu" in html
+    assert 'class="pembaruan-syarat"' in html and "dilepas otomatis" in html
     assert "color:var(--warn)" in _aturan(".pembaruan-syarat")

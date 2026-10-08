@@ -1,0 +1,5 @@
+{
+  "_catatan": "Detection box per class photo, percent of the frame: left, top, width, height. ripe = frame 134 of media/sample_sawit_video.avi; unripe = a Lampung line-1 capture (2026-09-22, clean). JK and TP: add jk.jpg / tp.jpg (600 x 500, <= 60 KB) and their box here, then run scripts/tanam_foto_masuk.py.",
+  "ripe": [9, 18, 49, 64],
+  "unripe": [30, 23, 36, 52]
+}

@@ -55,7 +55,7 @@ def test_an_operator_scans_into_the_shown_field(halaman, konsol, scanner_mati, b
     expect(halaman.locator("#scan-otomatis")).to_be_focused()
     halaman.keyboard.type(nomor)
     halaman.keyboard.press("Enter")
-    expect(halaman.locator("#toasts")).to_contain_text(f"{kamus(halaman, 'sukDatang')} {nomor}")
+    expect(halaman.locator("#scan-popup")).to_contain_text(nomor)
     # The arrival is not left waiting for the tests after this one.
     for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["waiting"]:
         if w["plate_number"] == nomor:

@@ -14,7 +14,7 @@ HTML = (Path(__file__).resolve().parents[2] / "src" / "palmgrade" / "static" / "
 
 
 def _blok_conveyor() -> str:
-    return HTML.split('<legend data-t="subConveyor">', 1)[1].split("</fieldset>", 1)[0]
+    return HTML.split('<span data-t="subConveyor">', 1)[1].split("</details>", 1)[0]
 
 
 def test_kolom_ada_di_blok_conveyor_kamera_dan_conveyor():

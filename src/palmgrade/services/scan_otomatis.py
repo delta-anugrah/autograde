@@ -11,9 +11,10 @@ Nothing here writes on its own:
   of weight (`net_kg` computed, `MINIMUM_WEIGHT_KG` checked, rule 15).
 
 The weight comes from the live scale only when it is fit (`TimbanganLive.berat_layak`);
-otherwise the answer is `perlu_berat` and the screen opens the typed box it always had. A scan
-this soon after the truck's previous step is answered `perlu_konfirmasi` and writes nothing
-until the operator says yes: a scanner that reads one QR twice must not record two steps.
+otherwise the answer is `perlu_berat` and the screen opens a popup where the operator types
+the weight. A scan this soon after the truck's previous step is answered `perlu_konfirmasi`
+and writes nothing until the operator says yes: a scanner that reads one QR twice must not
+record two steps.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ from ..domain.gerbang import (
     putuskan_langkah,
 )
 from ..domain.plate import truck_id_for
+from ..domain.timbangan_dummy import BERAT_DUMMY_ISI, BERAT_DUMMY_KOSONG
 from .console_service import MINIMUM_WEIGHT_KG, ConsoleService
 from .gate_service import GateService
 from .timbangan_live import TimbanganLive
@@ -103,6 +105,12 @@ class ScanOtomatis:
             return await self._timbang_kosong(dasar, langkah.weighing["id"], waktu)
         raise AssertionError(f"langkah tak dikenal: {langkah.nama}")
 
+    def _berat(self, dummy_kg: float) -> tuple[float | None, bool]:
+        """(kg, dari_dummy). The dummy wins over the live scale while support has it on."""
+        if self.console.timbangan_dummy():
+            return dummy_kg, True
+        return self.live.berat_layak(MINIMUM_WEIGHT_KG), False
+
     async def _timbang_isi(self, dasar: dict[str, Any], truk: dict[str, Any] | None, waktu: str) -> dict[str, Any]:
         # A weight only for a truck the plate picker would offer: an arrival may be any
         # plate-shaped QR, a ticket may not (the old scan lane's rule).
@@ -110,19 +118,20 @@ class ScanOtomatis:
             return {**dasar, "hasil": BELUM_TERDAFTAR}
         if truk.get("status") == "inactive":
             return {**dasar, "hasil": NONAKTIF}
-        kg = self.live.berat_layak(MINIMUM_WEIGHT_KG)
+        kg, dummy = self._berat(BERAT_DUMMY_ISI)
         if kg is None:
             return {**dasar, "hasil": PERLU_BERAT}
         row = await self.console.record_weighing(
             {"plate_number": dasar["plate_number"], "gross_kg": kg, "entered_at": waktu}
         )
-        logger.info("Scan timbang isi %s: %s kg dari timbangan live", dasar["plate_number"], kg)
-        return {**dasar, "hasil": TERSIMPAN, "kg": kg, "weighing_id": row.get("id"),
-                "dipasang": row.get("dipasang")}
+        logger.info("Scan timbang isi %s: %s kg dari %s", dasar["plate_number"], kg,
+                    "timbangan dummy" if dummy else "timbangan live")
+        return {**dasar, "hasil": TERSIMPAN, "kg": kg, "dummy": dummy,
+                "weighing_id": row.get("id"), "dipasang": row.get("dipasang")}
 
     async def _timbang_kosong(self, dasar: dict[str, Any], weighing_id: str, waktu: str) -> dict[str, Any]:
         tiket = self.store.weighing(weighing_id) or {"id": weighing_id}
-        kg = self.live.berat_layak(MINIMUM_WEIGHT_KG)
+        kg, dummy = self._berat(BERAT_DUMMY_KOSONG)
         if kg is None:
             return {**dasar, "hasil": PERLU_BERAT, "weighing": _tiket_ringkas(tiket)}
         # The same fields the tare box sends, so the ticket id derives the same way.
@@ -130,6 +139,7 @@ class ScanOtomatis:
             "plate_number": tiket.get("plate_number"), "ref": tiket.get("ref"),
             "entered_at": tiket.get("entered_at"), "tare_kg": kg, "exited_at": waktu,
         })
-        logger.info("Scan timbang kosong %s: %s kg dari timbangan live", dasar["plate_number"], kg)
-        return {**dasar, "hasil": TERSIMPAN, "kg": kg, "weighing_id": row.get("id"),
-                "dipasang": row.get("dipasang")}
+        logger.info("Scan timbang kosong %s: %s kg dari %s", dasar["plate_number"], kg,
+                    "timbangan dummy" if dummy else "timbangan live")
+        return {**dasar, "hasil": TERSIMPAN, "kg": kg, "dummy": dummy,
+                "weighing_id": row.get("id"), "dipasang": row.get("dipasang")}

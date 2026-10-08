@@ -18,6 +18,127 @@ Next:           ...
 
 ---
 
+## 2026-10-08 · console · New look: split sign-in, Timbangan and the other views (PR #257)
+Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a Lampung camera still (JPEG 54 KB as
+                a CSS data URI, scripts/tanam_foto_masuk.py, assets/masuk/masuk.jpg), one detection box, three
+                facts; form with account chips (initials, name, email, aria-pressed via tandaiOperator, two to a
+                row, own scroll), labels, note, ID / EN buttons reusing #bahasa; hero gone below 900 px. Timbangan
+                (§5.3): title row with two tiles (#tot-neto, #tot-tiket), step arrows in a 24 px gap, forms as
+                cards. Other views (§5.5): brand-blue selection (sub-tabs, Rekap quick ranges), inner boxes with a
+                hairline, plates in tables as plate chips (chipPlat), Rekap summary JK violet; undefined tokens
+                --r, --aksen, --kartu fixed (Setelan fields were square). Review #256 minors: hidden rail out of
+                the Tab order, truck card and queue buttons 44 px and wrapping at 1366 px, Esc closes the more
+                menu, no row flash on a filter change, grading filter tests no longer fail after the penugasan
+                tests. Bug from #256 found by CI: the load/error listeners on #lines took the photo strip
+                too (a square thumbnail replaced the camera shape; a strip error could read as a cut
+                camera); now only `.feed` images. Owner feedback 2026-10-08: sign-in headline and photo centred;
+                Penugasan line checkboxes centred on their word; Timbangan board (four columns, Datang /
+                Bongkar / Timbang kosong / Selesai, card buttons reuse the table flows) above the table,
+                which stays (owner chose to keep it; reverses spec §9 Q3); step strip dropped; sign-in English
+                for a new browser, email-only chips, photo turning Ripe/Unripe; one Save on Developer Mode;
+                Settings as stacked collapsible sections; the line writes its FPS text top-right (the card's
+                name chip covers top-left). No endpoint, payload or rule change.
+Validated:      ruff check . → All checks passed. pytest tests/unit → 5454 passed, 28 skipped; tests/e2e + tests/integration →
+                618 passed, 20 skipped. Browser chromium →
+                204 passed; firefox → 204 passed. Final review (fable): 0 critical, 2 important fixed with tests
+                (photo squashed at 960x1080, many accounts pushed Masuk below 768 px). Screenshots light/dark at
+                1366, 1440, 1920 from the local demo (sawit/scripts/demo-konsol).
+Not validated:  Lampung kiosk Firefox; real cameras and a real PLC scale (demo used video lines and a simulated
+                scale); a mill with many synced AutoERP accounts at the gate (tested with 9 fake accounts).
+Decisions:      No logo and no live numbers on the sign-in (owner removed the logo 2026-10-07; a still is not
+                data). Akun buttons keep their equal width (operator request 2026-09-29). Table plates reuse
+                the .plat chip component.
+Next:           Owner looks at the screenshots and the demo, then merge to staging. Deferred minors: focus after
+                Esc, nowrap assertion for table plates, KAMUS key for the gate's language label, token radii on
+                the gate.
+
+## 2026-10-07 · console · New look: fonts, tokens, left rail, Grading in one screen (PR 2+3)
+Changed:        console.html restyle and re-layout (spec sawit/docs/superpowers/specs/2026-10-07-autograde-konsol-baru-design.md
+                §4, §5.1, §5.2). Embedded fonts (scripts/tanam_font.py, assets/fonts, OFL); tokens --merek, class colours
+                (JK violet), contrast 6:1 tested; left rail #tabs with hide button (#menu-samping, kept per browser); header
+                with view title, work date, company, AutoERP / Cloud Photo pills, clock; ribbons under it; #tally = day card,
+                live scale card (rolling digits tulisBerat, 24-reading trace, hint per server state), truck card (per-truck
+                Lepas, queue inside); line cards with photo strip (4 per line), counts + class bar, more menu (truck picker,
+                Tugaskan, Lepas, order); camera box sized to fit one screen; results table title. Neto of the day moved to
+                Timbangan. No endpoint or payload change. Stacked on #254 (merged into the branch); also fixes #254's
+                tests/e2e/test_display_overlay_render.py (expected 1280x720, skipped in CI without torch).
+Validated:      ruff check . → All checks passed. pytest tests --ignore=tests/browser → 5959 passed, 48 skipped.
+                make test-browser (chromium + firefox) → 344 passed on the final branch (owner feedback included:
+                AutoGrade title, one-row header, account at the rail foot, summary cards aligned with the lines).
+                Screenshots light/dark at 1366x768, 1440x900, 1920x1080 and 390 px (no sideways scroll) from a local demo.
+Not validated:  Lampung kiosk Firefox (version unknown; no new container query or color-mix was added). Real cameras and a
+                real PLC scale (demo used a video line and a simulated scale reading).
+Risks:          Operators lose the tabs under the cameras: views now hide the cameras off Grading. PLC pill from the spec
+                not built: the line status has no PLC connection field (review finding). Three extra small /history
+                requests every 2 s while Grading is open. grading_saring truck-filter test is order sensitive (warning
+                toasts from penugasan tests cover the list when run right after them).
+Next:           owner looks at the demo, then PR to staging after #254 merges; PR 4 (Masuk screen).
+
+## 2026-10-07 · vision + console · Camera picture keeps its own ratio, never cropped or stretched (PR #254)
+Changed:        DisplayWorker fits each frame inside STREAM_WIDTH x STREAM_HEIGHT with its own
+                ratio (domain/skala_tampilan.ukuran_muat: 1224x1024 → 861x720, 640x480 → 960x720,
+                16:9 unchanged) instead of forcing 1280x720 (the Lampung picture was ~1.49x too
+                wide). ROI and capture line stay stored in settings space and are mapped per axis
+                when drawn (draw_roi skala_setelan, garis_berskala); detection untouched. Console
+                .feed takes the ratio of the first frame (rasioFeed), object-fit contain,
+                max-height 72vh. Setelan hints and MANUAL 2.25: ROI and line numbers are a 1280 x
+                720 scale over the whole picture, not video pixels. First PR of the new console
+                (spec sawit/docs/superpowers/specs/2026-10-07-autograde-konsol-baru-design.md §6).
+Validated:      pytest tests/unit → 5267 passed, 28 skipped; ruff → All checks passed; e2e
+                test_garis_pemicu_render (cv2 + torch, local) → 16 passed, new tests fail without
+                the mapping; browser chromium + firefox → 330 passed, 2 flaky in the full run
+                (both green 3/3 isolated reruns); new feed browser tests fail on the old console.
+                Final review (opus): no critical; hints and tiny-line rounding fixed with tests.
+Not validated:  real Hikrobot cameras; capture line and ROI position at Lampung after upgrade.
+Decisions:      Owner 2026-10-07: camera and media never cropped or stretched; JK violet; new
+                browsers stay light; Timbangan board not built.
+Next:           Merge #254, then PR 2 of the new console (tokens, embedded fonts, components).
+                At Lampung: screenshot capture line/ROI before upgrading, compare after.
+## 2026-10-07 · console · Final review fixes for Update now and the scan popup (PR #255)
+Changed:        Update now refuses with 409 `pembaruan_lepas_gagal` before releasing anything when a
+                line holding a truck is already unreadable in the last status poll, names the lines
+                released before a mid-way failure (`params.dilepas`, screen key
+                `pembaruanSudahDilepas`), and maps any unexpected release error to the same 409.
+                Weight popup: Space+N / P+N are the shortcuts there too and never type a digit; a tap
+                on the popup keeps its box focused. Key catcher: a late scanner Enter after 3+ keys in
+                1.5 s is held back with "Scan tidak terbaca", and a fast run starting under 1 s after a
+                stray key is a failed read (no partial plate). Curtain timeout toast names the version
+                shown; `#pita-dummy` radius `--r-sm`. Docs: rules 38 and 39, MANUAL (+ PDF),
+                backend-overview, skills scanner-qr and konsol-autograde.
+Validated:      pytest tests/unit → 5320 passed, 28 skipped; tests/e2e → 424 passed, 20 skipped;
+                tests/integration → 192 passed; make test-browser chromium → 184 passed; firefox →
+                184 passed (first run each); ruff → All checks passed.
+Not validated:  the new scan timing rules with the real Cashcow scanner; Update now pre-check on the
+                factory PC.
+Next:           PR to staging.
+
+## 2026-10-07 · console · Update now releases trucks, dummy scale, scan from any tab (PR #255)
+Changed:        Dummy scale: support switch in Settings > Mode Developer (`/api/console/dev/timbangan-dummy`,
+                `sync_state` key `setelan_timbangan_dummy`); scans save 30,000 kg (isi) / 10,000 kg
+                (kosong) with `dummy: true`, still sent to AutoERP, orange band `#pita-dummy` on every
+                tab (5e00a96f, b8bf4915). Update now: install route moved to
+                `routes/console_pembaruan.py`, releases every assigned truck first, 409
+                `pembaruan_lepas_gagal` when a line does not answer; screen confirms with trucks and
+                lines, full-screen curtain `#tirai-pembaruan` until the reload, success toast only on the
+                watcher's ok verdict, 25 min marker (4f47838e, e8458bfc, a36c0f50, d5ffd132). Scan:
+                key catcher `tangkapScan` on every tab, popup `#scan-popup` (4 s / 8 s), weight popup
+                with a field when the scale is not ready (2348723b, 530613a7, 1893509d, ade49a4c,
+                d56880cd: a fast hand-typed weight is never taken for a scan). Docs: rules 20, 21, 38,
+                39, CLAUDE.md index, coding-standard F12, backend-overview, MANUAL 2.25 (+ PDF),
+                skills scanner-qr and konsol-autograde; dead KAMUS keys `scanKetikBruto` and
+                `scanKetikTara` removed.
+Validated:      pytest tests/unit → 5305 passed, 28 skipped; tests/e2e → 424 passed, 20 skipped;
+                tests/integration → 192 passed; make test-browser chromium → 182 passed; firefox →
+                182 passed on the 4th full run (3 earlier runs each had 1 failure under heavy
+                machine load, a different test or the same one that passes alone: test_browser_timbangan
+                twice, test_browser_sesi_geser once); ruff → All checks passed; MANUAL.pdf rebuilt
+                (47 pages).
+Not validated:  with the real scanner and at Lampung; the docs-sweep agent (the controller runs it).
+Risks:          the scan key catcher is tuned to 100 ms / 500 ms; a slower scanner shows "Scan tidak
+                terbaca" and needs a look at the scanner's inter-character delay.
+Next:           Final review, push, PR to staging, release, then one visit at Lampung with the scanner
+                from a non-Timbangan tab and with Update now while a truck is on a line.
+
 ## 2026-10-06 · console · Answer the "Catat?" question by scanning again (PR #252)
 Changed:        While the repeat-scan question is open, a capture keydown listener takes the
                 scanner's keys: the same QR again answers Catat, from 2 s after the question

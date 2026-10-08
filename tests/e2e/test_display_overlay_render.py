@@ -20,7 +20,7 @@ pytest.importorskip("torch")
 
 from palmgrade.core.config import Settings  # noqa: E402
 from palmgrade.core.constants import COLOR_FAIL, COLOR_PASS, COLOR_ROI, COLOR_TRIGGER  # noqa: E402
-from palmgrade.domain.skala_tampilan import skala_ke  # noqa: E402
+from palmgrade.domain.skala_tampilan import skala_ke, ukuran_muat  # noqa: E402
 from palmgrade.pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline  # noqa: E402
 from palmgrade.workers.display_worker import DisplayWorker  # noqa: E402
 from palmgrade.workers.runtime_state import RuntimeState  # noqa: E402
@@ -180,19 +180,25 @@ def test_satu_render_penuh_garis_capture_dan_roi_di_tempat_yang_disetel():
     worker.run_once()
 
     gambar = cv2.imdecode(np.frombuffer(state.latest_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
-    assert gambar.shape == (STREAM_H, STREAM_W, 3)
+    # The picture keeps the camera ratio inside the stream box (2026-10-07, PR #254): a 6:5
+    # sensor gives 861 x 720. Line and ROI keep their settings-space numbers, mapped per axis.
+    lebar, tinggi = ukuran_muat(SENSOR_W, SENSOR_H, STREAM_W, STREAM_H)
+    assert gambar.shape == (tinggi, lebar, 3)
     assert np.array_equal(frame, asli), "the sensor frame was drawn on"
+
+    def x(v: int) -> int:
+        return round(v * lebar / STREAM_W)
 
     def dekat(piksel, warna) -> bool:  # JPEG is lossy: close to the colour, not equal
         return all(abs(int(p) - int(w)) < 70 for p, w in zip(piksel, warna, strict=True))
 
-    # Capture line: a vertical blue line at x = 300 of the stream, top to bottom.
-    assert dekat(gambar[360, 300], COLOR_TRIGGER) and dekat(gambar[700, 300], COLOR_TRIGGER)
-    assert not dekat(gambar[360, 340], COLOR_TRIGGER)
-    # ROI box: its left side at x = 100, its top side at y = 80.
-    assert dekat(gambar[500, 100], COLOR_ROI) and dekat(gambar[80, 800], COLOR_ROI)
-    # A bunch box, left border, at the place the old render had it.
-    assert dekat(gambar[round(800 * STREAM_H / SENSOR_H), round(500 * STREAM_W / SENSOR_W)], COLOR_PASS)
+    # Capture line: a vertical blue line at settings x = 300, top to bottom.
+    assert dekat(gambar[360, x(300)], COLOR_TRIGGER) and dekat(gambar[700, x(300)], COLOR_TRIGGER)
+    assert not dekat(gambar[360, x(340)], COLOR_TRIGGER)
+    # ROI box: its left side at settings x = 100, its top side at y = 80 (height scale 1).
+    assert dekat(gambar[500, x(100)], COLOR_ROI) and dekat(gambar[80, x(800)], COLOR_ROI)
+    # A bunch box, left border: one uniform scale from sensor to picture.
+    assert dekat(gambar[round(800 * tinggi / SENSOR_H), round(500 * lebar / SENSOR_W)], COLOR_PASS)
 
 
 def test_tanpa_penonton_render_sungguhan_tidak_menghasilkan_gambar():

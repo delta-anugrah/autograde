@@ -86,7 +86,7 @@ def test_support_switches_it_on_and_the_operator_gets_a_printable_slip(rakitan):
     app, service = rakitan
 
     rekap, slip = asyncio.run(_alur(app, service))
-    baris = jalankan(["barisRiwayatTruk"], f"{json.dumps(rekap)}.map(barisRiwayatTruk).join('')",
+    baris = jalankan(["chipPlat", "barisRiwayatTruk"], f"{json.dumps(rekap)}.map(barisRiwayatTruk).join('')",
                      tambahan=_STUB + "let slipCetak = true;")
     html = jalankan(["waktu", "angkaSlip", "htmlSlip"], f"htmlSlip({json.dumps(slip)}, 0)",
                     tambahan='const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));')

@@ -75,12 +75,16 @@ INPUT_TIDAK_SAH = "input_tidak_sah"
 PENUGASAN_TANPA_LINE = "penugasan_tanpa_line"
 BUKAN_ANTREAN = "bukan_antrean"
 LINE_SEMUA_TERPAKAI = "line_semua_terpakai"
-# Batch 4.6, the Update now button (operator and support). `pembaruan_ada_truk` carries
-# param `line` ("L1, L3"): the operator has to know which truck to release first.
+# Batch 4.6, the Update now button (operator and support). `pembaruan_ada_truk` now only
+# means an assign still waiting for its line (Update now releases the other trucks itself);
+# it carries param `line` ("L1, L3").
 PEMBARUAN_ADA_TRUK = "pembaruan_ada_truk"
 PEMBARUAN_TIDAK_ADA = "pembaruan_tidak_ada"
 PEMBARUAN_BERJALAN = "pembaruan_berjalan"
 PEMBARUAN_BELUM_TERPASANG = "pembaruan_belum_terpasang"
+# Update now releases the trucks itself; a line that does not answer stops it. Carries param
+# `line` (the line code): the screen tells the operator to use Lepas paksa on it.
+PEMBARUAN_LEPAS_GAGAL = "pembaruan_lepas_gagal"
 # Reconnect camera button (2026-10-04, every account): the line's image source is a video
 # file or a photo, so there is no camera to reconnect. Carries param `line` (the card name).
 KAMERA_TANPA_SAMBUNG_ULANG = "kamera_tanpa_sambung_ulang"
@@ -144,6 +148,7 @@ CODES = (
     PEMBARUAN_TIDAK_ADA,
     PEMBARUAN_BERJALAN,
     PEMBARUAN_BELUM_TERPASANG,
+    PEMBARUAN_LEPAS_GAGAL,
     KAMERA_TANPA_SAMBUNG_ULANG,
     SLIP_MATI,
     SLIP_TIDAK_ADA,

@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.24"
-tanggal: 6 Oktober 2026
+versi: "2.28"
+tanggal: 8 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -107,8 +107,14 @@ terang/gelap, pilihan tersimpan di browser.
 
 ### 3.1 Masuk
 
-Layar terkunci sampai ada yang masuk dengan **email + sandi**. Tombol nama di gerbang cuma
-mengisi kolom email; sandi tetap wajib. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
+Layar terkunci sampai ada yang masuk dengan **email + sandi**. Sejak 8 Oktober 2026 layar masuk
+terbelah dua: kiri foto kamera line dengan kotak deteksi yang berganti kelas tiap 4 detik (Ripe,
+Unripe; JK dan TP menyusul begitu ada fotonya) dan tiga keterangan singkat (hilang di jendela yang
+lebih sempit dari 900 px), kanan form masuk. Tombol akun di form (cuma email; nama muncul saat
+kursor diam di atasnya) cuma mengisi kolom email dan ikut tertandai biru; sandi tetap wajib. Tombol
+**ID / EN** di bawah form mengganti bahasa layar sebelum masuk. Browser yang **belum pernah** membuka
+konsol mulai dalam bahasa Inggris; browser yang sudah pernah (misalnya kiosk pabrik) tetap memakai
+bahasa yang terakhir dipakainya. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
 (bukan 12 jam sesudah masuk): selama operator memakai layar, sesinya ikut diperpanjang sendiri.
 15 menit sebelum habis muncul pita kuning **Sesi berakhir dalam N menit**: sentuh layar di mana
 saja atau tekan **Perpanjang**. Layar yang dibiarkan tanpa disentuh tetap keluar sendiri
@@ -128,19 +134,42 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 ### 3.2 Layar utama
 
-- **Di bawah tulisan AUTOGRADE** (semua akun): versi dan sampai kapan lisensi PC ini berlaku,
+- **Susunan layar** (sejak 7 Oktober 2026): **menu di kiri** (Grading, Truk, Timbangan, Rekap;
+  akun support juga Log, Status, Akun, Line, Setelan di bawah garis **Support**). Tombol
+  berikon panel di kiri atas **menyembunyikan menu** supaya kamera dapat ruang lebih; ketuk lagi
+  untuk memunculkannya. Pilihannya diingat browser itu. Di kepala layar: tulisan **AutoGrade**
+  (layar yang terbuka ditandai biru di menu kiri), tanggal hari kerja dan nama perusahaan, pil
+  **AutoERP** dan **Cloud Photo**, jam, lalu tombol bundar: **Tata letak** (ikon kotak-kotak,
+  layar Grading saja), **Segarkan**, bahasa (**EN** / **ID**), dan tema. Tema bawaan terang
+  (untuk layar di bawah matahari); **Gelap** satu ketukan. **Nama operator dan Keluar** ada di
+  bawah menu kiri (bulatan inisial, misalnya **OL**); kalau menu disembunyikan, munculkan dulu.
+- **Layar Grading muat satu layar tanpa scroll** di layar lebar: tiga kartu ringkasan (Janjang
+  hari ini, Timbangan sekarang, truk di line dan antrean bongkar), lalu tiga kartu line. Tabel
+  **Hasil grading hari ini** ada di bawahnya (scroll). Kartu kamera dan ringkasan cuma ada di
+  layar Grading; di layar lain tidak tampil, tapi **Spasi + angka** dan **P + angka** tetap
+  bekerja dari layar mana pun, selama kursor tidak sedang di kolom isian (misalnya kolom scan
+  di layar Timbangan saat Scanner QR nyala).
+- **Di bawah tulisan AutoGrade** (semua akun): versi dan sampai kapan lisensi PC ini berlaku,
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
-- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, di atas kartu line:
+- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, tepat di bawah kepala layar:
   versi baru sudah diunduh PC, sudah diperiksa utuh, dan menunggu dipasang. PC mencari versi baru
   sendiri tiap jam (sejak launcher 5 Oktober 2026), jadi pita ini tidak menunggu Start besok pagi. Ketuk pitanya, kotak Versi & lisensi
   terbuka dengan tombol hijau **Pasang sekarang** di sebelah **Tutup**. Tombol **×** di ujung
   pita menyembunyikannya untuk versi itu saja (di PC itu); versi berikutnya memunculkannya lagi,
-  dan angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
-  lupa dilepas kemarin). Konsol dan ketiga line berhenti sekitar 2 menit lalu menyala sendiri;
-  selama itu layar menulis "Sedang memasang versi baru" dan tersambung lagi sendiri, jangan
-  tekan apa-apa. Hasilnya tertulis di kotak yang sama (dan di tab Log): "sudah terpasang" berarti
+  dan angka versi di bawah tulisan AutoGrade tetap membuka kotak yang sama. Tidak perlu melepas truk dulu: kalau ada truk di line (termasuk yang lupa
+  dilepas kemarin), konsol bertanya lebih dulu dengan menyebut truk dan line-nya, lalu
+  **melepasnya sendiri** dan mengirim rekap gradingnya; truk yang belum selesai bongkar
+  harus ditugaskan lagi oleh operator sesudah konsol menyala (**Tugaskan** di kartu line). Kalau ada line yang tidak menjawab, pemasangan
+  berhenti dan menyebut line-nya (tanpa memasang apa-apa): pakai **Lepas paksa** di line itu,
+  lalu tekan **Pasang sekarang** lagi. Kalau truk di line lain sudah sempat dilepas sebelum line itu
+  gagal, notifikasinya menyebut line tersebut: tugaskan lagi truknya kalau belum selesai bongkar. Konsol dan ketiga line berhenti sekitar 2 menit lalu
+  menyala sendiri; selama itu **layar penuh** menulis bahwa versi baru sedang dipasang dan
+  menutup semua tombol, jangan matikan PC dan jangan tekan apa-apa. Sesudah halaman termuat
+  ulang, notifikasi hijau muncul kalau versi barunya benar terpasang; notifikasi merah kalau
+  gagal dan sistem kembali ke versi lama (atau tidak ada jawaban sesudah 25 menit). Hasilnya
+  juga tertulis di kotak yang sama (dan di tab Log): "sudah terpasang" berarti
   beres; kalimat merah berarti versi baru gagal dan sistem kembali ke versi lama, panggil
   teknisi. Kalau tidak ditekan, versi itu tetap terpasang sendiri saat **Start** pagi
   berikutnya. Tombol ini cuma ada di PC yang sudah dipasangi penunggu pembaruan (§6.2).
@@ -164,29 +193,42 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - **Tombol bundar panah melingkar** di kanan atas (**Segarkan data**): cadangan kalau ragu
   layarnya tertinggal. Menarik ulang semua data sekaligus, lalu menjawab "Data sudah
   diperbarui" atau, kalau konsol tidak menjawab, notifikasi merah.
-- Arahkan kursor ke tombol di kanan atas (Segarkan, bahasa, tema, Keluar): sesudah sebentar
+- Arahkan kursor ke tombol di kanan atas (Tata letak, Segarkan, bahasa, tema) atau ke Keluar: sesudah sebentar
   muncul kotak kecil yang menjelaskan gunanya, dalam bahasa layar.
 - Sesudah versi baru terpasang, layar yang sedang terbuka **memuat ulang dirinya sendiri**
   (tidak perlu F5). Ia menunggu dulu kalau ada kotak dialog terbuka, tombol yang masih
   berputar, atau isian yang sedang diketik.
-- **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
-  **Data timbangan**, dan **Last Sync**. Angka besar di **Data timbangan** adalah berat yang ada
-  di jembatan timbang **sekarang**, dibaca dari PLC tiap detik, dengan tulisan di sampingnya:
-  **Stabil** (hijau, angkanya sudah diam), **Bergerak** (kuning, tunggu dulu), **Timbangan
-  putus** atau **Timbangan error** (merah, angkanya diganti strip). **Belum tersambung** berarti
-  sambungan ke timbangan belum dipasang di PC ini. Di bawahnya: neto hari ini, jumlah tiket, dan
-  tiket yang menunggu tara. Angka live ini baru masuk tiket lewat **kolom scan** (§3.3), dan
-  cuma kalau sudah **Stabil** (atau angkanya diam 2 detik) dan minimal 1.000 kg; selain itu
-  operator mengetik beratnya.
-- **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
+- **Janjang hari ini**: jumlah janjang semua line, **Rasio Ripe**, bar warna per kelas (hijau
+  Ripe, merah Unripe, ungu JK), dan jumlah tiap kelas (Ripe, Unripe, JK, TP).
+- **Timbangan sekarang** (kartu biru muda di tema terang, gelap di tema gelap): berat yang ada di jembatan timbang **sekarang**, dibaca
+  dari PLC tiap detik. Angkanya bergulir seperti odometer, grafik batang kecil di sampingnya
+  menunjukkan 24 detik terakhir, dan tulisan di pojok: **Stabil** (hijau, angkanya sudah diam),
+  **Bergerak** (kuning, tunggu dulu), **Timbangan putus** atau **Timbangan error** (merah,
+  angkanya diganti strip). **Belum tersambung** berarti sambungan ke timbangan belum dipasang di
+  PC ini. Baris di bawahnya menyebut apa yang bisa dilakukan. Angka live ini baru masuk tiket
+  lewat **kolom scan** (§3.3), dan cuma kalau sudah **Stabil** (atau angkanya diam 2 detik) dan
+  minimal 1.000 kg; selain itu operator mengetik beratnya. Neto hari ini, jumlah tiket, dan
+  tiket yang menunggu tara ada di atas layar **Timbangan**.
+- **Kartu truk**: kiri = truk yang **sedang dibongkar** (plat, pemasok, sumber, di line mana)
+  dengan tombol **Lepas** (melepas truk itu dari semua line yang memegangnya; di layar 1366 px
+  tombolnya turun ke bawah plat). Kalau tiap line
+  memegang truk berbeda (penugasan manual), tiap truk tampil sendiri dengan Lepas-nya sendiri.
+  Kanan = **Antrean bongkar** (cuma saat penugasan otomatis nyala): truk yang sudah timbang
+  isi, berurutan, dengan lama menunggu, **Tugaskan sekarang**, dan **Lewati**.
+- **Pil AutoERP dan Cloud Photo** (Last Sync) di kepala layar: AutoERP dan Cloud Photo (foto di R2). Jamnya = kapan data
   terakhir masuk ke sana; `-` berarti belum pernah ada yang masuk. Titik **hijau** = tersambung; titik **kuning** = terputus, dengan
   keterangan seperti "Terputus sejak 13.40 · 5 menunggu". Foto naik tiap jam, jadi jam Cloud
   Photo yang tertinggal sampai satu jam itu normal selama titiknya hijau. Arahkan kursor ke
   baris untuk rinciannya (Cloud Photo: jam upload tiap line). Selama terputus tidak ada data
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
-- **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
-  judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
-- **Lepas paksa** (merah tua, di tempat **Lepas**) muncul kalau line itu sama sekali tidak
+- **Tiga kartu line**, satu per kamera, dengan stream langsung (gambarnya utuh dengan bentuk asli
+  kamera, tidak dipotong dan tidak gepeng; kotaknya mengikuti bentuk gambar), nama line dan
+  **ONLINE / OFFLINE** di pojok gambar. Di bawah gambar: **empat foto janjang terakhir** line itu
+  (bingkai warna kelasnya; ketuk untuk foto penuh) dan jamnya, jumlah tiap kelas hari ini di
+  line itu dengan bar warnanya, lalu **Reject Manual** (pintasan Spasi + nomor kartu) dan tombol
+  piston (P + nomor). Tombol **⋯** membuka menu kartu: **Pilih Truk** dan **Tugaskan**, **Lepas**,
+  dan **Urutan kartu** (geser kiri / kanan). Ketuk di luar menu untuk menutupnya.
+- **Lepas paksa** (merah tua, di menu ⋯ di tempat **Lepas**) muncul kalau line itu sama sekali tidak
   menjawab konsol padahal masih memegang truk. Layar bertanya dulu. Truknya dilepas **di konsol
   saja**: tiket dan berat aman, grading truk itu tetap masuk kunjungannya, dan Update now serta
   penugasan otomatis tidak tertahan lagi. Line itu ikut melepasnya sendiri begitu menyala lagi.
@@ -247,24 +289,22 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   atau membuang sesuatu.
 - Sumber TBS **Internal** ditandai "REJ tidak dibuang": buah kebun sendiri tetap dinilai, tapi
   piston tidak membuangnya.
-- Di atas tabel Timbangan ada strip empat langkah: **1. Datang**, **2. Timbang isi**,
-  **3. Timbang kosong**, **4. Keluar**, sama lebar dan sama tinggi, dengan panah di antaranya;
-  tiap kartu berwarna tahapnya dan, di layar lebar, berikon (truk, timbang isi, timbang kosong, bendera).
-  Tiap langkah menulis di mana ia dikerjakan (misalnya "Tekan Keluar di baris truknya"); langkah
-  1 juga menampilkan lencana **Menunggu n**, jumlah truk yang sudah datang tapi belum timbang
-  isi. Di bawah strip ada dua form yang sama lebar: **Datang** (pilih truk, **Catat datang**)
-  dan **Timbang isi** (pilih truk, **Bruto**, **Timbang isi**), lalu satu baris kecil untuk
-  pesan scan dan petunjuk desimal. Langkah 3 dan 4 tidak punya form: tombolnya ada di baris
-  tabel. Setelah **Timbang kosong** ditekan di baris truk, bar biru selebar layar muncul di
+- Di atas tab Timbangan ada dua form yang sama lebar: **1. Datang** (pilih truk, **Catat datang**;
+  lencana **Menunggu n** di judulnya = truk yang sudah datang tapi belum timbang isi) dan
+  **2. Timbang isi** (pilih truk, **Bruto**, **Timbang isi**), lalu satu baris kecil untuk
+  pesan scan dan petunjuk desimal. Langkah 3 dan 4 tidak punya form: tombolnya ada di kartu
+  papan truk (kolom **Timbang kosong** dan **Keluar**) dan di baris tabel. Strip empat langkah
+  yang dulu ada di atas form dibuang 8 Oktober 2026; papan truk menggantikannya. Setelah **Timbang kosong** ditekan di baris truk, bar biru selebar layar muncul di
   bawah kedua form: **Timbang kosong** dengan plat truknya, kolom **Tara**, **Simpan**,
-  **Batal**, satu baris; langkah 3 di strip ikut menyala biru selama bar itu terbuka. Di layar
-  sempit strip jadi 2 x 2 lalu satu kolom, dan kedua form bertumpuk. Kalau support menyalakan
-  **Scanner QR** di tab Setelan, di atas strip muncul **satu kolom Scan QR truk** yang selalu
-  siap (kursor kembali ke sana sendiri), jadi tidak perlu klik apa pun sebelum scan. Plat
+  **Batal**, satu baris; kolom **Timbang kosong** di papan ikut menyala biru selama bar itu
+  terbuka. Di layar sempit kedua form bertumpuk. Kalau support menyalakan
+  **Scanner QR** di tab Setelan, di atas strip muncul **satu kolom Scan QR truk** untuk
+  mengetik plat dengan tangan. Scan dengan scanner jalan **dari tab mana pun**, tanpa klik
+  apa pun dulu, dan hasilnya muncul sebagai popup di tengah layar. Plat
   dipilih dari daftar **Pilih Truk** (§3.3).
 - Warna tombol sama di semua tab: **hijau penuh** = aksi utama langkah itu (Catat datang,
   Timbang isi, Simpan); **merah muda** = membatalkan, menghapus, mereset, melepas, atau keluar
-  dari akun (Batal, Lepas, Lewati di antrean bongkar, Matikan di tab Akun, Keluar di bar atas,
+  dari akun (Batal, Lepas, Lewati di antrean bongkar, Matikan di tab Akun, Keluar di bawah menu kiri,
   tombol Danger Zone); **merah pekat** = eksekusi
   terakhir yang tidak bisa diurungkan. Setiap aksi yang berhasil menjawab lewat notifikasi
   hijau di pojok kanan bawah; kuning kalau tersimpan tapi belum sampai ke semua line.
@@ -275,14 +315,21 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 1 datang → 2 timbang isi → buah dituang, kamera menilai → 3 timbang kosong → 4 keluar → AutoERP hitung → bayar
 ```
 
-Kolom scan QR cuma ada kalau support menyalakan **Scanner QR** di tab Setelan; kalau mati, pakai daftar plat dan tombol di baris truk.
+Scan QR cuma jalan kalau support menyalakan **Scanner QR** di tab Setelan; kalau mati, pakai daftar plat dan tombol di baris truk.
 
 **Satu kolom scan (sejak 6 Oktober 2026).** Operator cukup scan QR truk; konsol melihat
 sampai mana truk itu dan mencatat langkah berikutnya: belum ada kunjungan = **Datang**, sudah
 datang = **Timbang isi**, sudah timbang isi = **Timbang kosong**, sudah timbang kosong =
-**Keluar** (sampai 2 jam sesudah timbang kosong; lebih dari itu dianggap truk datang lagi). Notifikasi hijau menyebut langkah, plat, berat, dan supplier-nya. Berat diambil
+**Keluar** (sampai 2 jam sesudah timbang kosong; lebih dari itu dianggap truk datang lagi). Hasilnya muncul sebagai **popup** yang menutup sendiri (hijau 4 detik kalau tercatat; merah
+8 detik untuk peringatan dan scan yang gagal), menyebut langkah, plat, berat, supplier, dan line menurut urutan kartu. Scan yang
+terbaca setengah (scanner terputus di tengah) menghasilkan "Scan tidak terbaca, ulangi scan";
+scan lagi saja. Berat diambil
 dari timbangan kalau angkanya sudah **Stabil**; kalau timbangan belum tersambung atau angkanya
-masih bergerak, kotak Bruto (atau bar tara) terbuka untuk truk itu: ketik angkanya lalu Enter.
+masih bergerak, popup **kuning** meminta berat: ketik angkanya lalu Enter (atau scan QR truk yang sama
+lagi untuk menyimpan). Huruf tidak pernah jadi berat. Popup kuning ini tetap terbuka sampai
+beratnya tersimpan, Esc, scan QR truk lain, atau 60 detik tanpa tombol. Spasi+angka dan P+angka
+tetap jadi Reject dan piston, angkanya tidak masuk kotak berat. Kotak Bruto dan bar tara di tab
+Timbangan tetap ada untuk mengetik dengan tangan.
 Kalau truk yang sama di-scan lagi kurang dari 3 menit sesudah langkah sebelumnya, konsol
 bertanya dulu: biasanya itu QR yang terbaca dua kali, jadi pilih **Batal** (atau Esc). Kalau
 memang mau dicatat, **scan QR truk itu sekali lagi** (tunggu sekitar 2 detik sesudah
@@ -317,8 +364,8 @@ didaftarkan di tab Truk; kalau tidak ada yang
 menunggu, daftarnya seperti biasa. Daftar itu diperbarui tiap 15 detik tanpa mengubah plat yang
 sudah dipilih, dan tidak dibangun ulang selama sedang dibuka. Pilih truk, Bruto dan tombol **Timbang isi** berada
 satu baris; petunjuk desimal ada di bawah form itu dan juga muncul kalau kursor diam di kolom
-Bruto. Strip langkah berdiri dalam satu baris mulai lebar layar sekitar 960 px, dan kedua form
-berdampingan mulai sekitar 1.100 px; di layar lebih sempit keduanya bertumpuk.
+Bruto. Kedua form berdampingan mulai lebar layar sekitar 1.100 px; di layar lebih sempit keduanya
+bertumpuk.
 
 **Batal datang.** Kalau truk yang dicatat datang ternyata tidak akan ditimbang (salah pilih truk
 di dropdown, atau truknya ditolak di gerbang), tekan **Batal datang** di baris **Datang**-nya.
@@ -382,9 +429,9 @@ terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikas
   tetap tersimpan; tugaskan truknya manual di kartu line itu.
 - Kalau timbang kosong tidak bisa melepas sebuah line (line itu mati), line itu masih memegang
   truk yang sudah timbang kosong dan truk berikutnya hanya naik ke line lain. Notifikasinya menyebut
-  line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di kartunya, lalu
-  tugaskan truk yang menunggu di kartu yang sama. Selama line masih mati, Lepas juga ditolak
-  "tidak menjawab"; pakai **Lepas paksa** yang muncul di kartu itu.
+  line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di menu **⋯** kartunya,
+  lalu tugaskan truk yang menunggu di menu yang sama. Selama line masih mati, Lepas juga ditolak
+  "tidak menjawab"; pakai **Lepas paksa** yang muncul di menu kartu itu.
 
 Tabel Timbangan memakai kolom **Lama**: berapa lama truk itu diproses, dihitung
 dari jam timbang isi ke jam timbang kosong (`25 mnt`, `1 j 45 mnt`). Tiket
@@ -410,7 +457,7 @@ Aturan angka yang dijaga konsol:
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | saringan **Line** dan **Truk** di atas tabel (ikut polling, kembali ke halaman 1 tiap ganti), pagination; tabel memuat foto kecil (400 px), klik foto → foto penuh |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
-| **Timbangan** | tiket hari kerja, plus truk dari hari kerja lain yang belum selesai (belum timbang kosong: 12 jam; sudah timbang kosong tapi belum Keluar: 24 jam): status, jam timbang isi, jam timbang kosong, antre, lama, total, bruto, tara, neto; di bawahnya panel **Kedatangan dibatalkan** | **Catat datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket; **Batal datang** di baris Datang |
+| **Timbangan** | di atas: **Neto hari ini** dan **Tiket hari ini** (jumlah tiket dan yang menunggu tara) sebagai dua kotak di samping judul; di bawah form ada **papan truk** empat kolom (Datang, Bongkar, Timbang kosong, Selesai): tiap truk satu kartu dengan plat, pemasok, jam, neto dan nomor tiket AutoERP, di kolom Bongkar juga "Di Line ..." atau "Antrean bongkar N"; tombol kartu sama dengan tombol tabel (**Timbang isi** memilih truknya di form Timbang isi lalu menunggu Bruto, **Timbang kosong** membuka bar tara, **Keluar**); kolom Selesai menampilkan 4 terbaru, sisanya di Rekap. Di bawahnya tabel **Semua tiket**: plus truk dari hari kerja lain yang belum selesai (belum timbang kosong: 12 jam; sudah timbang kosong tapi belum Keluar: 24 jam): status, jam timbang isi, jam timbang kosong, antre, lama, total, bruto, tara, neto; di bawahnya panel **Kedatangan dibatalkan** | **Catat datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket; **Batal datang** di baris Datang |
 | **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; tombol **Cetak** di tiap baris truk kalau support menyalakan slip grading (satu lembar per truk per hari kerja: plat, supplier, sumber, jam grading, hitungan tiap kelas, rasio Ripe, neto, tiket timbang, tanda tangan Operator dan Supir); rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
@@ -421,7 +468,9 @@ Aturan angka yang dijaga konsol:
 sama seperti tab Rekap dulu, dan menyegarkan diri tiap 15 detik selama rentangnya memuat hari ini.
 Ganti tanggal untuk melihat hari-hari sebelumnya. Rekap menyandingkan dua sumber terpisah (grading
 dan timbangan): neto dijumlah per truk, dan satu truk boleh punya lebih dari satu tiket sehari.
-Baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan.
+Baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan. Plat di tabel Truk, Timbangan,
+dan Rekap tampil seperti pelat nomor (kotak hitam, huruf putih); angka JK di ringkasan Rekap ungu,
+sama dengan layar Grading.
 
 Di atas tabel tertulis hari kerja yang sedang ditampilkan: **Hari kerja Sen, 5 Okt 2026** untuk satu
 hari, atau **Hari kerja Sen, 5 Okt 2026 sampai Jum, 9 Okt 2026** untuk rentang.
@@ -433,7 +482,7 @@ Totalnya sama; cuma tanggalnya yang beda.
 
 | Bagian | Isi |
 |---|---|
-| Saringan | **Dari / Sampai** (tanggal kerja, paling panjang 31 hari), tombol cepat **Hari ini / Kemarin / 7 hari / Bulan ini / Bulan lalu** (yang sedang dipakai menyala hijau), **Line**, **Plat** (cukup sebagian, mis. `1234`), lalu **Tampilkan** |
+| Saringan | **Dari / Sampai** (tanggal kerja, paling panjang 31 hari), tombol cepat **Hari ini / Kemarin / 7 hari / Bulan ini / Bulan lalu** (yang sedang dipakai menyala biru), **Line**, **Plat** (cukup sebagian, mis. `1234`), lalu **Tampilkan** |
 | Ringkasan | janjang, Ripe, Unripe, JK, TP, rasio Ripe, jumlah truk, jumlah hari, dan neto periode itu. Neto tidak dihitung kalau disaring per line (neto itu berat truk) |
 | Tiga tampilan | **Per hari** (satu baris per hari kerja, tombol **Lihat truk**), **Per truk** (tampilan bawaan: satu baris per truk per hari, tombol **Lihat janjang**), **Per janjang** (seperti tab Grading, dengan foto dan saringan **Hasil**: Ripe/Unripe/JK/TP) |
 | **Unduh CSV** | semua baris tampilan dan saringan yang sedang aktif, bukan cuma halaman yang terlihat; kepala kolom mengikuti bahasa layar, jam dalam jam pabrik. Dibuka langsung di Excel/LibreOffice. Kalau Excel dengan setelan wilayah Indonesia menaruh semuanya di satu kolom, buka lewat **Data → From Text/CSV** dan pilih pemisah koma |
@@ -467,8 +516,8 @@ runbook: **Diagnostik, Antrean ERP, Versi** → tab **Status**; **Sumber Kamera,
 Uji PLC, Rekam Video** → tab **Line** (sub-tab di atasnya; sejak 2026-10-05 ditambah **Setelan Kamera**); **Riwayat** → tab
 **Rekap** (operator). Tab lama yang masih diingat browser dibuka di tempat barunya.
 
-Tab **Status**, **Line**, dan **Setelan** punya baris sub-tab di bawah baris tab utama, sama
-lebarnya, dengan garis bawah tebal di sub-tab yang terbuka. Satu bagian tampil sekaligus, dan
+Tab **Status**, **Line**, dan **Setelan** punya baris sub-tab di atas isinya, selebar
+kartunya, dengan garis bawah tebal di sub-tab yang terbuka. Satu bagian tampil sekaligus, dan
 sub-tab terakhir diingat browser. Status punya lima: **Versi & pembaruan**, **Diagnostik**,
 **Antrean line ke konsol**, **Antrean ERP**, **Manifest R2** (sejak 5 Oktober 2026; dulu
 kelimanya bertumpuk dalam satu halaman).
@@ -476,7 +525,7 @@ kelimanya bertumpuk dalam satu halaman).
 | Tab | Isi |
 |---|---|
 | **Log** | tombol saring bergaris tepi (tanpa isi warna): **Semua** (putih di tema gelap), **WARNING** (kuning), **ERROR** (merah); yang dipilih garisnya lebih tebal dan terang, yang lain redup. Isinya galat dan peringatan konsol DAN ketiga line (kolom Sumber menyebut line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord. 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
-| **Status** → Versi & pembaruan | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
+| **Status** → Versi & pembaruan | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AutoGrade untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
 | **Status** → Diagnostik | tiga kartu line, tiap kartu berisi empat kelompok yang **tertutup dari awal** dan dibuka dengan menekan judulnya (**Kamera dan gambar**, **Mesin**, **Data**, **Workers**); kelompok yang dibuka tetap terbuka di browser itu, dan judul kelompok jadi **merah** kalau ada baris bermasalah di dalamnya, dan judul **Kamera dan gambar** menulis **perlu dicek** (kuning atau merah) kalau laju, frame hilang, atau putus-nyambung kameranya bermasalah. Ini pengganti indikator suhu: kamera yang kepanasan biasanya turun lajunya, kehilangan gambar, atau putus-nyambung. Isinya: kamera, suhu kamera (°C, `-` kalau kamera tidak melaporkan atau sudah lebih dari 60 detik tidak terbaca, **tidak didukung kamera** kalau kameranya memang tanpa sensor suhu seperti kamera Lampung; belum ada batas aman atau warna), FPS kamera / deteksi (terukur, 0 kalau gambar berhenti; FPS kamera **kuning** kalau tertahan di bawah 90% target kamera lebih dari 2 menit), umur gambar terakhir (merah kalau kamera berhenti mengirim), **Frame hilang (10 mnt)** (hijau 0, kuning ada yang hilang, merah mulai 5%), **Putus-nyambung (24 jam)** (hijau 0, kuning 1-2, merah 3 ke atas), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
 | **Status** → Antrean line ke konsol | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), jam pengiriman terakhir yang gagal (teks galatnya di tab Log); tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status** → Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang** |
@@ -487,7 +536,7 @@ kelimanya bertumpuk dalam satu halaman).
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; hasilnya notifikasi (hijau coil menyala, kuning coil tidak menyala karena antrean pulse PLC penuh); heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Stop menulis dulu gambar yang sudah antre saat tombol ditekan (paling banyak 30 gambar; di Mac sekitar 0,6 detik, belum diukur di Lampung); yang berhenti karena disk mepet tetap berhenti seketika. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
-| **Setelan** | delapan sub-tab, satu bagian tampil sekaligus (pilihan terakhir diingat browser), tiap bagian satu kartu: saklar **Slip grading** (tombol Cetak di tab Rekap untuk semua akun, simpan sendiri lewat **Simpan slip**; bawaan mati); ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, dan angka bawaan itu tampil abu-abu di kolom serta di kalimat "Bawaan PC ini: ..."; tombol **Kembalikan ke bawaan** mengosongkan keempatnya, berlaku sesudah **Simpan**; `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di kotak Conveyor & tampilan (sub-tab Kamera & Conveyor) (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya nyala di semua line (sejak 5 Oktober 2026; sebelumnya mati). Sub-tab **Scanner QR**: nyalakan setelah scanner dicolok ke PC ini, lalu **Simpan scanner**; kolom scan QR muncul di tab Timbangan di semua layar dalam 2 detik. Mati (bawaan) = cuma daftar plat, seperti sebelumnya. Sub-tab **Hari kerja**: jam mulai hari kerja (zona pabrik ditulis di sebelahnya, mis. Asia/Jakarta), 00:00 sampai 23:59, simpan sendiri lewat **Simpan hari kerja**. 00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal. Lewat 12:00 layar minta konfirmasi dulu: hari kerja tetap memakai tanggal jam mulainya, jadi dengan 18:00 janjang Selasa jam 09:00 masuk hari kerja Senin. Ubah di siang hari: kalau dinaikkan antara tengah malam dan jam barunya, janjang yang ter-grading sejak tengah malam tidak masuk strip **Hari ini** sampai jam itu (truk yang masih di timbangan tetap tampil di tabel Timbangan) |
+| **Setelan** | delapan sub-tab, satu bagian tampil sekaligus (pilihan terakhir diingat browser); sejak 8 Oktober 2026 isinya bertumpuk ke bawah, satu **panel lipat selebar layar per kategori** (Kamera & Conveyor = Conveyor & tampilan, Garis capture, Kotak area deteksi; Mode Developer = Mode dev, Timbangan dummy; Penugasan line = Penugasan otomatis, Line yang dipakai), sub-tab yang isinya satu kategori langsung terbuka, panel yang dibuka diingat browser, dan panel yang angkanya ditolak terbuka sendiri: saklar **Slip grading** (tombol Cetak di tab Rekap untuk semua akun, simpan sendiri lewat **Simpan slip**; bawaan mati); ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (skala 0 sampai 1280 dari kiri, atau 0 sampai 720 dari atas), **kotak area deteksi** (empat angka pada skala 1280 x 720 yang direntangkan ke seluruh gambar, apa pun bentuk kameranya, jadi 1280 selalu tepi kanan dan 720 tepi bawah: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, dan angka bawaan itu tampil abu-abu di kolom serta di kalimat "Bawaan PC ini: ..."; tombol **Kembalikan ke bawaan** mengosongkan keempatnya, berlaku sesudah **Simpan**; `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di kotak Conveyor & tampilan (sub-tab Kamera & Conveyor) (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Sub-tab **Mode Developer** juga punya saklar **Timbangan dummy** (support, bawaan mati, disimpan oleh tombol **Simpan** yang sama di sub-tab itu): selama menyala, scan timbang isi menyimpan **30.000 kg** dan timbang kosong **10.000 kg** apa pun yang dibaca timbangan, datanya tetap dikirim ke AutoERP, dan pita oranye di semua tab mengingatkannya; kotak timbangan live menulis **Dummy** hanya selama PC ini belum punya timbangan (belum disetel), kalau sudah ada timbangan kotak itu tetap menulis keadaan timbangannya tetapi scan tetap memakai berat dummy; matikan sebelum kerja sungguhan. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya nyala di semua line (sejak 5 Oktober 2026; sebelumnya mati). Sub-tab **Scanner QR**: nyalakan setelah scanner dicolok ke PC ini, lalu **Simpan scanner**; kolom scan QR muncul di tab Timbangan di semua layar dalam 2 detik. Mati (bawaan) = cuma daftar plat, seperti sebelumnya. Sub-tab **Hari kerja**: jam mulai hari kerja (zona pabrik ditulis di sebelahnya, mis. Asia/Jakarta), 00:00 sampai 23:59, simpan sendiri lewat **Simpan hari kerja**. 00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal. Lewat 12:00 layar minta konfirmasi dulu: hari kerja tetap memakai tanggal jam mulainya, jadi dengan 18:00 janjang Selasa jam 09:00 masuk hari kerja Senin. Ubah di siang hari: kalau dinaikkan antara tengah malam dan jam barunya, janjang yang ter-grading sejak tengah malam tidak masuk strip **Hari ini** sampai jam itu (truk yang masih di timbangan tetap tampil di tabel Timbangan) |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -778,7 +827,7 @@ kartu line (bukan di Uji PLC); E-stop tidak menghentikan grading.
 Bawaan mati. Kalau dinyalakan (`LICENSE_ENABLED=true`, `LICENSE_TOKEN=<token dari cloud>`),
 lisensi kedaluwarsa menghentikan inferensi dan menjatuhkan heartbeat PLC, jadi terlihat di lantai
 pabrik. Kunci publik sudah tertanam di image; `LICENSE_PRIVATE_KEY` **tidak boleh** ada di PC
-pabrik. Status terlihat di bawah tulisan AUTOGRADE (semua akun) dan di tab Status (support).
+pabrik. Status terlihat di bawah tulisan AutoGrade (semua akun) dan di tab Status (support).
 
 ### 5.11 Catatan PC Lampung (per 28 September 2026)
 
@@ -835,7 +884,7 @@ Di PC pabrik image-nya dipilih `PALMGRADE_AUTOGRADE_IMAGE` di `/opt/palmgrade/au
 membuat ulang container supaya versinya benar-benar terpasang.
 
 **Update now dari konsol** (sejak 3 Oktober 2026): operator bisa memasang versi yang sudah
-diunduh tanpa menunggu Start pagi, lewat pita kuning di bawah tulisan AUTOGRADE (§3.2). Konsol
+diunduh tanpa menunggu Start pagi, lewat pita kuning di bawah kepala layar (§3.2). Konsol
 sendiri tidak pernah menyentuh Docker; ia cuma menaruh berkas permintaan di
 `/opt/palmgrade/autograde/update/`, dan **penunggu** di PC (systemd, dipasang sekali lewat
 AnyDesk dengan `sudo ./pasang-penunggu-update.sh`) yang menjalankan `autograde`. Cara pasang,
@@ -910,7 +959,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
 | Notifikasi "Line N tidak menjawab. Tugaskan … manual di kartunya" | penugasan otomatis tidak sampai ke line itu (line mati, restart, atau sedang hapus data); timbangannya tetap tersimpan | nyalakan line-nya, lalu tugaskan truk itu lewat dropdown di kartu line tersebut |
 | Notifikasi "Line N masih memegang truk … yang sudah timbang kosong" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | **Lepas paksa** di kartu line itu (atau tunggu line menjawab lagi lalu **Lepas**), lalu tugaskan truk yang menunggu di kartu itu |
-| **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line (line yang mati: **Lepas paksa**), tekan lagi |
+| **Pasang sekarang** berhenti dengan kalimat yang menyebut Line N | line itu tidak menjawab waktu konsol melepas truknya, jadi tidak ada yang dipasang | nyalakan line-nya, atau **Lepas paksa** di kartunya, lalu tekan lagi |
 | Sesudah **Pasang sekarang**: "Versi X gagal dinyalakan, sistem kembali ke Y" | versi baru tidak lolos gerbang sehat dan sistem mundur sendiri; versi itu tidak ditawarkan lagi sampai ada versi yang lebih baru | panggil teknisi; tab Log baris "Pembaruan dari konsol"; teknisi memeriksa `autograde logs` |
 | Sesudah **Pasang sekarang**: "Versi X belum terpasang, sistem tetap di Y" | launcher sedang sibuk (mengunduh) atau terhenti, versi baru belum dicoba | tunggu beberapa menit, tombolnya muncul lagi, tekan ulang; kalau berulang panggil teknisi |
 | "Pembaruan X tidak selesai" | penunggu di PC tidak menjawab 20 menit (dicabut, mati, atau PC sibuk) | panggil teknisi: `systemctl status autograde-update.path` dan `journalctl -u autograde-update.service` (`sawit/docs/FACTORY-PC.md`) |
@@ -1052,6 +1101,10 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.28 | 8 Oktober 2026 | §3.2: angka FPS yang ditulis line di video pindah ke pojok kanan atas (pojok kiri atas tertutup nama line di kartu). §3.5: Setelan jadi panel lipat per kategori, Mode Developer satu tombol Simpan. §3.3, §3.4: papan truk empat kolom di tab Timbangan, di atas tabel; strip empat langkah di atas form dibuang. §3.1: layar masuk terbelah dua (foto kamera dengan kotak deteksi dan tiga keterangan, form dengan tombol akun berinisial dan tombol ID / EN). §3.2: tombol Lepas dan antrean bongkar 44 px dan tidak terpotong di 1366 px. §3.4: Timbangan memakai dua kotak Neto hari ini dan Tiket hari ini; plat di tabel bergaya pelat nomor; JK ungu di ringkasan Rekap. Menu kiri yang disembunyikan tidak lagi kena tombol Tab, menu ⋯ kartu line bisa ditutup dengan Esc. |
+| 2.27 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi tulisan AutoGrade, tanggal, perusahaan, pil AutoERP / Cloud Photo, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |
+| 2.26 | 7 Oktober 2026 | §3.2 dan §3.5: gambar kamera di kartu line utuh dengan bentuk asli kamera (tidak dipotong, tidak gepeng); angka garis capture dan kotak area deteksi dibaca sebagai skala 1280 x 720 yang direntangkan ke seluruh gambar, bukan piksel video. Angka yang sudah tersimpan tidak berubah artinya. |
+| 2.25 | 7 Oktober 2026 | §3.2, §3.3, §3.5, §7: **Update now** melepas truk sendiri (konsol bertanya dulu, lalu layar penuh menunggu sampai selesai, notifikasi hasil sesudah halaman termuat ulang). Scan QR jalan dari tab mana pun dan hasilnya popup yang menutup sendiri; berat diketik di popup. Saklar support **Timbangan dummy** di Mode Developer (30.000 / 10.000 kg, pita oranye). |
 | 2.24 | 6 Oktober 2026 | §3.3: pertanyaan "Catat?" sesudah scan ulang dijawab dengan scan QR yang sama sekali lagi (sesudah 2 detik), tanpa mouse. |
 | 2.23 | 6 Oktober 2026 | §3.2 dan §3.3: empat kolom scan diganti **satu kolom scan** yang selalu siap; konsol memilih langkahnya dari keadaan truk, menyimpan berat timbangan yang sudah stabil, membuka kotak berat kalau belum, dan bertanya dulu kalau truk yang sama di-scan lagi dalam 3 menit. Dropdown truk di kartu line ikut berganti saat truk dipasang otomatis. |
 | 2.22 | 6 Oktober 2026 | §3.2: angka besar **Data timbangan** di strip "Hari ini" jadi berat live di jembatan timbang (Stabil, Bergerak, Timbangan putus, Belum tersambung); neto hari ini pindah ke baris kecil di bawahnya. |

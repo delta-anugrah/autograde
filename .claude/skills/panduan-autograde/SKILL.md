@@ -47,11 +47,11 @@ ditanya.
   **tidak naik ke AutoERP**; arah akun cuma AutoERP → PC.
   Akun dari AutoERP direset di AutoERP. Bawaan: `operator@autograde.local`,
   `support@autograde.local`, sandi beda per PKS (`make hash-sandi`, tulis `$$`).
-- **Tab operator** (Grading, Truk, Timbangan, Rekap). **Rekap** = Rekap + Riwayat sejak
+- **Menu kiri** (sejak 2026-10-07; bisa disembunyikan, diingat browser). **Tab operator** (Grading, Truk, Timbangan, Rekap). **Rekap** = Rekap + Riwayat sejak
   2026-09-28: dibuka di Hari ini, Per truk (segar tiap 15 dtk), ganti tanggal untuk hari
   sebelumnya (maks 31 hari per tampilan), per hari / per truk / per janjang + CSV. Query-nya
   koneksi SQLite baca-saja sendiri (aturan 26).
-- **Last Sync** (strip "Hari ini", semua operator): baris **AutoERP** dan **Cloud Photo**.
+- **Last Sync** (pil di kepala layar sejak 2026-10-07, semua operator): **AutoERP** dan **Cloud Photo**.
   Jam = data terakhir yang benar-benar lewat; titik hijau/kuning = sambungan hidup/putus
   SEKARANG (cek tiap 60 detik), bukan umur jam: foto naik tiap jam. Kuning → tab Log
   ("AutoERP terputus: …" / "Cloud Photo line-N terputus: …"); data menunggu di antrean,
@@ -95,7 +95,7 @@ ditanya.
   bawaan publik `supersecret123` (line sudah lama begitu; konsol ikut sejak v1.20.0, batch 1). Isi `openssl rand -hex 32` di `.env`,
   nilai yang sama untuk keempat container, lalu `autograde restart`.
 - **Janjang difoto di titik mana:** saat kotaknya **menyentuh garis capture**, garis biru
-  bertanda `CAPTURE`, diatur dari tab **Setelan** (piksel, ruang stream; `0` = tanpa garis,
+  bertanda `CAPTURE`, diatur dari tab **Setelan** (angka pada skala setelan 1280×720 yang direntangkan ke seluruh gambar, bukan piksel video; `0` = tanpa garis,
   janjang difoto begitu masuk ROI). ROI menjawab *di mana*, garis menjawab *kapan*. Arah
   conveyor (`tegak`/`mendatar`) menentukan garisnya tegak atau melintang. Berlaku tanpa
   restart. "Capture terlalu cepat" → **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from langkah import OPERATOR, SUPPORT, buka_setelan, buka_tab, kamus, keluar, masuk, plat
+from langkah import OPERATOR, SUPPORT, buka_menu_line, buka_setelan, buka_tab, kamus, keluar, masuk, plat
 from playwright.sync_api import expect
 
 _DUA_LINE = ("line-1", "line-2")
@@ -45,6 +45,8 @@ def _isi(halaman, nomor: str, bruto: str = "14000") -> None:
     halaman.fill("#bruto", bruto)
     halaman.click("#masuk")
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukMasuk"))
+    # Back where the operator watches the cards and the queue (Grading only since 2026-10-07).
+    buka_tab(halaman, "grading")
 
 
 def _kosong(halaman, nomor: str, tara: str = "6000") -> None:
@@ -58,6 +60,7 @@ def _kosong(halaman, nomor: str, tara: str = "6000") -> None:
     halaman.click("#tara-simpan")
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukTara"))
     expect(baris.locator('button[data-aksi="keluar"]')).to_have_count(0)
+    buka_tab(halaman, "grading")
 
 
 def _kartu(halaman, kode: str):
@@ -170,7 +173,7 @@ def test_the_next_truck_waits_until_the_first_is_weighed_out(halaman, konsol, br
 
     _kosong(halaman, a)
     expect(halaman.locator("#toasts")).to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
-    expect(strip).to_be_hidden()
+    expect(strip.locator(".antrean-truk")).to_have_count(0)
     for kode in _DUA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).to_contain_text(b)
     _kosong(halaman, b)
@@ -209,7 +212,7 @@ def test_skip_asks_first_and_takes_the_truck_out_of_the_queue(halaman, konsol, b
     halaman.click("#konfirmasi-ya")
     expect(dialog).to_be_hidden()
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukLewati").replace("{truk}", b))
-    expect(halaman.locator("#antrean-bongkar")).to_be_hidden()
+    expect(halaman.locator("#antrean-bongkar .antrean-truk")).to_have_count(0)
 
     _kosong(halaman, a)
     for kode in _DUA_LINE:
@@ -225,14 +228,16 @@ def test_skip_asks_first_and_takes_the_truck_out_of_the_queue(halaman, konsol, b
 def test_lepas_on_the_last_line_puts_the_next_truck_on(halaman, konsol, browser_name, penugasan_bersih):
     a, b = _a_di_line_b_antre(halaman, konsol, browser_name, 1108, 1109)
     toasts = halaman.locator("#toasts")
+    buka_menu_line(_kartu(halaman, "line-1"))
     _kartu(halaman, "line-1").locator('[data-aksi="lepas"]').click()
     expect(toasts).to_contain_text(kamus(halaman, "sukLepas").replace("{line}", _nama(halaman, "line-1")))
     expect(_antre(halaman, b)).to_be_visible()
     expect(toasts).not_to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
 
+    buka_menu_line(_kartu(halaman, "line-2"))
     _kartu(halaman, "line-2").locator('[data-aksi="lepas"]').click()
     expect(toasts).to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
-    expect(halaman.locator("#antrean-bongkar")).to_be_hidden()
+    expect(halaman.locator("#antrean-bongkar .antrean-truk")).to_have_count(0)
     for kode in _DUA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).to_contain_text(b)
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(a)
@@ -255,7 +260,7 @@ def test_switch_off_hides_the_strip_and_saving_it_on_puts_the_waiting_truck_on(
     antre = halaman.request.get(konsol.url + "/api/console/state").json()["antrean_bongkar"]
     assert [a["plate_number"] for a in antre] == [b], antre
     halaman.evaluate("() => refresh()")
-    expect(halaman.locator("#antrean-bongkar")).to_be_hidden()
+    expect(halaman.locator("#antrean-bongkar .antrean-truk")).to_have_count(0)
     for kode in _TIGA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(b)
 
@@ -287,11 +292,11 @@ def test_the_operator_works_the_strip(halaman, konsol, browser_name, penugasan_b
     _isi(halaman, b)
     strip = halaman.locator("#antrean-bongkar")
     expect(_antre(halaman, b)).to_be_visible()
-    expect(strip.locator(".lb")).to_have_text(kamus(halaman, "antreanBongkarOtomatis"))
+    expect(strip.locator(".antrean-kepala .lb")).to_have_text(kamus(halaman, "antreanBongkarOtomatis"))
     halaman.click("#bahasa")
-    expect(strip.locator(".lb")).to_have_text("Unloading queue (automatic)")
+    expect(strip.locator(".antrean-kepala .lb")).to_have_text("Unloading queue (automatic)")
     halaman.click("#bahasa")
-    expect(strip.locator(".lb")).to_have_text(kamus(halaman, "antreanBongkarOtomatis"))
+    expect(strip.locator(".antrean-kepala .lb")).to_have_text(kamus(halaman, "antreanBongkarOtomatis"))
 
     _antre(halaman, b).locator('button[data-aksi="pasang"]').click()
     expect(toasts).to_contain_text(kamus(halaman, "err_line_semua_terpakai"))
@@ -300,7 +305,7 @@ def test_the_operator_works_the_strip(halaman, konsol, browser_name, penugasan_b
     _antre(halaman, b).locator('button[data-aksi="lewati"]').click()
     halaman.click("#konfirmasi-ya")
     expect(toasts).to_contain_text(kamus(halaman, "sukLewati").replace("{truk}", b))
-    expect(strip).to_be_hidden()
+    expect(strip.locator(".antrean-truk")).to_have_count(0)
 
     _kosong(halaman, a)
     halaman.evaluate("() => refresh()")
@@ -308,3 +313,29 @@ def test_the_operator_works_the_strip(halaman, konsol, browser_name, penugasan_b
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(a)
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(b)
     _kosong(halaman, b)
+
+
+def test_lepas_on_the_truck_card_releases_only_that_truck(halaman, lines, browser_name, penugasan_bersih):
+    """Manual mode, two different trucks (spec 2026-10-07 §5.2): the truck card lists both with
+    their own lines, and its Lepas releases only the truck it sits beside."""
+    a, b = plat(browser_name, 1121), plat(browser_name, 1122)
+    masuk(halaman, OPERATOR)
+    _daftar(halaman, a, b)
+    buka_tab(halaman, "grading")
+    for kode, nomor in (("line-1", a), ("line-2", b)):
+        kartu = _kartu(halaman, kode)
+        buka_menu_line(kartu)
+        kartu.locator(".pilih-tombol").click()
+        kartu.locator('[role="option"]', has_text=nomor).click()
+        kartu.locator('[data-aksi="tugaskan"]').click()
+        expect(kartu.locator(".truk")).to_contain_text(nomor)
+    grup_a = halaman.locator("#truk-di-line .truk-grup", has_text=a)
+    expect(grup_a).to_have_attribute("data-lines", "line-1")
+    expect(halaman.locator("#truk-di-line .truk-grup", has_text=b)).to_have_attribute("data-lines", "line-2")
+
+    grup_a.locator('button[data-aksi="lepas-truk"]').click()
+    expect(halaman.locator("#toasts")).to_contain_text(
+        kamus(halaman, "sukLepasTruk").replace("{truk}", a).replace("{line}", _nama(halaman, "line-1")))
+    expect(halaman.locator("#truk-di-line .truk-grup", has_text=a)).to_have_count(0)
+    expect(_kartu(halaman, "line-1").locator(".truk")).not_to_contain_text(a)
+    expect(_kartu(halaman, "line-2").locator(".truk")).to_contain_text(b)

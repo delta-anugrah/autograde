@@ -59,12 +59,29 @@ def buka_tab(page: Page, nama: str) -> None:
     expect(page.locator(f"#sec-{nama}")).to_be_visible()
 
 
+def buka_menu_line(kartu) -> None:
+    """Opens a line card's "more" menu (Tugaskan, Lepas, card order) when the card has one and
+    it is closed (spec 2026-10-07 §5.2)."""
+    # The first poll after signing in draws the cards again, which closes an open menu.
+    kartu.page.wait_for_function("() => typeof dipasang !== 'undefined' && dipasang")
+    lagi = kartu.locator("details.lagi")
+    if lagi.count() and lagi.get_attribute("open") is None:
+        lagi.locator("summary").click()
+        expect(lagi.locator(".lagi-isi")).to_be_visible()
+
+
 def buka_setelan(page: Page, sub: str) -> None:
     """The Settings tab, then one of its sub-tabs (2026-10-05). The open sub-tab is remembered
     in the browser, so a test names the one it needs rather than relying on the last test."""
     buka_tab(page, "setelan")
     page.click(f'#setelan-sub button[data-sub="{sub}"]')
     expect(page.locator(f'#setelan-sub button[data-sub="{sub}"]')).to_have_attribute("aria-pressed", "true")
+    # Each category is a collapsible section since 2026-10-08: open every one of this sub-tab.
+    page.evaluate(
+        "(sub) => document.querySelectorAll(`#setform-utama [data-setelan-grup='${sub}'] details.setelan-bagian,"
+        " .setelan-form:not([hidden]) details.setelan-bagian`).forEach((d) => { d.open = true; })",
+        sub,
+    )
 
 
 def buka_status(page: Page, sub: str) -> None:
@@ -81,3 +98,10 @@ def setel_scanner(url: str, aktif: bool) -> None:
     with httpx.Client(base_url=url, timeout=10) as c:
         c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
         c.post("/api/console/dev/scanner-qr", json={"aktif": aktif}).raise_for_status()
+
+
+def setel_dummy(url: str, aktif: bool) -> None:
+    """The Timbangan dummy switch (support, 2026-10-07), set over HTTP like setel_scanner."""
+    with httpx.Client(base_url=url, timeout=10) as c:
+        c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
+        c.post("/api/console/dev/timbangan-dummy", json={"aktif": aktif}).raise_for_status()
