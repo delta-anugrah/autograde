@@ -4,6 +4,7 @@ one JPEG of at most 60 KB written into the page by `scripts/tanam_foto_masuk.py`
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 from pathlib import Path
 
@@ -30,16 +31,33 @@ def _kamus(bahasa: str) -> str:
     return re.search(rf"^  {bahasa}: \{{(.*?)^  \}},", kamus, re.S | re.M).group(1)
 
 
-def test_photo_is_embedded_and_matches_the_asset():
+def test_photos_are_embedded_and_match_the_assets():
     assert tanam_foto_masuk.tanam(HTML) == HTML, "jalankan scripts/tanam_foto_masuk.py"
 
 
-def test_photo_is_at_most_60_kb():
-    assert (AKAR / "assets/masuk/masuk.jpg").stat().st_size <= 60 * 1024
+def test_every_photo_is_at_most_60_kb():
+    foto = sorted((AKAR / "assets/masuk").glob("*.jpg"))
+    assert [f.stem for f in foto] == ["ripe", "unripe"]
+    for f in foto:
+        assert f.stat().st_size <= 60 * 1024, f.name
 
 
-def test_photo_is_a_jpeg_data_uri_not_a_link():
-    assert re.search(r"--foto-masuk:url\(data:image/jpeg;base64,[A-Za-z0-9+/=]+\)", HTML)
+@pytest.mark.parametrize("kelas", ["ripe", "unripe"])
+def test_each_class_photo_is_a_jpeg_data_uri_with_its_own_box(kelas):
+    """Owner 2026-10-08: the photo turns through the classes it has (JK and TP to come)."""
+    assert re.search(rf"--foto-masuk-{kelas}:url\(data:image/jpeg;base64,[A-Za-z0-9+/=]+\)", HTML)
+    assert re.search(rf'\.gerbang-bingkai\[data-kelas="{kelas}"\] #gerbang-foto \{{ background-image:var\(--foto-masuk-{kelas}\); \}}', HTML)
+    assert re.search(rf'\.gerbang-bingkai\[data-kelas="{kelas}"\] \.gerbang-deteksi \{{ left:[\d.]+%; top:[\d.]+%; width:[\d.]+%; height:[\d.]+%; \}}', HTML)
+
+
+def test_the_page_knows_which_classes_it_has():
+    assert 'const KELAS_FOTO_MASUK = ["ripe", "unripe"];' in HTML
+
+
+def test_the_photo_turns_every_4_s_only_while_the_gate_shows():
+    kerja = re.search(r"function gantiFotoMasuk\(\) \{(.*?)\n\}", HTML, re.S).group(1)
+    assert '$("gerbang").hidden' in kerja and "KELAS_FOTO_MASUK" in kerja
+    assert "setInterval(gantiFotoMasuk, 4000)" in HTML
 
 
 def test_gate_is_split_with_the_same_ids():
@@ -54,6 +72,7 @@ def test_the_photo_has_one_detection_box_and_an_alt():
     gerbang = _gerbang()
     assert gerbang.count('class="gerbang-deteksi"') == 1
     assert re.search(r'id="gerbang-foto" role="img" data-t-lb="gerbangFotoAlt"', gerbang)
+    assert 'class="gerbang-bingkai" data-kelas="ripe"' in gerbang
 
 
 def test_three_facts():
@@ -74,12 +93,13 @@ def test_narrow_window_keeps_the_form_and_drops_the_hero():
 
 
 @butuh_node
-def test_operator_chip_has_initials_name_and_email():
+def test_operator_chip_is_just_the_email():
+    """Owner 2026-10-08: the chip holds the email only (name and initials made it too big);
+    the name stays as its hover title."""
     html = jalankan(["tombolOperator", "inisialNama"], 'tombolOperator({email: "a@b.c", full_name: "Budi Santoso"})')
-    assert 'data-email="a@b.c"' in html and 'aria-pressed="false"' in html
-    assert re.search(r'<span class="gerbang-op-inisial"[^>]*>BS</span\s*>', html)
-    assert re.search(r'<span class="gerbang-op-nama">Budi Santoso</span\s*>', html)
-    assert '<span class="gerbang-op-email">a@b.c</span>' in html
+    assert 'data-email="a@b.c"' in html and 'aria-pressed="false"' in html and 'title="Budi Santoso"' in html
+    assert re.sub(r"<[^>]+>", "", html).strip() == "a@b.c"
+    assert "gerbang-op-inisial" not in html
 
 
 @butuh_node
@@ -101,9 +121,11 @@ def test_language_buttons_on_the_gate_reuse_the_header_switch():
     assert re.search(r'\$\("bahasa"\)\.click\(\)', HTML)
 
 
-def test_account_chips_share_rows_when_there_is_room():
+def test_account_chips_are_small_pills_that_wrap():
     aturan = re.search(r"\.gerbang-nama \{([^}]*)\}", HTML).group(1)
-    assert "display:grid" in aturan and "auto-fill" in aturan
+    assert "flex-wrap:wrap" in aturan and "overflow-y:auto" in aturan
+    chip = re.search(r"\.gerbang-op \{([^}]*)\}", HTML).group(1)
+    assert "min-height:44px" in chip and "border-radius:var(--r-pill)" in chip
 
 
 def test_photo_frame_takes_its_height_from_its_width():
@@ -115,3 +137,21 @@ def test_headline_to_photo_is_centred():
     """Owner 2026-10-08: the block from the headline down to the photo sits in the middle of the hero."""
     tengah = re.search(r"\.gerbang-tengah \{([^}]*)\}", HTML).group(1)
     assert "justify-items:center" in tengah and "text-align:center" in tengah
+
+
+@butuh_node
+@pytest.mark.parametrize(
+    ("tersimpan", "harapan"),
+    [
+        ({}, "en"),                                   # a brand-new browser: the sign-in a prospect sees
+        ({"tab": "grading"}, "id"),                   # a kiosk that used the console, never pressed ID / EN
+        ({"tema": "gelap", "urutan": "x"}, "id"),
+        ({"bahasa": "en", "tab": "grading"}, "en"),   # a choice is a choice
+        ({"bahasa": "id"}, "id"),
+        ({"bahasa": "fr"}, "en"),                     # unknown value: treated as no choice
+    ],
+)
+def test_first_language_is_english_only_for_a_new_browser(tersimpan, harapan):
+    jejak = re.search(r"^const JEJAK_KONSOL = .*$", HTML, re.M).group(0)
+    awal = jejak + "\nconst ambil = (k) => (" + json.dumps(tersimpan) + ")[k] || '';"
+    assert jalankan(["bahasaAwal"], "bahasaAwal(ambil)", tambahan=awal) == harapan

@@ -395,7 +395,8 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 Layar di **`/console`**: port 8100 di PC pabrik (image produksi) dan `make console`, 8000 lewat `make up` / `make up-console` dari source. Satu berkas HTML statis: vanilla JS, **tanpa
 build step, tanpa Node, tanpa CDN**, harus tetap kebuka saat internet mati (dua font, Plus Jakarta
 Sans dan Barlow Condensed, tertanam di berkasnya sebagai woff2 lewat `scripts/tanam_font.py`;
-foto layar masuk juga tertanam, JPEG ≤ 60 KB lewat `scripts/tanam_foto_masuk.py`).
+foto layar masuk juga tertanam, satu JPEG ≤ 60 KB per kelas dari `assets/masuk/` lewat
+`scripts/tanam_foto_masuk.py`).
 Menu di kiri (bisa disembunyikan), kepala dengan pil **Last Sync** (AutoERP dan Cloud Photo),
 ringkasan hari kerja (janjang, timbangan live, truk di line dan antrean bongkar), kartu
 kamera per line (foto terakhir, reject manual, piston, menu ⋯ untuk assign/lepas truk),

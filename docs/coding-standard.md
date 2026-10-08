@@ -43,7 +43,7 @@ PRs; a PR is not blocked by a gap it did not add.
 
 ## Frontend (`static/console.html`)
 
-- **F1.** One file, vanilla JS, no build, no CDN, zero `https://`: the screen must work with the internet down. The two fonts (Plus Jakarta Sans, Barlow Condensed, OFL) are woff2 data URIs written by `scripts/tanam_font.py` from `assets/fonts/` (`tests/unit/test_console_html_font.py`); the sign-in photo is one JPEG of at most 60 KB written by `scripts/tanam_foto_masuk.py` from `assets/masuk/masuk.jpg` (`tests/unit/test_console_html_masuk.py`). Every `var(--x)` the page uses is defined in it or set from JS (`tests/unit/test_console_html_komponen.py`).
+- **F1.** One file, vanilla JS, no build, no CDN, zero `https://`: the screen must work with the internet down. The two fonts (Plus Jakarta Sans, Barlow Condensed, OFL) are woff2 data URIs written by `scripts/tanam_font.py` from `assets/fonts/` (`tests/unit/test_console_html_font.py`); the sign-in photos are one JPEG of at most 60 KB per class, written by `scripts/tanam_foto_masuk.py` from `assets/masuk/` (`tests/unit/test_console_html_masuk.py`). Every `var(--x)` the page uses is defined in it or set from JS (`tests/unit/test_console_html_komponen.py`).
 - **F2.** One render function per part of the screen (line card, tab, table), as `kartuLine`; loading and computing stay out of render functions.
 - **F3.** The screen never decides or computes what counts (L4). Hiding a support control is only tidiness; the lock is the backend guard (`require_support`, 403, rule 21).
 - **F4.** Every view that loads data handles five states: loading, error, empty, content, and disconnected (camera, line or AutoERP unreachable).

@@ -84,3 +84,25 @@ def test_many_accounts_keep_masuk_on_the_first_screen(halaman):
     halaman.reload()
     expect(halaman.locator("#gerbang-nama .gerbang-op")).to_have_count(9)
     expect(halaman.locator("#gerbang-masuk")).to_be_in_viewport()
+
+
+def test_a_brand_new_browser_signs_in_in_english(halaman, konsol):
+    """Owner 2026-10-08: the sign-in a prospect sees is English; a used browser keeps its language."""
+    baru = halaman.context.browser.new_context()
+    try:
+        pg = baru.new_page()
+        pg.goto(konsol.url + "/console")
+        expect(pg.locator("#gerbang-judul")).to_have_text("Sign in to the console")
+        expect(pg.locator('#gerbang-bahasa [data-bahasa="en"]')).to_have_attribute("aria-pressed", "true")
+        pg.click('#gerbang-bahasa [data-bahasa="id"]')
+        pg.reload()
+        expect(pg.locator("#gerbang-judul")).to_have_text("Masuk ke konsol")
+    finally:
+        baru.close()
+
+
+def test_the_sign_in_photo_turns_to_the_next_class(halaman):
+    bingkai = halaman.locator(".gerbang-bingkai")
+    expect(bingkai).to_have_attribute("data-kelas", "ripe")
+    expect(bingkai).to_have_attribute("data-kelas", "unripe", timeout=6_000)
+    expect(halaman.locator(".gerbang-deteksi span")).to_have_text(kamus(halaman, "clsUnripe"))

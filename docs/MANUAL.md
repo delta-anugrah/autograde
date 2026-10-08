@@ -108,10 +108,13 @@ terang/gelap, pilihan tersimpan di browser.
 ### 3.1 Masuk
 
 Layar terkunci sampai ada yang masuk dengan **email + sandi**. Sejak 8 Oktober 2026 layar masuk
-terbelah dua: kiri foto kamera line dengan satu kotak deteksi dan tiga keterangan singkat
-(hilang di jendela yang lebih sempit dari 900 px), kanan form masuk. Tombol akun di form (inisial,
-nama, email) cuma mengisi kolom email dan ikut tertandai biru; sandi tetap wajib. Tombol **ID / EN**
-di bawah form mengganti bahasa layar sebelum masuk. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
+terbelah dua: kiri foto kamera line dengan kotak deteksi yang berganti kelas tiap 4 detik (Ripe,
+Unripe; JK dan TP menyusul begitu ada fotonya) dan tiga keterangan singkat (hilang di jendela yang
+lebih sempit dari 900 px), kanan form masuk. Tombol akun di form (cuma email; nama muncul saat
+kursor diam di atasnya) cuma mengisi kolom email dan ikut tertandai biru; sandi tetap wajib. Tombol
+**ID / EN** di bawah form mengganti bahasa layar sebelum masuk. Browser yang **belum pernah** membuka
+konsol mulai dalam bahasa Inggris; browser yang sudah pernah (misalnya kiosk pabrik) tetap memakai
+bahasa yang terakhir dipakainya. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
 (bukan 12 jam sesudah masuk): selama operator memakai layar, sesinya ikut diperpanjang sendiri.
 15 menit sebelum habis muncul pita kuning **Sesi berakhir dalam N menit**: sentuh layar di mana
 saja atau tekan **Perpanjang**. Layar yang dibiarkan tanpa disentuh tetap keluar sendiri

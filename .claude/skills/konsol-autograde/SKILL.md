@@ -240,12 +240,16 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Tabel Grading: baris teratas halaman 1 berkedip sekali (`tr.baris-baru`) kalau janjang baru;
   `gantiSaringGrading` mengosongkan `barisAtasGrading` supaya ganti saringan tidak berkedip.
 - Gerbang (PR 4, 2026-10-08): `#gerbang` = grid `.gerbang-hero` (selalu gelap, token lokal
-  `--hero-*`; foto `#gerbang-foto` dari `--foto-masuk` = JPEG ≤ 60 KB, ditulis
-  `scripts/tanam_foto_masuk.py` dari `assets/masuk/masuk.jpg`; satu `.gerbang-deteksi`; tiga
+  `--hero-*`; foto per kelas `--foto-masuk-<kelas>` = JPEG ≤ 60 KB, ditulis
+  `scripts/tanam_foto_masuk.py` dari `assets/masuk/<kelas>.jpg` + kotak di `assets/masuk/kotak.json`,
+  juga `const KELAS_FOTO_MASUK`; `gantiFotoMasuk` tiap 4 dtk menukar `.gerbang-bingkai[data-kelas]`
+  selama gerbang tampil (sekarang ripe + unripe; JK/TP tinggal tambah berkas); satu `.gerbang-deteksi`; tiga
   `ul.gerbang-fakta`; judul sampai foto di tengah, `.gerbang-tengah` `justify-items/text-align:center`, pemilik 2026-10-08) + `.gerbang-form` (`.gerbang-kotak` dengan id lama). Di bawah 900 px hero
-  dibuang. Chip akun `tombolOperator` = inisial + nama + email, `aria-pressed` dari
+  dibuang. Chip akun `tombolOperator` = email saja (nama di `title`), `aria-pressed` dari
   `tandaiOperator` (input email + klik chip). `#gerbang-bahasa` (ID / EN) memanggil
   `$("bahasa").click()`; `terapkanBahasa` menandai yang aktif. Tanpa logo dan tanpa angka hidup.
+  Bahasa awal `bahasaAwal`: tersimpan > ada jejak konsol (`JEJAK_KONSOL`) = id > browser baru = en;
+  langsung disimpan. Fixture tes browser `halaman` menyetel `bahasa=id` lewat `add_init_script`.
 - Layar lain (PR 5): pilihan = biru merek (`.sub-tab` garis bawah 3 px `--merek`, tombol cepat
   Rekap = chip `--merek-tint`); kotak di dalam kartu (`.tools`, `.tabel`, `.riwayat-saring`,
   `.riwayat-ringkasan`, `.setelan-form`, `.daftar-definisi`) bergaris `--line`, bukan

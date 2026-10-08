@@ -217,6 +217,9 @@ def halaman(request: pytest.FixtureRequest, page: Page, konsol: KonsolUji) -> Pa
     page.on("pageerror", penjaga.catat_galat_skrip)
     page.on("console", penjaga.catat_console)
     page.on("response", penjaga.catat_jawaban)
+    # The suite plays an existing Indonesian console: a brand-new browser would open in English
+    # (2026-10-08), which `test_browser_login.py` checks on a context of its own.
+    page.add_init_script("try { if (!localStorage.getItem('bahasa')) localStorage.setItem('bahasa', 'id'); } catch (e) {}")
     page.goto(konsol.url + "/console")
     return page
 
