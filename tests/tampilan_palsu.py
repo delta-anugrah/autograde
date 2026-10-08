@@ -87,6 +87,11 @@ class PipelinePalsu:
         frame.digambari.append("roi")
         return frame
 
+    def draw_fps(self, frame: FramePalsu, fps: float) -> FramePalsu:
+        self._jejak.append(("draw_fps", frame.ukuran, fps))
+        frame.digambari.append("fps")
+        return frame
+
 
 class JamPalsu:
     def __init__(self, mulai: float = 1_000.0) -> None:

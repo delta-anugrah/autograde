@@ -141,19 +141,58 @@ def test_garis_kecil_tidak_hilang_dari_gambar_sesudah_diskala():
     assert garis_berskala(1, True, (1.0, 320 / 720)) == 1
 
 
-# ── FPS text on the stream (2026-10-08) ─────────────────────────────────────────────────────
-# The console's new line card floats its "Line 1 · ONLINE" chip over the picture's top-left
-# corner, where the FPS text used to be drawn: it moves to the top-right corner.
+# ── Overlay shapes from the console design (2026-10-08) ─────────────────────────────────────
+# The new console mockup draws the FPS as a dark pill in the picture's top-right corner (the
+# card's "Line 1" chip covers the top-left) and each detection label as a filled pill in the box
+# colour, sitting on the box's top-left corner. v1.26.1 still drew bare text for both.
 
 
-def test_fps_text_sits_in_the_top_right_corner():
-    from palmgrade.domain.skala_tampilan import posisi_fps
+def test_fps_pill_sits_in_the_top_right_corner():
+    from palmgrade.domain.skala_tampilan import TEPI_FPS, pil_fps
 
-    assert posisi_fps(861, 90) == (861 - 90 - 12, 36)
-    assert posisi_fps(1280, 90) == (1280 - 90 - 12, 36)
+    (x1, y1, x2, y2), (tx, ty) = pil_fps(861, 90, 20)
+
+    assert x2 == 861 - TEPI_FPS and y1 == TEPI_FPS
+    assert x1 < tx < tx + 90 < x2, "the text is inside the pill, with room on both sides"
+    assert y1 < ty - 20 and ty < y2, "the text is inside the pill, with room above and below"
 
 
-def test_fps_text_never_starts_left_of_the_margin_on_a_tiny_picture():
-    from palmgrade.domain.skala_tampilan import posisi_fps
+def test_fps_pill_never_starts_left_of_the_margin_on_a_tiny_picture():
+    from palmgrade.domain.skala_tampilan import TEPI_FPS, pil_fps
 
-    assert posisi_fps(60, 90) == (12, 36)
+    (x1, _, _, _), _ = pil_fps(60, 90, 20)
+
+    assert x1 == TEPI_FPS
+
+
+def test_label_pill_sits_on_the_box_top_left_corner():
+    from palmgrade.domain.skala_tampilan import pil_label
+
+    (x1, y1, x2, y2), (tx, ty) = pil_label(200, 300, 60, 20, jarak=3, lebar_gambar=1280)
+
+    assert x1 == 200 and y2 == 300 - 3, "left edge on the box's left edge, just above its top"
+    assert x1 < tx and tx + 60 < x2
+    assert y1 < ty - 20 and ty < y2
+
+
+def test_label_pill_goes_inside_the_box_when_there_is_no_room_above():
+    from palmgrade.domain.skala_tampilan import pil_label
+
+    (_, y1, _, y2), (_, ty) = pil_label(200, 10, 60, 20, jarak=3, lebar_gambar=1280)
+
+    assert y1 == 10 + 3 and ty < y2
+
+
+def test_label_pill_is_pulled_back_inside_the_right_edge():
+    from palmgrade.domain.skala_tampilan import pil_label
+
+    (x1, _, x2, _), _ = pil_label(1250, 300, 60, 20, jarak=3, lebar_gambar=1280)
+
+    assert x2 <= 1280 and x1 >= 0
+
+
+def test_box_corner_radius_grows_with_the_border_but_never_swallows_a_small_box():
+    from palmgrade.domain.skala_tampilan import jari_kotak
+
+    assert jari_kotak(3, 400, 400) > jari_kotak(1, 400, 400) > 0
+    assert jari_kotak(8, 20, 400) <= 5

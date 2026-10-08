@@ -253,7 +253,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Tombol kartu truk dan antrean 44 px; `.truk-grup-atas` dan `.antrean-aksi` boleh membungkus
   (di 1366 px separuh kartu ±200 px; `test_truck_card_buttons_fit_their_card_at_1366` memalsukan
   `/api/console/state` jadi mode otomatis + satu antrean).
-- Kartu line: `.feed` di atas, `h2` (nama + `.sinyal`) melayang di pojok kiri atasnya (karena itu line menulis teks FPS di pojok KANAN atas sejak 2026-10-08, `posisi_fps` di `domain/skala_tampilan.py`); strip `.strip-foto`
+- Kartu line: `.feed` di atas, `h2` (nama + `.sinyal`) melayang di pojok kiri atasnya (karena itu line menggambar pil FPS gelap di pojok KANAN atas sejak 2026-10-08, `pil_fps` di `domain/skala_tampilan.py`, digambar `RealtimeInspectionPipeline.draw_fps`); strip `.strip-foto`
   (empat terbaru per line, `ambilStrip` = `history?line_code=X&limit=4` per line, `button.foto`
   jadi klik membuka `#foto-modal`), `.counts`, `.bar-kelas`, Reject + piston, `details.lagi`
   (menu ⋯: `.truk`, `.assign`, `.ord`; klik di luar atau Esc menutupnya, `tutupMenuLagi`). Tes browser yang klik

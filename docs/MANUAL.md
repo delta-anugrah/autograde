@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.29"
+versi: "2.30"
 tanggal: 8 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -1103,6 +1103,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.30 | 8 Oktober 2026 | §3.2: kotak deteksi di video dan di foto bukti mengikuti desain konsol: sudut membulat, warna hijau / merah / kuning yang sama dengan hitungan di bawah video, nama kelas di pil berwarna dengan tulisan gelap. Angka FPS jadi pil gelap kecil di pojok kanan atas (`15 fps`). |
 | 2.29 | 8 Oktober 2026 | §3.2: semua tombol aksi berikon dan seukuran; kepala layar tanpa tanggal (perusahaan, versi, lisensi), pil dan tombol bundar setinggi sama. §3.3: popup scan berlatar padat, warna dan nomor per langkah sama dengan papan Timbangan. Tab Rekap: saringan dua baris, tombol Tampilkan / Unduh CSV / Impor CSV di kanan. Tab Log: level ERROR merah, WARNING kuning. |
 | 2.28 | 8 Oktober 2026 | §3.2: angka FPS yang ditulis line di video pindah ke pojok kanan atas (pojok kiri atas tertutup nama line di kartu). §3.5: Setelan jadi panel lipat per kategori, Mode Developer satu tombol Simpan. §3.3, §3.4: papan truk empat kolom di tab Timbangan, di atas tabel; strip empat langkah di atas form dibuang. §3.1: layar masuk terbelah dua (foto kamera dengan kotak deteksi dan tiga keterangan, form dengan tombol akun berinisial dan tombol ID / EN). §3.2: tombol Lepas dan antrean bongkar 44 px dan tidak terpotong di 1366 px. §3.4: Timbangan memakai dua kotak Neto hari ini dan Tiket hari ini; plat di tabel bergaya pelat nomor; JK ungu di ringkasan Rekap. Menu kiri yang disembunyikan tidak lagi kena tombol Tab, menu ⋯ kartu line bisa ditutup dengan Esc. |
 | 2.27 | 7 Oktober 2026 | §3.2: tampilan baru konsol. Menu pindah ke kiri dan bisa disembunyikan; kepala layar berisi tulisan AutoGrade, tanggal, perusahaan, pil AutoERP / Cloud Photo, dan jam. Layar Grading muat satu layar: kartu Janjang hari ini, **Timbangan sekarang** (angka bergulir, grafik 24 detik), kartu truk dan antrean bongkar, tiga kartu line dengan empat foto terakhir dan menu ⋯ (Tugaskan, Lepas, urutan kartu); tabel hasil grading di bawahnya. Neto hari ini pindah ke layar Timbangan. Font Plus Jakarta Sans dan Barlow Condensed tertanam di konsol (tetap jalan tanpa internet). |

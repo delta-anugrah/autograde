@@ -87,7 +87,7 @@ def test_frame_dikecilkan_dulu_baru_digambari(layar):
 
     layar.worker.run_once()
 
-    assert layar.langkah() == ["resize", "draw_boxes", "draw_roi", "putText", "putText", "imencode"]
+    assert layar.langkah() == ["resize", "draw_boxes", "draw_roi", "draw_fps", "imencode"]
     assert layar.jejak[0] == ("resize", SENSOR, GAMBAR)
     assert all(catatan[1] == GAMBAR for catatan in layar.jejak[1:]), "something was drawn or encoded at full size"
 
@@ -250,3 +250,14 @@ def test_ukuran_label_dari_konsol_sampai_ke_gambar_kotak(layar):
     layar.state.ukuran_label_override = 180
     layar.worker.run_once()
     assert layar.worker.pipeline.ukuran_label == 180
+
+
+def test_fps_digambar_pipeline_dengan_angka_deteksi(layar):
+    """The FPS pill (console design 2026-10-08) is the pipeline's drawing, like the boxes."""
+    layar.state.penonton_masuk()
+    layar.state.inference_fps = 14.6
+    layar.hasil_yolo(layar.frame())
+
+    layar.worker.run_once()
+
+    assert next(c for c in layar.jejak if c[0] == "draw_fps")[1:] == (GAMBAR, 14.6)

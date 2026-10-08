@@ -10,13 +10,23 @@ MANUAL_CAPTURE_CONFIDENCE = 1.0
 MANUAL_CAPTURE_SUFFIX = "manual"
 AUTO_CAPTURE_SUFFIX = "auto"
 
-# Bounding box colors (BGR)
-COLOR_PASS = (0, 255, 0)   # hijau
-COLOR_FAIL = (0, 0, 255)   # merah
+# Bounding box colors (BGR). Since 2026-10-08 the palette of the console design: the same
+# green, red and amber as the Ripe/Unripe/TP counts under each line picture.
+COLOR_PASS = (156, 217, 113)   # hijau #71d99c
+COLOR_FAIL = (127, 116, 237)   # merah #ed747f
 # Tangkai panjang: kuning, sengaja bukan hijau maupun merah. TP bukan janjang
 # dan tidak punya verdict — menggambarnya hijau membuatnya terbaca "lolos",
 # merah membuatnya terbaca "dibuang", dan dua-duanya bohong.
-COLOR_TP = (0, 215, 255)   # kuning-amber (BGR)
+COLOR_TP = (99, 199, 246)   # kuning-amber #f6c763 (BGR)
+# Class name on the filled label pill: near-black, as in the console design.
+COLOR_LABEL_TEKS = (26, 16, 8)
+
+# FPS pill top-right on the line picture: black at 55% over the picture, light text.
+COLOR_FPS_LATAR = (0, 0, 0)
+FPS_ALPHA = 0.55
+COLOR_FPS_TEKS = (240, 232, 226)
+FPS_FONT_SCALE = 0.8
+FPS_FONT_THICKNESS = 2
 
 # Annotation font. Resolved on first access (PEP 562) rather than at import, so
 # that importing any other constant here does not require OpenCV. Its value is
