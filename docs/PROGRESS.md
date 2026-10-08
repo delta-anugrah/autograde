@@ -31,7 +31,10 @@ Changed:        Sign-in (#gerbang, spec §5.4): split screen, dark hero with a L
                 menu, no row flash on a filter change, grading filter tests no longer fail after the penugasan
                 tests. Bug from #256 found by CI: the load/error listeners on #lines took the photo strip
                 too (a square thumbnail replaced the camera shape; a strip error could read as a cut
-                camera); now only `.feed` images. No endpoint, payload or rule change.
+                camera); now only `.feed` images. Owner feedback 2026-10-08: sign-in headline and photo centred;
+                Penugasan line checkboxes centred on their word; Timbangan board (four columns, Datang /
+                Bongkar / Timbang kosong / Selesai, card buttons reuse the table flows) above the table,
+                which stays (owner chose to keep it; reverses spec §9 Q3). No endpoint, payload or rule change.
 Validated:      ruff check . → All checks passed. pytest tests/unit → 5454 passed, 28 skipped; tests/e2e + tests/integration →
                 618 passed, 20 skipped. Browser chromium →
                 204 passed; firefox → 204 passed. Final review (fable): 0 critical, 2 important fixed with tests

@@ -251,7 +251,15 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `.riwayat-ringkasan`, `.setelan-form`, `.daftar-definisi`) bergaris `--line`, bukan
   `--line-kuat`. Plat di tabel = `chipPlat(v)` → `<b class="plat">` (`td.key .plat` seukuran
   baris), kosong tetap `dash`. Ringkasan Rekap pakai kelas `ripe/unripe/jk/tp` (JK ungu).
-  Timbangan: `.timbang-kepala` (judul + `.timbang-ubin` Neto hari ini dan Tiket hari ini),
+  Timbangan: papan `#papan-timbang` (pemilik 2026-10-08, membalik spec §9 Q3) di antara
+  `.tools.timbang-alat.berdiri` dan tabel "Semua tiket": empat `.papan-kolom[data-kolom]`
+  (`datang` = `waiting`, `bongkar`/`kosong`/`selesai` dari `tahap`), `gambarPapan` dipanggil
+  `muatTimbangan` dan `refresh` (tab timbangan), kartu `kartuPapan`, chip `chipPapan` dari
+  `lineTerakhir` + `antreanTerakhir` (`namaLineRingkas`: "Di Line 1, 2, 3"), urutan Bongkar
+  `urutBongkar` (di line, lalu antrean), Selesai maks `PAPAN_SELESAI_MAKS` 4 + tombol ke Rekap.
+  Tombol `data-papan` memakai alur tabel: `pilihNilai($("plat-timbang"))` + fokus `#bruto`,
+  `tanyaTara`, `kirimPergi`. Tanpa endpoint baru.
+  `.timbang-kepala` (judul + `.timbang-ubin` Neto hari ini dan Tiket hari ini),
   langkah dengan celah 24 px (panah di celah), `.timbang-form` kartu di atas pita `.tools`.
   Setiap `var(--x)` harus terdefinisi (`test_console_html_komponen.py`; dulu `--r`, `--aksen`,
   `--kartu` hilang dan kolom Setelan jadi bersudut tajam).

@@ -22,7 +22,7 @@ def test_today_is_a_title_and_two_tiles_with_the_same_ids():
 
 def test_the_tiles_sit_before_the_tools():
     sec = HTML.split('<section id="sec-timbangan"', 1)[1]
-    assert sec.index('class="timbang-kepala"') < sec.index('class="tools timbang-alat"')
+    assert sec.index('class="timbang-kepala"') < sec.index('class="tools timbang-alat berdiri"')
 
 
 def test_step_arrows_sit_in_a_wide_gap():

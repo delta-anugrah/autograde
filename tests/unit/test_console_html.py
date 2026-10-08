@@ -730,7 +730,7 @@ def test_bar_tara_di_kotak_alat_timbangan_satu_warna_dengan_langkah_3():
     blok = HTML.split('<div id="tara-grup"', 1)[1].split("</div>", 1)[0]
     for id_ in ("tara-plat", "tara-nilai", "tara-simpan", "tara-batal", "scan-keluar-pesan"):
         assert f'id="{id_}"' in blok, id_
-    alat = HTML.split('<div class="tools timbang-alat">', 1)[1].split('<div class="tabel">', 1)[0]
+    alat = HTML.split('<div class="tools timbang-alat berdiri">', 1)[1].split('id="papan-timbang"', 1)[0]
     assert '<div id="tara-grup"' in alat
     assert "var(--info)" in _aturan(".tara-grup")
     # Langkah 3 di strip menyala selama bar terbuka.

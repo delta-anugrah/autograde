@@ -551,6 +551,8 @@
      `align-items:center`) datang belakangan dan akan menang. */
   .tools.timbang-alat { display:grid; grid-template-columns:minmax(0, 1fr); align-items:stretch;
                         gap:12px; padding:12px; }
+  /* Its own frame since the board sits under it (2026-10-08), not the table's lid. */
+  .tools.timbang-alat.berdiri { border-bottom:1px solid var(--line); border-radius:var(--r-md); margin-bottom:16px; }
   .timbang-alat :is(button, input, .pilih-tombol) { min-height:var(--tinggi-timbang); }
 
   /* Strip langkah. Warna garis atas ruas = warna lencana tahap di kolom Status, jadi baris
@@ -662,6 +664,52 @@
     .kaki-isi { grid-area:2 / 2; }
   }
 
+  /* ---- Timbangan board (owner 2026-10-08): one column per step, a card per truck ---- */
+  .papan-timbang { display:grid; grid-template-columns:minmax(0, 1fr); align-items:start; gap:14px; margin-bottom:22px; }
+  @media (min-width:700px) { .papan-timbang { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  @media (min-width:1100px) { .papan-timbang { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+  .papan-kolom { min-width:0; display:flex; flex-direction:column; gap:10px; padding:12px;
+                 background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg);
+                 box-shadow:var(--bayang-kartu); }
+  .papan-kolom[data-kolom="datang"]  { --warna-tahap:var(--muted); --latar-tahap:var(--panel2); }
+  .papan-kolom[data-kolom="bongkar"] { --warna-tahap:var(--warn); --latar-tahap:var(--warn-bg); }
+  .papan-kolom[data-kolom="kosong"]  { --warna-tahap:var(--info); --latar-tahap:var(--info-bg); }
+  .papan-kolom[data-kolom="selesai"] { --warna-tahap:var(--acc); --latar-tahap:var(--acc-bg); }
+  .papan-kepala { display:flex; align-items:center; gap:10px; padding:4px 4px 10px;
+                  border-bottom:3px solid var(--warna-tahap); }
+  .papan-no { flex:none; display:grid; place-items:center; width:30px; height:30px; border-radius:10px;
+              background:var(--latar-tahap); color:var(--warna-tahap); font:700 1.1rem var(--angka); }
+  .papan-judul { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  .papan-judul strong { font-size:1rem; }
+  .papan-judul span { font-size:.8rem; color:var(--muted2); }
+  .papan-jumlah { min-width:32px; padding:2px 9px; border-radius:var(--r-pill); background:var(--panel2);
+                  border:1px solid var(--line); text-align:center; font:600 1.1rem var(--angka); }
+  .papan-isi { display:flex; flex-direction:column; gap:10px; }
+  .papan-kartu { display:flex; flex-direction:column; gap:8px; padding:12px 14px 14px; background:var(--panel2);
+                 border:1px solid var(--line); border-radius:var(--r-md); }
+  .papan-atas { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+  .papan-atas .plat { font-size:1.15rem; }
+  .papan-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:var(--r-pill);
+                background:var(--card); color:var(--muted); font-size:.75rem; font-weight:800; }
+  .papan-chip i { width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .papan-chip.hidup { background:var(--merek-tint); color:var(--merek); }
+  .papan-asal { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; font-size:.9rem; }
+  .papan-sumber { padding:1px 8px; border-radius:var(--r-pill); border:1px solid var(--line-kuat);
+                  color:var(--muted); font-size:.72rem; font-weight:700; }
+  .papan-meta { font-size:.82rem; color:var(--muted); }
+  .papan-neto { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+  .papan-neto > span:first-child { display:flex; flex-direction:column; font-size:.78rem; color:var(--muted2); }
+  .papan-neto b { font:600 1.9rem/1 var(--angka); color:var(--fg); font-variant-numeric:tabular-nums; }
+  .papan-neto small { font-size:1rem; color:var(--muted); }
+  .papan-rincian { font-size:.78rem; color:var(--muted2); text-align:right; }
+  .papan-erp { align-self:flex-start; padding:3px 9px; border-radius:var(--r-pill); background:var(--acc-bg);
+               color:var(--acc); font-size:.75rem; font-weight:800; }
+  .papan-kartu button { min-height:46px; margin-top:2px; }
+  .papan-kosong { margin:0; padding:18px 10px; border:1px dashed var(--line-kuat); border-radius:var(--r-md);
+                  color:var(--muted2); font-size:.85rem; text-align:center; }
+  .papan-lain { min-height:44px; background:none; border:0; color:var(--merek); font-weight:800; }
+  .timbang-tabel-judul { margin:0 0 10px; font-size:1.05rem; }
+  @media (prefers-reduced-motion:no-preference) { .papan-kartu { transition:background .2s; } }
   /* ---- bar tara (langkah 3) ---- */
   /* Inline, BUKAN lapisan di atas layar: dialog yang menutup layar menghilangkan kamera
      line dan strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu
@@ -2370,7 +2418,7 @@
     adalah tiga kejadian nyata di gerbang, dan jalan cadangan harus langsung terlihat
     bukan disembunyikan di balik satu klik lagi.
   -->
-  <div class="tools timbang-alat">
+  <div class="tools timbang-alat berdiri">
     <!--
       Satu kolom scan (user 2026-10-06), `hidden` sampai saklar Scanner QR nyala
       (`tampilkanKolomScan`). Operator tidak memilih kolom: server membaca keadaan truk dan
@@ -2483,6 +2531,38 @@
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
   </div>
+  <!--
+    Board (owner 2026-10-08, reverses spec §9 Q3): where every truck of the day is, one column per
+    step. Same data as the table below (weighings + waiting) and the truck card (lines, queue);
+    its buttons run the table's own flows. The full table stays under it.
+  -->
+  <section id="papan-timbang" class="papan-timbang" data-t-lb="papanJudul" aria-label="Papan truk hari ini">
+    <div class="papan-kolom" data-kolom="datang">
+      <div class="papan-kepala"><span class="papan-no">1</span>
+        <span class="papan-judul"><strong data-t="tahapDatang">Datang</strong><span data-t="papanSubDatang">Menunggu timbang isi</span></span>
+        <b class="papan-jumlah" id="papan-jumlah-datang">0</b></div>
+      <div class="papan-isi" id="papan-isi-datang"></div>
+    </div>
+    <div class="papan-kolom" data-kolom="bongkar">
+      <div class="papan-kepala"><span class="papan-no">2</span>
+        <span class="papan-judul"><strong data-t="tahapBongkar">Bongkar</strong><span data-t="papanSubBongkar">Sudah timbang isi</span></span>
+        <b class="papan-jumlah" id="papan-jumlah-bongkar">0</b></div>
+      <div class="papan-isi" id="papan-isi-bongkar"></div>
+    </div>
+    <div class="papan-kolom" data-kolom="kosong">
+      <div class="papan-kepala"><span class="papan-no">3</span>
+        <span class="papan-judul"><strong data-t="tahapTimbangKosong">Timbang kosong</strong><span data-t="papanSubKosong">Tinggal keluar</span></span>
+        <b class="papan-jumlah" id="papan-jumlah-kosong">0</b></div>
+      <div class="papan-isi" id="papan-isi-kosong"></div>
+    </div>
+    <div class="papan-kolom" data-kolom="selesai">
+      <div class="papan-kepala"><span class="papan-no">4</span>
+        <span class="papan-judul"><strong data-t="tahapSelesai">Selesai</strong><span data-t="papanSubSelesai">Sudah keluar hari ini</span></span>
+        <b class="papan-jumlah" id="papan-jumlah-selesai">0</b></div>
+      <div class="papan-isi" id="papan-isi-selesai"></div>
+    </div>
+  </section><!-- /papan-timbang -->
+  <h3 class="timbang-tabel-judul" data-t="timbangSemuaTiket">Semua tiket</h3>
   <div class="tabel">
     <table>
       <thead><tr><th data-t="thStatus">Status</th><th data-t="thMasuk">Jam timbang isi</th><th data-t="thKeluar">Jam timbang kosong</th>
@@ -3708,7 +3788,13 @@ const KAMUS = {
     sinkronTidakDipakai:"Tidak dipakai", sinkronMemeriksa:"Memeriksa", sinkronBelum:"Belum pernah",
     sinkronTakTerbaca:"tidak terbaca", sinkronTerakhir:"Sinkron terakhir",
     timbangTiket:"{tiket} tiket · {tara} menunggu tara",
-    timbangHariIni:"Neto hari ini", timbangTiketJudul:"Tiket hari ini", timbangAlur:"Datang, timbang isi, timbang kosong, keluar", timbangTidakDipakai:"Belum tersambung", timbangMemeriksa:"Memeriksa…",
+    timbangHariIni:"Neto hari ini", papanJudul:"Papan truk hari ini",
+    papanSubDatang:"Menunggu timbang isi", papanSubBongkar:"Sudah timbang isi", papanSubKosong:"Tinggal keluar",
+    papanSubSelesai:"Sudah keluar hari ini", papanKosong:"Belum ada truk",
+    papanMetaDatang:"Datang {jam}, menunggu timbang isi", papanMetaBongkar:"Bruto {kg} kg, timbang isi {jam}",
+    papanMetaKosong:"Timbang kosong {jam}, tinggal keluar", papanMetaSelesai:"Keluar {jam}",
+    papanDiLine:"Di {line}", papanAntrean:"Antrean bongkar {n}", papanLain:"{n} tiket lain hari ini di Rekap",
+    papanNeto:"Neto", papanRincian:"Bruto {bruto} · Tara {tara}", timbangSemuaTiket:"Semua tiket", timbangTiketJudul:"Tiket hari ini", timbangAlur:"Datang, timbang isi, timbang kosong, keluar", timbangTidakDipakai:"Belum tersambung", timbangMemeriksa:"Memeriksa…",
     timbangPutus:"Timbangan putus", timbangError:"Timbangan error", timbangStabil:"Stabil",
     timbangBergerak:"Bergerak", timbangTerbaca:"Live",
     timbangBelumAda:"Belum ada tiket",
@@ -4295,7 +4381,13 @@ const KAMUS = {
     sinkronTidakDipakai:"Not used", sinkronMemeriksa:"Checking", sinkronBelum:"Never",
     sinkronTakTerbaca:"not readable", sinkronTerakhir:"Last synced",
     timbangTiket:"{tiket} tickets · {tara} awaiting tare",
-    timbangHariIni:"Neto today", timbangTiketJudul:"Tickets today", timbangAlur:"Arrive, weigh in, weigh out, leave", timbangTidakDipakai:"Not connected", timbangMemeriksa:"Checking…",
+    timbangHariIni:"Neto today", papanJudul:"Today's truck board",
+    papanSubDatang:"Waiting to weigh in", papanSubBongkar:"Weighed in", papanSubKosong:"Only exit left",
+    papanSubSelesai:"Left today", papanKosong:"No trucks yet",
+    papanMetaDatang:"Arrived {jam}, waiting to weigh in", papanMetaBongkar:"Gross {kg} kg, weighed in {jam}",
+    papanMetaKosong:"Weighed out {jam}, only exit left", papanMetaSelesai:"Left {jam}",
+    papanDiLine:"On {line}", papanAntrean:"Unloading queue {n}", papanLain:"{n} more tickets today in Rekap",
+    papanNeto:"Net", papanRincian:"Gross {bruto} · Tare {tara}", timbangSemuaTiket:"All tickets", timbangTiketJudul:"Tickets today", timbangAlur:"Arrive, weigh in, weigh out, leave", timbangTidakDipakai:"Not connected", timbangMemeriksa:"Checking…",
     timbangPutus:"Scale offline", timbangError:"Scale error", timbangStabil:"Stable",
     timbangBergerak:"Moving", timbangTerbaca:"Live",
     timbangBelumAda:"No tickets yet",
@@ -8688,6 +8780,8 @@ async function refresh() {
     aturCutoffShift(s.cutoff_shift);
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
+    antreanTerakhir = s.antrean_bongkar || [];
+    if (tab === "timbangan") gambarPapan();
     tulisKalauBeda($("truk-di-line"), htmlTrukDiLine(s.lines));
     // `=== true`: an older server has no field, and that reads as off.
     tampilkanKolomScan(s.scanner_qr === true);
@@ -8771,6 +8865,8 @@ async function muatTimbangan() {
     const data = await api("/api/console/weighings");
     const items = data.items;
     menungguTimbang = data.waiting || [];
+    papanTimbang = { items, waiting: menungguTimbang };
+    gambarPapan();
     // Yang menunggu di atas (tertua dulu), lalu tiket terbaru dulu: urutan dari server.
     const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
     tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
@@ -8779,6 +8875,103 @@ async function muatTimbangan() {
     gambarRiwayatBatal(data.dibatalkan);
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
+
+// ---- Timbangan board (owner 2026-10-08) ----
+// One card per truck in the column of its step. Everything comes from what the screen already
+// loads: the weighings poll (items + waiting) and the state poll (lines, unloading queue).
+let papanTimbang = { items: [], waiting: [] };
+let antreanTerakhir = [];
+// The finished column shows the newest few; the rest of the day is one tap away in Rekap.
+const PAPAN_SELESAI_MAKS = 4;
+const KOLOM_TAHAP = { bongkar: "bongkar", timbang_kosong: "kosong", selesai: "selesai" };
+
+function jamMenit(iso) {
+  return iso ? waktu(iso).split(" ").pop().slice(0, 5) : KOSONG;
+}
+
+// "Line 1, Line 2, Line 3" reads as "Line 1, 2, 3" when every name is one prefix and a number.
+function namaLineRingkas(nama) {
+  const bagian = nama.map((n) => /^(.*?)(\d+)$/.exec(n));
+  if (nama.length < 2 || bagian.some((b) => !b || b[1] !== bagian[0][1])) return nama.join(", ");
+  return bagian[0][1] + bagian.map((b) => b[2]).join(", ");
+}
+
+// The truck on the lines first, then the queue in its order, then the rest as the server sent them.
+function urutBongkar(daftar) {
+  const di = new Set((lineTerakhir || []).filter((l) => l.assignment).map((l) => l.assignment.truck_id));
+  const antre = new Map((antreanTerakhir || []).map((a, i) => [a.weighing_id, i]));
+  const nilai = (w) => (w.truck_id && di.has(w.truck_id) ? -1 : antre.has(w.id) ? antre.get(w.id) : 1e6);
+  return [...daftar].sort((a, b) => nilai(a) - nilai(b));
+}
+
+// Where an unloading truck is: on which lines (the truck card's data), or its place in the queue.
+function chipPapan(w) {
+  const di = (lineTerakhir || []).filter((l) => l.assignment && l.assignment.truck_id === w.truck_id);
+  if (w.truck_id && di.length) {
+    return `<span class="papan-chip hidup"><i></i>${esc(t("papanDiLine").replace("{line}", namaLineRingkas(di.map((l) => l.name || l.line_code))))}</span>`;
+  }
+  const nomor = (antreanTerakhir || []).findIndex((a) => a.weighing_id === w.id);
+  if (nomor >= 0) return `<span class="papan-chip"><i></i>${esc(t("papanAntrean").replace("{n}", nomor + 1))}</span>`;
+  return "";
+}
+
+function kartuPapan(jenis, w) {
+  const pemasok = w.supplier_name ? `<b class="papan-pemasok">${esc(w.supplier_name)}</b>` : "";
+  const sumber = w.source_label ? `<span class="papan-sumber">${esc(w.source_label)}</span>` : "";
+  const atas = `<div class="papan-atas">${chipPlat(w.plate_number)}${jenis === "bongkar" ? chipPapan(w) : ""}</div>`
+    + (pemasok || sumber ? `<div class="papan-asal">${pemasok}${sumber}</div>` : "");
+  const neto = `<div class="papan-neto"><span>${esc(t("papanNeto"))}<b>${kg(w.net_kg)}<small> kg</small></b></span>`
+    + `<span class="papan-rincian">${esc(t("papanRincian").replace("{bruto}", kg(w.gross_kg)).replace("{tara}", kg(w.tare_kg)))}</span></div>`;
+  const erp = w.erp_ticket ? `<span class="papan-erp">AutoERP ${esc(w.erp_ticket)}</span>` : "";
+  let isi = "";
+  if (jenis === "datang") {
+    isi = `<span class="papan-meta">${esc(t("papanMetaDatang").replace("{jam}", jamMenit(w.arrived_at)))}</span>`
+      + `<button type="button" class="utama" data-papan="timbang-isi" data-plat="${esc(w.plate_number)}">${esc(t("btnMasuk"))}</button>`;
+  } else if (jenis === "bongkar") {
+    isi = `<span class="papan-meta">${esc(t("papanMetaBongkar").replace("{kg}", kg(w.gross_kg)).replace("{jam}", jamMenit(w.entered_at)))}</span>`
+      + `<button type="button" class="utama" data-papan="timbang-kosong" data-plat="${esc(w.plate_number)}"`
+      + ` data-ref="${esc(w.ref ?? "")}" data-masuk="${esc(w.entered_at ?? "")}">${esc(t("btnTimbangKosong"))}</button>`;
+  } else if (jenis === "kosong") {
+    isi = `<span class="papan-meta">${esc(t("papanMetaKosong").replace("{jam}", jamMenit(w.exited_at)))}</span>${neto}${erp}`
+      + (w.tanpa_scan_4 ? "" : `<button type="button" data-papan="pergi" data-id="${esc(w.id)}">${esc(t("btnPergi"))}</button>`);
+  } else {
+    isi = `<span class="papan-meta">${esc(t("papanMetaSelesai").replace("{jam}", jamMenit(w.left_at)))}</span>${neto}${erp}`;
+  }
+  return `<article class="papan-kartu" data-plat="${esc(w.plate_number)}">${atas}${isi}</article>`;
+}
+
+function gambarPapan() {
+  const per = { datang: papanTimbang.waiting || [], bongkar: [], kosong: [], selesai: [] };
+  (papanTimbang.items || []).forEach((w) => { const k = KOLOM_TAHAP[w.tahap]; if (k) per[k].push(w); });
+  per.bongkar = urutBongkar(per.bongkar);
+  Object.entries(per).forEach(([kolom, daftar]) => {
+    $(`papan-jumlah-${kolom}`).textContent = daftar.length;
+    const tampil = kolom === "selesai" ? daftar.slice(0, PAPAN_SELESAI_MAKS) : daftar;
+    let html = tampil.map((w) => kartuPapan(kolom, w)).join("")
+      || `<p class="papan-kosong">${esc(t("papanKosong"))}</p>`;
+    const sisa = daftar.length - tampil.length;
+    if (sisa > 0) html += `<button type="button" class="papan-lain" data-papan="rekap">${esc(t("papanLain").replace("{n}", sisa))}</button>`;
+    tulisKalauBeda($(`papan-isi-${kolom}`), html);
+  });
+}
+
+// The board's buttons run the table's flows: the bruto form, the tara bar, Keluar.
+$("papan-timbang").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-papan]");
+  if (!b) return;
+  const aksi = b.dataset.papan;
+  if (aksi === "timbang-isi") {
+    pilihNilai($("plat-timbang"), b.dataset.plat);
+    segarkanTombol();
+    $("bruto").focus();
+  } else if (aksi === "timbang-kosong") {
+    tanyaTara({ plate_number: b.dataset.plat, ref: b.dataset.ref, entered_at: b.dataset.masuk });
+  } else if (aksi === "pergi") {
+    kirimPergi({ weighing_id: b.dataset.id });
+  } else if (aksi === "rekap") {
+    document.querySelector('#tabs button[data-tab="rekap"]').click();
+  }
+});
 
 // Riwayat Batal datang (user 2026-10-03): siapa membatalkan truk mana dan kapan, hari yang
 // tampil, terbaru dulu (urutan dari server). Tersembunyi utuh kalau kosong. Yang ditulis ulang
