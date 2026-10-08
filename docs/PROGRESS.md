@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-08 · vision · Detection boxes and FPS drawn like the console design (PR #TBD)
+## 2026-10-08 · vision · Detection boxes and FPS drawn like the console design (PR #261)
 Changed:        Owner report on v1.26.1 at Lampung: the boxes and the FPS on the line video did not look
                 like the console mockup. Cause: both are burned into the picture by the line (OpenCV),
                 not drawn by console.html, and the new-console spec left them alone ("The FPS text stays
