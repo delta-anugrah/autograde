@@ -242,7 +242,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Gerbang (PR 4, 2026-10-08): `#gerbang` = grid `.gerbang-hero` (selalu gelap, token lokal
   `--hero-*`; foto `#gerbang-foto` dari `--foto-masuk` = JPEG ≤ 60 KB, ditulis
   `scripts/tanam_foto_masuk.py` dari `assets/masuk/masuk.jpg`; satu `.gerbang-deteksi`; tiga
-  `ul.gerbang-fakta`) + `.gerbang-form` (`.gerbang-kotak` dengan id lama). Di bawah 900 px hero
+  `ul.gerbang-fakta`; judul sampai foto di tengah, `.gerbang-tengah` `justify-items/text-align:center`, pemilik 2026-10-08) + `.gerbang-form` (`.gerbang-kotak` dengan id lama). Di bawah 900 px hero
   dibuang. Chip akun `tombolOperator` = inisial + nama + email, `aria-pressed` dari
   `tandaiOperator` (input email + klik chip). `#gerbang-bahasa` (ID / EN) memanggil
   `$("bahasa").click()`; `terapkanBahasa` menandai yang aktif. Tanpa logo dan tanpa angka hidup.

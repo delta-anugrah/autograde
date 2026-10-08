@@ -109,3 +109,9 @@ def test_account_chips_share_rows_when_there_is_room():
 def test_photo_frame_takes_its_height_from_its_width():
     aturan = re.search(r"\.gerbang-bingkai \{([^}]*)\}", HTML).group(1)
     assert "aspect-ratio:6 / 5" in aturan and re.search(r"(?<!-)height:", aturan) is None
+
+
+def test_headline_to_photo_is_centred():
+    """Owner 2026-10-08: the block from the headline down to the photo sits in the middle of the hero."""
+    tengah = re.search(r"\.gerbang-tengah \{([^}]*)\}", HTML).group(1)
+    assert "justify-items:center" in tengah and "text-align:center" in tengah

@@ -357,7 +357,9 @@
   .gerbang-merek { font-size:1.4rem; font-weight:800; letter-spacing:-.01em; }
   /* Text above the photo, the photo sized by the window height, so 1366 x 768 holds the whole
      side and a wide screen does not squeeze the headline into a narrow column. */
-  .gerbang-tengah { display:grid; align-content:center; gap:26px; min-height:0; }
+  /* Centred in the hero (owner 2026-10-08): headline, sentence and photo on one axis. */
+  .gerbang-tengah { display:grid; align-content:center; justify-items:center; text-align:center;
+                    gap:26px; min-height:0; }
   .gerbang-teks { min-width:0; max-width:34rem; display:flex; flex-direction:column; gap:14px; }
   .gerbang-teks h1 { margin:0; font-size:clamp(1.9rem, 2.6vw, 2.8rem); font-weight:800; line-height:1.08;
                      letter-spacing:-.02em; text-wrap:balance; }
