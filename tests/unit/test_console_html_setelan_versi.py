@@ -169,8 +169,9 @@ def test_tooltip_satu_komponen_di_tombol_bar_atas():
 
 def test_kartu_setelan_tanpa_kotak_dalam_kotak():
     """User 2026-10-05: the open part is one card; the group and its named blocks draw no box."""
-    sub = re.search(r"\.setelan-sub\s*\{([^}]*)\}", HTML)
-    assert sub and "border:0" in sub.group(1).replace(" ", "")
+    # Since 2026-10-08 each category is its own collapsible card (`.setelan-bagian`) and the
+    # form around them draws no box (test_console_html_setelan_bagian.py).
+    assert re.search(r"#sec-setelan \.setelan-form \{[^}]*border:0", HTML)
     assert not re.search(r"\.setelan-grup\s*\{[^}]*border", HTML)
 
 

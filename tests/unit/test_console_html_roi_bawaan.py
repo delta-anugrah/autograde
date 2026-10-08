@@ -10,7 +10,7 @@ HTML = (Path(__file__).resolve().parents[2] / "src" / "palmgrade" / "static" / "
 
 
 def _blok_kotak() -> str:
-    blok = HTML.split('<legend data-t="subKotak">', 1)[1].split("</fieldset>", 1)[0]
+    blok = HTML.split('<span data-t="subKotak">', 1)[1].split("</details>", 1)[0]
     return blok
 
 

@@ -76,6 +76,12 @@ def buka_setelan(page: Page, sub: str) -> None:
     buka_tab(page, "setelan")
     page.click(f'#setelan-sub button[data-sub="{sub}"]')
     expect(page.locator(f'#setelan-sub button[data-sub="{sub}"]')).to_have_attribute("aria-pressed", "true")
+    # Each category is a collapsible section since 2026-10-08: open every one of this sub-tab.
+    page.evaluate(
+        "(sub) => document.querySelectorAll(`#setform-utama [data-setelan-grup='${sub}'] details.setelan-bagian,"
+        " .setelan-form:not([hidden]) details.setelan-bagian`).forEach((d) => { d.open = true; })",
+        sub,
+    )
 
 
 def buka_status(page: Page, sub: str) -> None:

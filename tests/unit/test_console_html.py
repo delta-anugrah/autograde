@@ -1311,7 +1311,7 @@ def test_kotak_area_deteksi_bisa_diatur_dan_kosong_berarti_null():
     for kunci in ("subConveyor", "subGaris", "subKotak", "bantuKotak", "labelRoiX1", "labelRoiY2"):
         assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in both languages"
     blok = HTML.split('data-setelan-grup="kamera"', 1)[1].split('data-setelan-grup="dev"', 1)[0]
-    assert blok.count('<fieldset class="setelan-sub">') == 3
+    assert blok.count('<details class="setelan-bagian"') == 3
 
 
 def test_kelompok_diagnostik_tertutup_dan_yang_dibuka_diingat():
