@@ -488,7 +488,8 @@ Akun, Line, Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan op
   machine id, dan sandi operator cuma untuk mulai.
 
   Mau layar yang **bergerak** (foto kamera berganti, angka naik, timbangan naik turun) seperti
-  di `demo-autograde.smagri.id`: `DEMO_MODE=1 make console`. Simulasinya cuma di browser,
+  di `demo-autograde.smagri.id` (yang naik versi sendiri sesudah tiap tag rilis, lewat
+  `demo-deploy.yml`): `DEMO_MODE=1 make console`. Simulasinya cuma di browser,
   tidak menulis apa pun, dan konsol menolak menyala kalau PLC atau timbangan diisi
   (`docs/runbooks/2026-09-28-konsol-demo-droplet.md` § Mode demo hidup).
 

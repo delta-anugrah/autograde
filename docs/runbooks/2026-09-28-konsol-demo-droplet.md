@@ -43,6 +43,7 @@ Rinciannya: `docs/rules.md`, butir batch 4.2.
 | `docker-compose.yml` | `/opt/autograde-demo/` | satu service konsol, `mem_limit: 700m`, port cuma `127.0.0.1` |
 | `.env.example` | `/opt/autograde-demo/.env` (chmod 600) | image `-cpu`, sandi, ERP demo, lisensi |
 | `demo-autograde.sh` | `/opt/autograde-demo/`, symlink `/usr/local/bin/demo-autograde` | perintah harian |
+| `demo-autograde-ci.sh` | `/opt/autograde-demo/`, symlink `/usr/local/bin/demo-autograde-ci` | satu-satunya yang boleh dijalankan kunci GitHub Actions: `status` atau `upgrade vX.Y.Z` |
 
 Folder `deploy/` tidak ikut ke image (`.dockerignore`).
 
@@ -70,6 +71,45 @@ lama: kembali ke versi lama = `upgrade` ke versi itu.
 (365 hari). AutoERP gagal = konsol tidak disentuh, supaya plat kembar dua sisi tetap sejalan.
 Site-nya **dipatok** `demo.smagri.id` di skrip dan tidak bisa diganti lewat environment:
 site lain di stack yang sama adalah produksi.
+
+## Upgrade otomatis sesudah tiap rilis
+
+Sejak 2026-10-09 demo ikut naik versi sendiri. Urutannya tiap tag `vX.Y.Z`:
+
+1. `deploy.yml` menjalankan CI, lalu `demo-image.yml` membangun dan mengecek image `-cpu`.
+2. Job `promote` menerbitkan `vX.Y.Z-cpu`.
+3. Job `deploy-demo` memanggil `demo-deploy.yml`: SSH ke droplet sebagai `deploy` dengan kunci
+   khusus, menjalankan `upgrade vX.Y.Z`. Sisanya sama seperti `demo-autograde upgrade` dengan
+   tangan (cek disk, tunggu sehat, kembali ke versi lama kalau tidak sehat).
+
+**Melihatnya:** GitHub, Actions, run tag itu, job `deploy-demo`. Berhasil = baris terakhir
+`OK: the demo runs vX.Y.Z.` Gagal = demo tetap di versi lama; image pabrik tidak tersentuh.
+
+**Kembali ke versi lama:** GitHub, Actions, **Deploy AutoGrade Demo**, Run workflow dari
+`main`, isi versinya (misalnya `v1.26.2`). Atau dari terminal: `demo-autograde upgrade v1.26.2`.
+
+**Kuncinya terkunci.** Baris di `~/.ssh/authorized_keys` milik `deploy` memaksa setiap
+koneksi kunci itu lewat `/usr/local/bin/demo-autograde-ci` (`command="...",restrict`).
+Skrip itu cuma menerima `status` dan `upgrade vX.Y.Z`; yang lain ditolak (exit 2), dan dua
+deploy tidak bisa jalan bersamaan (yang kedua exit 75). Droplet ini juga menjalankan AutoERP
+produksi: kunci ini tidak bisa `reset`, `logs`, membuka shell, atau menyentuh `/opt/autoerp`.
+
+**Pasang sekali** (sebelum tag pertama yang membawa fitur ini, kalau tidak job `deploy-demo`
+pertama merah, tanpa akibat lain):
+
+1. Laptop: `ssh-keygen -t ed25519 -N "" -C demo-deploy -f ~/.ssh/autograde_demo_deploy`.
+2. Salin skrip dari laptop (droplet tidak punya git):
+   `git show origin/main:deploy/demo/demo-autograde-ci.sh | ssh autoerpprod 'cat > /opt/autograde-demo/demo-autograde-ci.sh && chmod 755 /opt/autograde-demo/demo-autograde-ci.sh'`,
+   lalu `ssh autoerpprod` dan `sudo ln -sf /opt/autograde-demo/demo-autograde-ci.sh /usr/local/bin/demo-autograde-ci`
+   (sudo minta sandi, jadi dari terminal sungguhan).
+3. Droplet: tambahkan satu baris ke `~/.ssh/authorized_keys` milik `deploy`:
+   `command="/usr/local/bin/demo-autograde-ci",restrict ` lalu isi `~/.ssh/autograde_demo_deploy.pub`.
+4. GitHub repo autograde, Settings, Environments, New environment `demo`. Deployment branches
+   and tags: Selected, tambahkan tag `v*` dan branch `main`. Secrets: `DEMO_SSH_HOST`
+   (`188.166.178.75`), `DEMO_SSH_USER` (`deploy`), `DEMO_SSH_KEY` (isi kunci privat),
+   `DEMO_SSH_KNOWN_HOSTS` (keluaran `ssh-keyscan -t ed25519 188.166.178.75`).
+5. Bukti kuncinya terkunci: `ssh -i ~/.ssh/autograde_demo_deploy deploy@188.166.178.75 status`
+   menjawab status; `... reset` dan `... bash` menjawab `refused`.
 
 ## Mode demo hidup (`DEMO_MODE=1`)
 
@@ -140,6 +180,7 @@ yang benar, lalu hapus tiket uji itu).
 | Lapis | Berkas | Butuh |
 |---|---|---|
 | Unit | `tests/unit/test_demo_image_workflow.py`, `tests/unit/test_demo_kit.py` | tidak ada |
+| Kunci CI (`upgrade`/`status` saja) | `deploy/demo/demo-autograde-ci.test.sh` (dijalankan juga oleh `test_demo_kit.py`), `tests/unit/test_demo_image_workflow.py` | bash; kasus kunci butuh `flock` (CI, droplet) |
 | Mode demo hidup | `tests/unit/test_demo_mode_setting.py`, `tests/unit/test_demo_frames.py`, `tests/unit/test_console_html_demo_hidup.py`, `tests/browser/test_browser_demo_hidup.py` | node, Playwright |
 | Skrip | `deploy/demo/demo-autograde.test.sh` (dijalankan juga oleh `test_demo_kit.py`) | bash |
 | E2E | `tests/e2e/test_demo_kit_docker.py` | Docker + image demo yang sudah dibangun |

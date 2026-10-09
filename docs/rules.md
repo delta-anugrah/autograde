@@ -1651,5 +1651,7 @@ memang khas satu mesin.
   `vX.Y.Z-cpu` dari `demo-image.yml`, dipanggil `deploy.yml` sesudah CI hijau (tanpa CUDA/SDK;
   image pabrik 18,2 GB memenuhi disk droplet), dan workflow itu **tidak pernah menulis
   `latest`**: itu penanda updater pabrik.
+  Sesudah `promote`, `demo-deploy.yml` menaikkan demo ke versi itu lewat SSH dengan kunci yang
+  cuma boleh `status`/`upgrade vX.Y.Z` (`deploy/demo/demo-autograde-ci.sh`, 2026-10-09).
 - Pasang PC pabrik (image produksi), rilis, deploy: skill `install-factory-pc`, `tag-release`, `deploy-production` di workspace `sawit` (bukan di repo ini).
 - `../ARCHITECTURE.md`: system architecture.
