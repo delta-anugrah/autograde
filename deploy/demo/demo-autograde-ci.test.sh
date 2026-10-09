@@ -52,6 +52,16 @@ expect_no "status; bash"
 expect_no ""
 expect_no "bash"
 
+# The lock lives in the kit folder (owned by the deploy user), never a guessable /tmp path, and
+# is opened for append: a file or symlink planted there is never truncated.
+mkdir -p "$TMP/demo"
+printf 'keep\n' >"$TMP/demo/.demo-autograde-ci.lock"
+out=$(PATH=$PATH_UJI SSH_ORIGINAL_COMMAND="upgrade v1.26.2" DEMO_AUTOGRADE="$TMP/fake" DEMO_DIR="$TMP/demo" bash "$HERE/demo-autograde-ci.sh" 2>&1)
+if [ "$out" = "ran: upgrade v1.26.2" ] && [ "$(cat "$TMP/demo/.demo-autograde-ci.lock")" = "keep" ] \
+	&& ! grep -q 'LOCK:-/tmp' "$HERE/demo-autograde-ci.sh"; then
+	PASS=$((PASS + 1)); echo "  ok   lock in the kit folder, opened without truncating"
+else FAIL=$((FAIL + 1)); echo "  FAIL lock file: '$out'"; fi
+
 if command -v flock >/dev/null; then
 	# A second tag while the first deploy still runs: refused with 75, the first one untouched.
 	flock "$TMP/lock" sleep 3 &

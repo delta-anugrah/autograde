@@ -9,7 +9,10 @@
 set -euo pipefail
 
 DEMO_AUTOGRADE=${DEMO_AUTOGRADE:-/usr/local/bin/demo-autograde}
-LOCK=${LOCK:-/tmp/demo-autograde-ci.lock}
+# The kit folder belongs to the deploy user: a guessable /tmp path would let anyone else on the
+# droplet plant a symlink there. Opened for append below, so even then nothing is truncated.
+DEMO_DIR=${DEMO_DIR:-/opt/autograde-demo}
+LOCK=${LOCK:-$DEMO_DIR/.demo-autograde-ci.lock}
 cmd=${SSH_ORIGINAL_COMMAND:-}
 
 if [[ $cmd == status ]]; then
@@ -17,7 +20,7 @@ if [[ $cmd == status ]]; then
 fi
 if [[ $cmd =~ ^upgrade\ (v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
 	versi=${BASH_REMATCH[1]}
-	exec 9>"$LOCK"
+	exec 9>>"$LOCK"
 	flock -n 9 || { echo "another demo deploy is running" >&2; exit 75; }
 	# 9>&-: the upgrade must not inherit the lock fd, or a container it starts would hold the
 	# lock after this script ends (same trap as the factory updater's 8>&-).
