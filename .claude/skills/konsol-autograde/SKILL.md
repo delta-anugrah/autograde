@@ -199,6 +199,13 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `/api/console/state`: `versi`, `lisensi`), huruf sama dengan nama perusahaan (bukan monospace),
   TANPA tanggal (Lampung 2026-10-08: `#hari-kerja` dibuang, jam sudah menyebut tanggal). Nomor token
   tidak pernah ke layar operator.
+- Demo hidup (`DEMO_MODE`, 2026-10-09, blok `// ── demo hidup` di `console.html`): `s.demo_mode` di
+  `/api/console/state` menyalakan simulasi khusus browser (foto kamera `GET /demo/frame-1..5.webp`
+  + `frames.json`, angka, baris Grading halaman 1 tanpa saringan, strip foto kartu, kotak
+  Timbangan); tidak ada yang disimpan atau dikirim. `console_deps.get_demo_mode` sengaja tanpa
+  cache. Foto dibuat ulang dengan `scripts/buat-frame-demo.py`. Test: `test_console_html_demo_hidup.py`,
+  `test_demo_frames.py`, `test_demo_mode_setting.py`, `tests/browser/test_browser_demo_hidup.py`
+  (`KonsolUji(..., env=)`).
 
 - Tombol (2026-10-08, pemilik: "semua tombol berikon, ukurannya seragam"): tombol aksi membawa
   `data-ikon="<nama>"`; ikonnya mask CSS di `button[data-ikon]::before` (warna teks, tidak hilang

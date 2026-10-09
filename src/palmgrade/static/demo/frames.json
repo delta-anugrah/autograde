@@ -1,0 +1,34 @@
+{
+ "frames": [
+  {
+   "src": "/demo/frame-1.webp",
+   "kelas": [
+    "Ripe"
+   ]
+  },
+  {
+   "src": "/demo/frame-2.webp",
+   "kelas": [
+    "Ripe"
+   ]
+  },
+  {
+   "src": "/demo/frame-3.webp",
+   "kelas": [
+    "Unripe"
+   ]
+  },
+  {
+   "src": "/demo/frame-4.webp",
+   "kelas": [
+    "Unripe"
+   ]
+  },
+  {
+   "src": "/demo/frame-5.webp",
+   "kelas": [
+    "Ripe"
+   ]
+  }
+ ]
+}

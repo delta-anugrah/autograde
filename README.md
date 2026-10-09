@@ -487,7 +487,13 @@ Akun, Line, Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan op
   secret yang dilewatkan di baris perintah. Versi lama butuh `WEBHOOK_SECRET`, tiga
   machine id, dan sandi operator cuma untuk mulai.
 
-  Kamera akan tampil **OFFLINE**: itu benar, tidak ada line yang jalan. Semua id-nya
+  Mau layar yang **bergerak** (foto kamera berganti, angka naik, timbangan naik turun) seperti
+  di `demo-autograde.smagri.id` (yang naik versi sendiri sesudah tiap tag rilis, lewat
+  `demo-deploy.yml`): `DEMO_MODE=1 make console`. Simulasinya cuma di browser,
+  tidak menulis apa pun, dan konsol menolak menyala kalau PLC atau timbangan diisi
+  (`docs/runbooks/2026-09-28-konsol-demo-droplet.md` § Mode demo hidup).
+
+  Tanpa itu kamera akan tampil **OFFLINE**: itu benar, tidak ada line yang jalan. Semua id-nya
   uuid5 deterministik, jadi dijalankan dua kali tidak menambah baris. Ubah `console.html`
   → cukup refresh browser (berkasnya bind-mount); ubah kode **Python** → `make restart-console`.
   `make up-console` tidak cukup: `up -d` itu no-op kalau kontainernya sudah jalan, jadi

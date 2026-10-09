@@ -155,3 +155,10 @@ def test_konsol_produksi_dengan_secret_asli_menyala(tmp_path, caplog):
         webhook_secret="kunci-palsu-w", internal_secret="kunci-palsu-i",
     )
     _run_lifespan(service, caplog)  # tidak melempar
+
+
+def test_konsol_demo_dengan_plc_menolak_start(tmp_path, caplog):
+    """DEMO_MODE fakes lines and a scale: never next to a real PLC (review focus 1)."""
+    service = _service(tmp_path, with_support=True, demo_mode=True, plc_host="192.168.3.39")
+    with pytest.raises(RuntimeError, match="DEMO_MODE"):
+        _run_lifespan(service, caplog)

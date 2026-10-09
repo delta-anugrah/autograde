@@ -51,6 +51,8 @@ services:
       - SCALE_PLC_STABLE_BIT=
       - SCALE_PLC_ERROR_BIT=
       - SCALE_POLL_MS=
+      # Browser-only simulation of live lines and the scale (DEMO_MODE in .env.example).
+      - DEMO_MODE=${DEMO_MODE}
       # No camera lines, so no photos: R2 stays off.
       - R2_ACCOUNT_ID=
       - R2_ACCESS_KEY_ID=

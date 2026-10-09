@@ -340,6 +340,14 @@ def test_state_membawa_pembaruan(rakit):
     res = _masuk(aplikasi, store, "op@pks.test", "operator").get("/api/console/state")
     assert res.status_code == 200
     assert res.json()["pembaruan"]["siap"] == "v1.22.1"
+    assert res.json()["demo_mode"] is False
+
+
+def test_state_says_demo_mode_when_the_env_turns_it_on(rakit, monkeypatch):
+    aplikasi, store, _folder, _konsol = rakit
+    monkeypatch.setenv("DEMO_MODE", "1")
+    res = _masuk(aplikasi, store, "op@pks.test", "operator").get("/api/console/state")
+    assert res.json()["demo_mode"] is True
 
 
 def test_truk_dari_hari_kerja_lalu_ikut_dilepas(rakit):

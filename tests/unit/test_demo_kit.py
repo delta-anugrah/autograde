@@ -19,6 +19,7 @@ KIT = Path(__file__).resolve().parents[2] / "deploy" / "demo"
 COMPOSE = KIT / "docker-compose.yml"
 ENV_EXAMPLE = KIT / ".env.example"
 SCRIPT_TESTS = KIT / "demo-autograde.test.sh"
+CI_SCRIPT_TESTS = KIT / "demo-autograde-ci.test.sh"
 
 
 def _console() -> dict:
@@ -53,6 +54,15 @@ def test_memory_and_cpu_are_capped():
 def test_forwards_every_setting_the_factory_console_gets():
     missing = _compose_env_names("console", COMPOSE_PROD) - _compose_env_names("console", COMPOSE)
     assert not missing, f"factory console gets these, demo does not: {sorted(missing)}"
+
+
+def test_demo_kit_turns_the_simulation_on():
+    assert _environment()["DEMO_MODE"] == "${DEMO_MODE}"
+    assert _env_example()["DEMO_MODE"] == "1"
+
+
+def test_factory_console_never_gets_demo_mode():
+    assert "DEMO_MODE" not in _compose_env_names("console", COMPOSE_PROD)
 
 
 def test_never_offers_update_now():
@@ -110,4 +120,11 @@ def test_kit_never_names_the_production_site():
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 def test_demo_autograde_script_suite_passes():
     result = subprocess.run(["bash", str(SCRIPT_TESTS)], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_ci_key_wrapper_suite_passes():
+    """The GitHub Actions key may only run `upgrade vX.Y.Z` or `status` (review focus 5)."""
+    result = subprocess.run(["bash", str(CI_SCRIPT_TESTS)], capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr

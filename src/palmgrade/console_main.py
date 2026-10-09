@@ -74,6 +74,8 @@ async def lifespan(app: FastAPI):
     # dengan line. Sesudah log sink, supaya peringatan INTERNAL_SECRET masuk
     # tab Log, tempat support membacanya.
     service.settings.validate_secrets()
+    # A demo screen (simulated lines and scale) never runs next to a real PLC or scale.
+    service.settings.validate_demo_mode()
     # Before anything else: a mill installed before it ever reached the internet has no
     # AutoERP accounts yet, and a console nobody can sign into is useless on exactly the
     # day it is needed. Existing accounts are never touched (see akun_bawaan).

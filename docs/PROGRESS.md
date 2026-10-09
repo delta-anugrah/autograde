@@ -18,6 +18,48 @@ Next:           ...
 
 ---
 
+## 2026-10-09 · ci · The demo console upgrades itself after every release (PR #264)
+Changed:        New workflow demo-deploy.yml (workflow_call + Run workflow for rollback), called by
+                deploy.yml as job deploy-demo once BOTH the factory promote and the demo image are
+                done (final review: a version whose factory image failed never reaches the demo). It SSHes to the droplet as `deploy`
+                with a key whose authorized_keys line forces deploy/demo/demo-autograde-ci.sh: only
+                `status` or `upgrade vX.Y.Z` (anything else exit 2), one deploy at a time (flock,
+                exit 75), lock in /opt/autograde-demo opened for append (background security review
+                flagged a /tmp path). Secrets in the GitHub environment `demo` (tags v* and main);
+                host key pinned, never StrictHostKeyChecking=no; never `latest`.
+                Docs: droplet runbook (Upgrade otomatis + one-time setup), rules.md, README,
+                CLAUDE.md, .env.example.
+Validated:      bash deploy/demo/demo-autograde-ci.test.sh → passed 15, failed 0 (flock case skipped on
+                macOS, runs on CI Ubuntu). pytest unit+e2e+integration → 6178 passed, 48 skipped.
+Not validated:  The workflow has never run: needs the one-time setup (key, authorized_keys, environment
+                `demo`) and a tag. actionlint not installed.
+Decisions:      No `secrets: inherit`: environment secrets reach the called job through
+                `environment: demo`.
+Next:           One-time setup on the droplet and in GitHub, then the next tag.
+
+## 2026-10-09 · console · Live demo console: DEMO_MODE simulates lines and the scale (PR #263)
+Changed:        New setting DEMO_MODE (default off), forwarded only by deploy/demo/docker-compose.yml.
+                The console refuses to boot with it while PLC_ENABLED, PLC_HOST, SCALE_PLC_HOST or
+                SCALE_PLC_REGISTER is set. /api/console/state carries demo_mode; console.html then
+                runs a browser-only simulation on top of the seeded data: camera boxes cycle five
+                bundled photos (src/palmgrade/static/demo/, boxes drawn by draw_boxes at the Lampung
+                style, rebuilt with scripts/buat-frame-demo.py), counters tick, simulated rows lead
+                page 1 of Grading (no filter only), the card photo strip follows, and the scale tile
+                rises, settles at 21,640 kg and falls (16 s lap). Nothing is written or sent; a
+                reload starts over. GET /demo/<name> serves the photos, 404 when demo mode is off.
+                Docs: droplet runbook (Mode demo hidup), README, backend-overview, overview, CLAUDE.md,
+                skills konsol-autograde and compose-host-pabrik.
+Validated:      pytest tests/unit tests/e2e tests/integration → exit 0, 6171 passed, 48 skipped.
+                ruff check src/ tests/ → All checks passed. tests/cek_skrip_konsol.py → OK.
+                tests/browser/test_browser_demo_hidup.py → 2 passed in Chromium and Firefox (and
+                fails with DEMO_MODE=0). Screenshots at 1440 and 1920, light and dark, by eye.
+Not validated:  Not on the droplet yet: needs a release, the kit compose copied again (the droplet copy
+                does not forward DEMO_MODE), then DEMO_MODE=1 in /opt/autograde-demo/.env.
+Decisions:      /demo/<name> is public (stock photos, 404 on any factory console). DEMO_MODE is read
+                per request through console_deps.get_demo_mode, uncached, so tests cannot leak it.
+                A frames.json refusal leaves the demo off (final review).
+Next:           PR 2 of the plan: auto-deploy the demo after every tag.
+
 ## 2026-10-08 · vision · Detection boxes and FPS drawn like the console design (PR #261)
 Changed:        Owner report on v1.26.1 at Lampung: the boxes and the FPS on the line video did not look
                 like the console mockup. Cause: both are burned into the picture by the line (OpenCV),
