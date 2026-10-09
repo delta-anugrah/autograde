@@ -55,6 +55,11 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
   `- SCALE_...` persis seperti `docker-compose.prod.yml` repo), nilainya di `.env`, port 1028
   dibuka di PLC, lalu `autograde restart`. Cek: `docker exec palmgrade_console printenv
   SCALE_PLC_REGISTER`.
+- **`DEMO_MODE`** (2026-10-09): **khusus demo droplet** (`deploy/demo/docker-compose.yml`).
+  Jangan pernah menambah `- DEMO_MODE=...` ke compose host atau `.env` PC pabrik: layar akan
+  menyimulasikan line dan timbangan, dan `Settings.validate_demo_mode` menolak boot kalau
+  `PLC_ENABLED`, `PLC_HOST`, `SCALE_PLC_HOST` atau `SCALE_PLC_REGISTER` terisi. Rilisnya tetap
+  "No host-side change required".
 - **`AI_MATI_DETIK`** (batch 2.1, opsional): bawaan 30 jalan tanpa perubahan host, jadi rilisnya
   sendiri "No host-side change required". Tapi **menyetelnya** (misal `AI_MATI_DETIK=60` di
   `.env` untuk line yang lambat) tidak berpengaruh apa pun sampai tiga blok line

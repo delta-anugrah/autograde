@@ -168,7 +168,7 @@ never a "Co-Authored-By: Claude" or other AI mention.
 | Swapping or evaluating a detection model | skill `model-swap-eval`, `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | Image source per line (video/photo) | `docs/runbooks/2026-09-21-sumber-kamera-per-line.md` |
 | From-zero factory setup (NVIDIA, MVS, camera IP) | `docs/SETUP.md`; PC capacity: skill `spek-pc-pabrik` |
-| Demo console on the droplet | `deploy/demo/`, `docs/runbooks/2026-09-28-konsol-demo-droplet.md` |
+| Demo console on the droplet, `DEMO_MODE` (live simulation, never at a factory) | `deploy/demo/`, `docs/runbooks/2026-09-28-konsol-demo-droplet.md` |
 | Installing a factory PC, cutting a tag, deploying | skills `install-factory-pc`, `tag-release`, `deploy-production` in the `sawit` workspace |
 | Being new here | `docs/MANUAL.md`, skill `panduan-autograde` |
 | Reviewing a branch before a PR | `docs/REVIEW-CHECKLIST.md` (agent `rule-reviewer`) |

@@ -18,6 +18,27 @@ Next:           ...
 
 ---
 
+## 2026-10-09 · console · Live demo console: DEMO_MODE simulates lines and the scale (PR #TBD)
+Changed:        New setting DEMO_MODE (default off), forwarded only by deploy/demo/docker-compose.yml.
+                The console refuses to boot with it while PLC_ENABLED, PLC_HOST, SCALE_PLC_HOST or
+                SCALE_PLC_REGISTER is set. /api/console/state carries demo_mode; console.html then
+                runs a browser-only simulation on top of the seeded data: camera boxes cycle five
+                bundled photos (src/palmgrade/static/demo/, boxes drawn by draw_boxes at the Lampung
+                style, rebuilt with scripts/buat-frame-demo.py), counters tick, simulated rows lead
+                page 1 of Grading (no filter only), the card photo strip follows, and the scale tile
+                rises, settles at 21,640 kg and falls (16 s lap). Nothing is written or sent; a
+                reload starts over. GET /demo/<name> serves the photos, 404 when demo mode is off.
+                Docs: droplet runbook (Mode demo hidup), README, backend-overview, overview, CLAUDE.md,
+                skills konsol-autograde and compose-host-pabrik.
+Validated:      pytest tests/unit tests/e2e tests/integration → exit 0, 6171 passed, 48 skipped.
+                ruff check src/ tests/ → All checks passed. tests/cek_skrip_konsol.py → OK.
+                tests/browser/test_browser_demo_hidup.py → 2 passed in Chromium and Firefox (and
+                fails with DEMO_MODE=0). Screenshots at 1440 and 1920, light and dark, by eye.
+Not validated:  Not on the droplet yet: needs a release and DEMO_MODE=1 in /opt/autograde-demo/.env.
+Decisions:      /demo/<name> is public (stock photos, 404 on any factory console). DEMO_MODE is read
+                per request through console_deps.get_demo_mode, uncached, so tests cannot leak it.
+Next:           PR 2 of the plan: auto-deploy the demo after every tag.
+
 ## 2026-10-08 · vision · Detection boxes and FPS drawn like the console design (PR #261)
 Changed:        Owner report on v1.26.1 at Lampung: the boxes and the FPS on the line video did not look
                 like the console mockup. Cause: both are burned into the picture by the line (OpenCV),
