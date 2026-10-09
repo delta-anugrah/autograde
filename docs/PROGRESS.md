@@ -20,7 +20,8 @@ Next:           ...
 
 ## 2026-10-09 · ci · The demo console upgrades itself after every release (PR #TBD)
 Changed:        New workflow demo-deploy.yml (workflow_call + Run workflow for rollback), called by
-                demo-image.yml as job deploy-demo after promote. It SSHes to the droplet as `deploy`
+                deploy.yml as job deploy-demo once BOTH the factory promote and the demo image are
+                done (final review: a version whose factory image failed never reaches the demo). It SSHes to the droplet as `deploy`
                 with a key whose authorized_keys line forces deploy/demo/demo-autograde-ci.sh: only
                 `status` or `upgrade vX.Y.Z` (anything else exit 2), one deploy at a time (flock,
                 exit 75), lock in /opt/autograde-demo opened for append (background security review
@@ -29,7 +30,7 @@ Changed:        New workflow demo-deploy.yml (workflow_call + Run workflow for r
                 Docs: droplet runbook (Upgrade otomatis + one-time setup), rules.md, README,
                 CLAUDE.md, .env.example.
 Validated:      bash deploy/demo/demo-autograde-ci.test.sh → passed 15, failed 0 (flock case skipped on
-                macOS, runs on CI Ubuntu). pytest test_demo_image_workflow.py test_demo_kit.py → pass.
+                macOS, runs on CI Ubuntu). pytest unit+e2e+integration → 6178 passed, 48 skipped.
 Not validated:  The workflow has never run: needs the one-time setup (key, authorized_keys, environment
                 `demo`) and a tag. actionlint not installed.
 Decisions:      No `secrets: inherit`: environment secrets reach the called job through

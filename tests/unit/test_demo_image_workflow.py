@@ -120,13 +120,17 @@ def test_the_factory_release_is_still_gpu_with_sdk():
 DEPLOY_DEMO = WORKFLOWS / "demo-deploy.yml"
 
 
-def test_demo_image_deploys_after_promote():
-    job = _workflow()["jobs"]["deploy-demo"]
-    assert job["needs"] in ("promote", ["promote"])
+def test_demo_upgrades_only_after_both_images_are_released():
+    """A version whose factory image failed (build or smoke) never reaches the demo either:
+    `deploy-demo` waits for the factory `promote` AND the demo image (final review 2026-10-09)."""
+    job = _workflow(RELEASE)["jobs"]["deploy-demo"]
+    assert set(job["needs"]) == {"promote", "demo"}
     assert job["uses"] == "./.github/workflows/demo-deploy.yml"
-    assert job["with"]["version"] == "${{ inputs.version || github.ref_name }}"
+    assert job["with"]["version"] == "${{ github.ref_name }}"
     # Environment secrets reach the called job through `environment: demo`; nothing else.
     assert "secrets" not in job
+    # A manual demo-image run (an older version) does not deploy; Run workflow on demo-deploy does.
+    assert "deploy-demo" not in _workflow()["jobs"]
 
 
 def test_demo_deploy_runs_one_at_a_time_in_the_demo_environment():

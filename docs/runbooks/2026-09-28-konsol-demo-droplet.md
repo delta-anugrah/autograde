@@ -76,9 +76,11 @@ site lain di stack yang sama adalah produksi.
 
 Sejak 2026-10-09 demo ikut naik versi sendiri. Urutannya tiap tag `vX.Y.Z`:
 
-1. `deploy.yml` menjalankan CI, lalu `demo-image.yml` membangun dan mengecek image `-cpu`.
-2. Job `promote` menerbitkan `vX.Y.Z-cpu`.
-3. Job `deploy-demo` memanggil `demo-deploy.yml`: SSH ke droplet sebagai `deploy` dengan kunci
+1. `deploy.yml` menjalankan CI, lalu membangun dan mengecek image pabrik `vX.Y.Z` dan image demo
+   `vX.Y.Z-cpu` berdampingan.
+2. Job `deploy-demo` baru jalan kalau **keduanya** terbit. Image pabrik gagal = demo tidak
+   dinaikkan: versi yang tidak pernah sampai ke pabrik juga tidak dipamerkan ke klien.
+3. `deploy-demo` memanggil `demo-deploy.yml`: SSH ke droplet sebagai `deploy` dengan kunci
    khusus, menjalankan `upgrade vX.Y.Z`. Sisanya sama seperti `demo-autograde upgrade` dengan
    tangan (cek disk, tunggu sehat, kembali ke versi lama kalau tidak sehat).
 
@@ -91,25 +93,33 @@ Sejak 2026-10-09 demo ikut naik versi sendiri. Urutannya tiap tag `vX.Y.Z`:
 **Kuncinya terkunci.** Baris di `~/.ssh/authorized_keys` milik `deploy` memaksa setiap
 koneksi kunci itu lewat `/usr/local/bin/demo-autograde-ci` (`command="...",restrict`).
 Skrip itu cuma menerima `status` dan `upgrade vX.Y.Z`; yang lain ditolak (exit 2), dan dua
-deploy tidak bisa jalan bersamaan (yang kedua exit 75). Droplet ini juga menjalankan AutoERP
+deploy dari CI tidak bisa jalan bersamaan (yang kedua exit 75). `demo-autograde upgrade` yang
+diketik tangan **tidak** ikut kunci itu: jangan jalankan selama job `deploy-demo` masih jalan.
+Tiga tag beruntun dalam setengah jam: tag yang di tengah bisa terlewat; naikkan dengan Run
+workflow kalau perlu. Droplet ini juga menjalankan AutoERP
 produksi: kunci ini tidak bisa `reset`, `logs`, membuka shell, atau menyentuh `/opt/autoerp`.
 
 **Pasang sekali** (sebelum tag pertama yang membawa fitur ini, kalau tidak job `deploy-demo`
 pertama merah, tanpa akibat lain):
 
 1. Laptop: `ssh-keygen -t ed25519 -N "" -C demo-deploy -f ~/.ssh/autograde_demo_deploy`.
-2. Salin skrip dari laptop (droplet tidak punya git):
+2. Sesudah PR rilis masuk `main`, **sebelum** tag: salin skrip dari laptop, di folder repo
+   autograde (droplet tidak punya git):
    `git show origin/main:deploy/demo/demo-autograde-ci.sh | ssh autoerpprod 'cat > /opt/autograde-demo/demo-autograde-ci.sh && chmod 755 /opt/autograde-demo/demo-autograde-ci.sh'`,
    lalu `ssh autoerpprod` dan `sudo ln -sf /opt/autograde-demo/demo-autograde-ci.sh /usr/local/bin/demo-autograde-ci`
    (sudo minta sandi, jadi dari terminal sungguhan).
-3. Droplet: tambahkan satu baris ke `~/.ssh/authorized_keys` milik `deploy`:
-   `command="/usr/local/bin/demo-autograde-ci",restrict ` lalu isi `~/.ssh/autograde_demo_deploy.pub`.
+3. Tambahkan satu baris ke `~/.ssh/authorized_keys` milik `deploy`, dari laptop:
+   `printf 'command="/usr/local/bin/demo-autograde-ci",restrict %s\n' "$(cat ~/.ssh/autograde_demo_deploy.pub)" | ssh autoerpprod 'cat >> ~/.ssh/authorized_keys'`.
+   Baris lain di berkas itu (kunci deploy AutoERP) jangan disentuh.
 4. GitHub repo autograde, Settings, Environments, New environment `demo`. Deployment branches
    and tags: Selected, tambahkan tag `v*` dan branch `main`. Secrets: `DEMO_SSH_HOST`
    (`188.166.178.75`), `DEMO_SSH_USER` (`deploy`), `DEMO_SSH_KEY` (isi kunci privat),
    `DEMO_SSH_KNOWN_HOSTS` (keluaran `ssh-keyscan -t ed25519 188.166.178.75`).
-5. Bukti kuncinya terkunci: `ssh -i ~/.ssh/autograde_demo_deploy deploy@188.166.178.75 status`
-   menjawab status; `... reset` dan `... bash` menjawab `refused`.
+5. Bukti kuncinya terkunci:
+   `ssh -o IdentitiesOnly=yes -i ~/.ssh/autograde_demo_deploy deploy@188.166.178.75 status`
+   menjawab status; ganti `status` dengan `reset` atau `bash` dan jawabannya `refused`.
+   `IdentitiesOnly=yes` wajib: tanpa itu ssh menawarkan kunci lain di laptop dulu (kunci
+   `deploy` yang bebas), dan yang teruji bukan kunci ini.
 
 ## Mode demo hidup (`DEMO_MODE=1`)
 

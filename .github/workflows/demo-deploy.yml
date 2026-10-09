@@ -1,6 +1,7 @@
 name: Deploy AutoGrade Demo
 
-# Upgrades demo-autograde.smagri.id to vX.Y.Z-cpu. Called by demo-image.yml after `promote`;
+# Upgrades demo-autograde.smagri.id to vX.Y.Z-cpu. Called by deploy.yml once the factory and the
+# demo image of a tag are both released;
 # run by hand (Actions > Deploy AutoGrade Demo > Run workflow) to roll back to an older version.
 # The key can only run `demo-autograde upgrade|status` on the droplet
 # (deploy/demo/demo-autograde-ci.sh); the droplet also runs production AutoERP.
@@ -20,8 +21,10 @@ on:
         description: "Version to run on the demo, e.g. v1.26.2"
         required: true
 
-# One deploy at a time, and a queued one is never cancelled: two tags close together both land,
-# in order. The droplet side refuses a second concurrent run too (exit 75).
+# One deploy at a time. GitHub keeps at most ONE waiting run per group: with three tags close
+# together the middle one is cancelled, and runs go in arrival order, not version order, so a
+# slow older tag can land last. Rare (a tag takes about half an hour); the fix is Run workflow
+# with the right version. The droplet side refuses a second concurrent CI run too (exit 75).
 concurrency:
   group: demo-deploy
   cancel-in-progress: false
