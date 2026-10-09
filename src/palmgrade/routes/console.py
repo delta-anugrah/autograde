@@ -45,6 +45,7 @@ from ..services.dev_service import CoilTidakDikenal, PlcSibuk
 from ..services.impor_grading_service import ImporDitolak, ImporTidakAda
 from ..services.qr_cetak import png_qr
 from ..services.riwayat_service import RiwayatService
+from .console_demo import demo_router
 
 # Wiring and guards live in console_deps.py. The `x as x` form re-exports them:
 # tests override these by identity and have imported them from here since Fase 4.
@@ -948,3 +949,6 @@ async def dev_plc_coil(
         # (via OperatorError, ValueError), and a bare catch placed first would
         # swallow it into the wrong status code.
         raise _operator_error(404, exc) from exc
+
+
+router.include_router(demo_router)  # GET /demo/<name>, DEMO_MODE frames only (2026-10-09)

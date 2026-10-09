@@ -772,7 +772,7 @@ tetap segar saat tidak ada data yang lewat. Aturan lengkapnya `docs/rules.md` at
 
 **Login (Fase 4, §6.5).** Layar tertutup gerbang **email + sandi** sampai ada yang masuk, dan
 **semua** `/api/console/*` menjawab 401 `belum_masuk` tanpa cookie `konsol_sesi`, kecuali
-`/console` sendiri, daftar akun untuk mengisi kolom email, dan `login`. Akun datang dari dua
+`/console` sendiri, daftar akun untuk mengisi kolom email, dan `login`. Di luar `/api/console/*`, `GET /demo/{nama}` juga terbuka tanpa sesi: foto bawaan `DEMO_MODE`, 404 di setiap konsol pabrik. Akun datang dari dua
 tempat: DocType **`AutoGrade Operator`** di AutoERP (ditarik §4.A) dan akun **lokal** di PC itu
 (bawaan + support, supaya pabrik tanpa internet tetap bisa dibuka). Keduanya diverifikasi di
 pabrik: yang ditarik `password_hash`-nya, bukan sandinya, dan itulah sebabnya field-nya `Data`

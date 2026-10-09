@@ -91,9 +91,11 @@ def _salin_kode(tujuan: Path) -> Path:
 class KonsolUji:
     """One console process: seeded, started, stopped. Never shares state with a real one."""
 
-    def __init__(self, root: Path, port_line: tuple[int, int, int]) -> None:
+    def __init__(self, root: Path, port_line: tuple[int, int, int], env: dict[str, str] | None = None) -> None:
         self.root = root
         self.port_line = port_line
+        # On top of `_env`, for a console started differently (DEMO_MODE in test_browser_demo_hidup).
+        self.env_tambahan = dict(env or {})
         self.port = port_bebas()
         self.src = _salin_kode(root)
         self.state = root / "state"
@@ -125,6 +127,7 @@ class KonsolUji:
             # A release number, not `unknown`: Update now (batch 4.6) offers nothing above a
             # version it cannot read.
             "APP_VERSION": "v1.22.0",
+            **self.env_tambahan,
         }
 
     def seed(self, *, hari: int) -> None:

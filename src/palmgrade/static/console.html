@@ -5525,6 +5525,13 @@ async function muatGrading() {
   const per = Number(gradingPer);
   try {
     const r = await api(`/api/console/history?${paramGrading(per, gradingOffset, gradingSaring)}`);
+    // Demo mode: simulated rows on top, only on page 1 with no filter (they belong to no truck
+    // or line the operator picked, and past page 1 the operator is reading, not watching).
+    if (demoHidup.aktif && gradingOffset === 0 && !adaSaringan()) {
+      const tambah = barisDemoGrading();
+      r.items = tambah.concat(r.items).slice(0, per);
+      r.total += tambah.length;
+    }
     gradingTotal = r.total;
     // Deleted rows, or a filter that shrank the day, can leave the offset past the end.
     // Step back one page rather than showing an empty table with a live Previous button.
@@ -6386,7 +6393,8 @@ function kartuLine(l, sekarang = Date.now()) {
   // real MJPEG server): no request reaches the line, `load` fires within
   // milliseconds with the OLD frame, and a stream that already ended stays a
   // frozen picture after a language switch, truck registration, or login.
-  const feed = l.port
+  // Demo mode: a bundled photo with its box, not a line's stream (no line on the droplet).
+  const feed = demoHidup.aktif ? srcFeedDemo(l.line_code) : l.port
     ? urlFeedBaru(`${location.protocol}//${location.hostname}:${l.port}/api/video_feed`, sekarang) : "";
   const opsi = opsiTrukKartu();
   // line_code only rides along as data-line and is read via dataset - it never
@@ -6747,7 +6755,9 @@ async function ambilStrip(kodeLines) {
   try {
     const hasil = await Promise.all(kodeLines.map((kode) =>
       api(`/api/console/history?${paramGrading(STRIP_N, 0, { line: kode, truk: "" })}`)));
-    return hasil.flatMap((r) => r.items);
+    const items = hasil.flatMap((r) => r.items);
+    // Demo mode: the simulated bunches lead, so the strip and its clock move with the counters.
+    return demoHidup.aktif ? barisDemoGrading().concat(items) : items;
   } catch (e) {
     return null;
   }
@@ -7021,6 +7031,10 @@ function gambarTimbanganLive(r) {
 const JEDA_TIMBANG_MATI_MS = 30000;
 let timbangLive = { r: null, pada: 0 };
 async function muatTimbanganLive() {
+  if (demoHidup.aktif) {
+    gambarTimbanganLive(bacaanDemo(Math.floor((Date.now() - demoHidup.mulai) / 1000)));
+    return;
+  }
   const belumDipasang = timbangLive.r && timbangLive.r.keadaan === "tidak_dipakai";
   if (!belumDipasang || Date.now() - timbangLive.pada >= JEDA_TIMBANG_MATI_MS) {
     try {
@@ -7954,7 +7968,8 @@ function feedMemuat(img) {
   if (!(img.naturalWidth > 0)) return;
   const kartu = img.closest(".card");
   const rasio = `${img.naturalWidth} / ${img.naturalHeight}`;
-  if (rasioFeed.get(kartu.dataset.line) !== rasio) {
+  // Demo photos come in two shapes: the box keeps its own, so it does not jump every tick.
+  if (!demoHidup.aktif && rasioFeed.get(kartu.dataset.line) !== rasio) {
     rasioFeed.set(kartu.dataset.line, rasio);
     img.parentElement.style.aspectRatio = rasio;
   }
@@ -7997,7 +8012,105 @@ function capFeedBaru(sekarang) {
   gambarSemuaRestart(sekarang);
 }
 
+// ── demo hidup (DEMO_MODE, demo-autograde.smagri.id only) ──────────────────────
+// The server says `demo_mode: true`; the screen then fakes live lines and a scale on top
+// of the seeded data. Browser memory only: nothing is posted, a reload starts over.
+const JEDA_DEMO_MS = 2600;
+const BATAS_BARIS_DEMO = 30;
+const demoHidup = { aktif: false, memuat: false, frames: null, lines: [], mulai: 0, langkah: 0, idx: {}, tambah: {}, baris: [] };
+
+function nolDemo() { return { ripe: 0, unripe: 0, jk: 0, tp: 0 }; }
+
+async function aktifkanDemo(on) {
+  // refresh() calls this every 2 s: `memuat` keeps a slow first fetch from starting twice.
+  if (!on || demoHidup.aktif || demoHidup.memuat) return;
+  demoHidup.memuat = true;
+  // A refusal with a JSON body (a proxy in front) must not switch it on with no frames: the
+  // camera boxes would vanish and every tick would throw. Off, and the next poll tries again.
+  let frames = null;
+  try {
+    const res = await fetch("/demo/frames.json", { cache: "force-cache" });
+    if (res.ok) frames = (await res.json()).frames;
+  } catch (e) { /* offline or not JSON: stays off, the next poll tries again */ }
+  demoHidup.memuat = false;
+  if (!Array.isArray(frames) || !frames.length) return;
+  demoHidup.frames = frames;
+  demoHidup.aktif = true;
+  demoHidup.mulai = Date.now();
+  dipasang = false;  // redraw the cards so their <img> points at the demo frames
+  // A hidden tab (left open overnight) does no work: nothing moves that nobody sees.
+  setInterval(() => { if (!document.hidden) { majuDemo(Date.now()); gambarFeedDemo(); } }, JEDA_DEMO_MS);
+}
+
+// Five photos shared by every line. Line n starts at photo 2n (mod 5) so neighbours never
+// show the same one; each tick moves ONE line, in turn, to its next photo and counts it.
+function idxDemo(line) {
+  return demoHidup.idx[line] ?? (2 * Math.max(0, demoHidup.lines.indexOf(line))) % demoHidup.frames.length;
+}
+
+function majuDemo(sekarangMs) {
+  if (!demoHidup.lines.length) return;
+  const line = demoHidup.lines[demoHidup.langkah % demoHidup.lines.length];
+  demoHidup.langkah += 1;
+  const i = demoHidup.idx[line] = (idxDemo(line) + 1) % demoHidup.frames.length;
+  const frame = demoHidup.frames[i];
+  const t = demoHidup.tambah[line] = demoHidup.tambah[line] || nolDemo();
+  for (const k of frame.kelas) {
+    t[k.toLowerCase()] += 1;
+    demoHidup.baris.unshift({ pada: sekarangMs, line, kelas: k, src: frame.src });
+  }
+  demoHidup.baris.length = Math.min(demoHidup.baris.length, BATAS_BARIS_DEMO);
+}
+
+// Called in refresh() right after the state arrives, before anything draws a number.
+// Ripe counts as ACC and Unripe/JK as REJ, the factory rule (only ACC and REJ reach the PLC).
+function terapkanDemoLines(lines) {
+  for (const l of lines) {
+    const t = demoHidup.tambah[l.line_code];
+    if (!t) continue;
+    for (const k of ["ripe", "unripe", "jk", "tp"]) l[k] = (l[k] || 0) + t[k];
+    l.total = (l.total || 0) + t.ripe + t.unripe + t.jk + t.tp;
+    l.acc = (l.acc || 0) + t.ripe;
+    l.rej = (l.rej || 0) + t.unripe + t.jk;
+  }
+}
+
+function srcFeedDemo(lineCode) {
+  return demoHidup.frames && demoHidup.frames.length ? demoHidup.frames[idxDemo(lineCode)].src : "";
+}
+
+function gambarFeedDemo() {
+  for (const c of document.querySelectorAll("#lines .card")) {
+    const img = c.querySelector(".feed img");
+    const src = srcFeedDemo(c.dataset.line);
+    if (img && src && !img.src.endsWith(src)) img.src = src;
+    c.classList.remove("putus");
+  }
+}
+
+// Same curve as the design canvas: empty, truck drives on, settles, drives off. 16 s a lap.
+const KG_DEMO = [0, 0, 6200, 14900, 20800, 21720, 21660, 21640, 21640, 21640, 21640, 21640, 21640, 21640, 9800, 1200];
+function bacaanDemo(detik) {
+  const j = ((detik % KG_DEMO.length) + KG_DEMO.length) % KG_DEMO.length;
+  const kg = KG_DEMO[j];
+  const keadaan = (j >= 7 && j <= 13) || kg === 0 ? "stabil" : "bergerak";
+  return { keadaan, kg, umur_detik: 0 };
+}
+
+// Simulated bunches as rows of the Grading table, newest first. One demo truck (a plate from
+// scripts/seed-console-demo.py PLATES, rule 7); the seeded trucks carry no supplier, so no
+// source label. Only Ripe is ACC, as on the factory lines (tagHasil colours by it).
+function barisDemoGrading() {
+  return demoHidup.baris.map((b) => ({
+    timestamp: new Date(b.pada).toISOString(), line_code: b.line, plate_number: "BE 8605 TSD",
+    source_label: null, ripeness_status: b.kelas === "Ripe" ? "ACC" : "REJ", grade_class: b.kelas,
+    image_url: b.src, thumb_url: b.src,
+  }));
+}
+
 async function cekKamera() {
+  // No line answers /health on the demo droplet: the demo frames are the picture.
+  if (demoHidup.aktif) return;
   await Promise.all([...document.querySelectorAll(".feed img")].map(async (img) => {
     // no-cors: the answer is unreadable (different port), but a failed connect
     // still throws - and that is all this needs.
@@ -8932,6 +9045,12 @@ async function refresh() {
   const lepas = await kunciRefresh.giliran();
   try {
     const s = await api("/api/console/state");
+    // `=== true`: an older server has no field, and that reads as off.
+    aktifkanDemo(s.demo_mode === true);
+    if (demoHidup.aktif) {
+      demoHidup.lines = s.lines.map((l) => l.line_code);
+      terapkanDemoLines(s.lines);
+    }
     cekVersiBaru(s.versi);
     $("tz").textContent = "(" + s.timezone + ")";
     zonaPabrik = s.timezone;

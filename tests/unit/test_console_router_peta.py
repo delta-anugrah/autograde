@@ -88,6 +88,7 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/dev/riwayat/impor/{batch_id}/batal"),
     ("GET", "/api/console/dev/plc/{line_code}"),
     ("POST", "/api/console/dev/plc/{line_code}/coil"),
+    ("GET", "/demo/{nama}"),
 ]
 
 RUTE_MESIN = [

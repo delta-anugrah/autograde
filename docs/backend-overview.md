@@ -260,10 +260,11 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/console` | Halaman `console.html`, dengan `Cache-Control: no-cache` (#236, batch 5.3): browser selalu bertanya dulu, jadi kiosk yang memuat ulang dirinya sesudah pembaruan mendapat halaman versi baru |
+| GET | `/demo/{nama}` | Tanpa sesi. Lima foto bawaan mode demo (`frame-1.webp`..`frame-5.webp`) dan `frames.json`; 404 kalau `DEMO_MODE` mati atau nama lain apa pun |
 | GET | `/api/console/operators` | Daftar akun untuk kolom email (tanpa hash), bisa dibaca sebelum masuk |
 | POST | `/api/console/login`, `/api/console/logout` · GET `/api/console/me` | Sesi cookie `konsol_sesi`, geser 12 jam sejak aktivitas terakhir; login dan `/me` membawa `sisa_detik` |
 | POST | `/api/console/session/renew` | Batch 5.7: perpanjang sesi ini 12 jam dari sekarang (layar mengirimnya untuk sentuhan dan tombol, bukan untuk polling); `{sisa_detik}` + cookie baru, 401 `belum_masuk` kalau sudah habis |
-| GET | `/api/console/state` | Ringkasan hari kerja + langganan + `sinkron` (Last Sync) + `antrean_bongkar` (`[{weighing_id, plate_number, menit}]`, truk yang menunggu line) + `penugasan_otomatis` (`{aktif, lines}`) + `cutoff_shift` (`"HH:MM"`, awal hari kerja, batch 5.11) + `scanner_qr` (bool, saklar Scanner QR); layar polling tiap 2 detik |
+| GET | `/api/console/state` | Ringkasan hari kerja + langganan + `sinkron` (Last Sync) + `antrean_bongkar` (`[{weighing_id, plate_number, menit}]`, truk yang menunggu line) + `penugasan_otomatis` (`{aktif, lines}`) + `cutoff_shift` (`"HH:MM"`, awal hari kerja, batch 5.11) + `scanner_qr` (bool, saklar Scanner QR) + `demo_mode` (bool, `DEMO_MODE`); layar polling tiap 2 detik |
 | GET | `/api/console/history` | Janjang per hari kerja (`work_date`, `line_code`, `truck_id`, `limit` ≤ 200); tiap baris membawa `image_url` (foto penuh) dan `thumb_url` (salinan 400 px di `thumb/`, `null` untuk foto sebelum tata letak bbox/clean/thumb) |
 | GET / POST | `/api/console/trucks` | Daftar truk / truk ketik operator (masuk antrean ERP) |
 | POST | `/api/console/scan/auto` | Satu kolom scan: langkah berikutnya kunjungan truk dari keadaannya (2026-10-06) |
@@ -539,6 +540,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `LOG_RETENSI_HARI` | `180` | Umur baris `log_kejadian` (tab Log) |
 | `LOG_LEVEL` | `INFO` | Level keluaran proses (`docker logs`) line dan konsol; salah ketik = INFO + satu WARNING; tab Log tetap WARNING/ERROR |
 | `DISCORD_WEBHOOK_URL` | kosong | Konsol, opsional. Kosong = fitur Lapor Discord mati total (aturan 34); rahasia, tidak pernah dicatat atau dikirim ke layar. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC, lalu `autograde restart` |
+| `DEMO_MODE` | `false` | Konsol, **demo droplet saja**: layar menyimulasikan line dan timbangan di browser (tidak ada yang disimpan atau dikirim), `/demo/<nama>` menyajikan lima foto bawaan. Hanya `deploy/demo/docker-compose.yml` yang meneruskannya; konsol menolak menyala kalau bersamaan dengan `PLC_ENABLED`, `PLC_HOST`, `SCALE_PLC_HOST` atau `SCALE_PLC_REGISTER` |
 | `SCALE_PLC_REGISTER` / `SCALE_PLC_HOST` / `SCALE_PLC_PORT` / `SCALE_PLC_WORDS` / `SCALE_PLC_DECIMALS` / `SCALE_PLC_STABLE_BIT` / `SCALE_PLC_ERROR_BIT` / `SCALE_POLL_MS` | kosong / `PLC_HOST` / `1028` / `2` / `0` / kosong / kosong / `500` | Konsol, opsional: timbangan live dari register PLC (aturan 39). `SCALE_PLC_REGISTER` kosong = mati, kotak menulis Belum tersambung. Tabel lengkap: `docs/plc-integration.md` § Timbangan live. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC |
 | `REKAMAN_TAMPIL` | `/opt/palmgrade/autograde/videos` (compose) | Jalur rekaman yang **ditampilkan** di Rekam Video: jalur host, bukan `/app/videos` |
 | `CONSOLE_MACHINE_ID` | `konsol` (compose prod) | Diteruskan sebagai `MACHINE_ID` konsol, untuk kartu Versi |
