@@ -250,5 +250,8 @@ jobs:
     uses: ./.github/workflows/demo-deploy.yml
     with:
       version: ${{ github.ref_name }}
+    # Required even for the `demo` ENVIRONMENT secrets: without it the called job read all four
+    # DEMO_SSH_* as empty (v1.27.0, 2026-10-10). Run workflow on demo-deploy.yml needs nothing.
+    secrets: inherit
     permissions:
       contents: read

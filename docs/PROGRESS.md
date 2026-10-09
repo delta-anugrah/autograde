@@ -18,6 +18,19 @@ Next:           ...
 
 ---
 
+## 2026-10-10 · ci · deploy-demo passes the secrets on (PR #TBD)
+Changed:        deploy.yml job deploy-demo gets `secrets: inherit`. On the v1.27.0 tag the called job ran
+                in environment `demo` and still read all four DEMO_SSH_* as empty (ssh printed its usage,
+                exit 255): a reusable workflow only sees the secrets its caller hands over, environment
+                secrets included. This reverses the "no secrets: inherit" decision of PR #264. The
+                images were not affected; the demo was upgraded with Run workflow on demo-deploy.yml
+                from main (run 37980888231: "OK: the demo runs v1.27.0.").
+Validated:      pytest test_demo_image_workflow.py test_ci_gerbang_rilis.py test_rilis_lewat_smoke.py
+                tests/integration/test_alur_rilis_integrasi.py → all pass (the new assertion failed first).
+                demo-autograde.smagri.id/health → v1.27.0; /demo/frames.json → 200 (DEMO_MODE on).
+Not validated:  The automatic path is proven only on the next tag.
+Next:           Watch deploy-demo on the next tag.
+
 ## 2026-10-09 · ci · The demo console upgrades itself after every release (PR #264)
 Changed:        New workflow demo-deploy.yml (workflow_call + Run workflow for rollback), called by
                 deploy.yml as job deploy-demo once BOTH the factory promote and the demo image are
