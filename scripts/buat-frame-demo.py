@@ -17,6 +17,10 @@ from palmgrade.pipelines.realtime_inspection_pipeline import RealtimeInspectionP
 
 KELAS = ["Ripe", "Unripe", "JK", "TP"]
 TINGGI = 720
+# Lampung's .env (BORDER_THICKNESS 8, FONT_SCALE 2.5, FONT_THICKNESS 5) after the line shrinks it
+# from the 1224x1024 sensor frame to the 720 px stream (factor 0.70, skala_tampilan.gaya_berskala):
+# the demo boxes look like the factory screen, not like the thin code defaults.
+GAYA = {"border_thickness": 6, "font_scale": 1.76, "font_thickness": 4}
 # (source, crop right px, boxes as (class, x%, y%, w%, h%)). 01.jpeg is left out: watermark.
 FOTO = [
     ("02.jpg", 0, [("Ripe", 2, 3, 96, 94)]),
@@ -38,7 +42,7 @@ def hasil(boxes, w, h):
 
 def main(src: Path) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    gambar = SimpleNamespace(settings=Settings())  # draw_boxes only reads self.settings
+    gambar = SimpleNamespace(settings=Settings(**GAYA))  # draw_boxes only reads self.settings
     daftar = []
     for n, (asal, potong, boxes) in enumerate(FOTO, start=1):
         f = cv2.imread(str(src / asal))
