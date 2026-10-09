@@ -215,6 +215,7 @@ def test_load_tanpa_gambar_tidak_menghapus_offline():
     (naturalWidth 0): tanpa penjaga, kartu berkedip antara "Kamera tidak
     tersambung" dan kotak hitam."""
     stub = """
+const demoHidup = { aktif: false };
 const dilepas = [];
 const diselesaikan = [];
 const selesaikanRestart = (kartu, img) => diselesaikan.push(img.naturalWidth);
@@ -265,6 +266,7 @@ def test_render_ulang_kartu_langsung_mencap_feed_dan_menggambar_tanda():
 # ── B-1: tiap render = permintaan stream yang sungguhan ──────────────────
 
 KARTU_STUB = """
+const demoHidup = { aktif: false };
 const location = { protocol: "http:", hostname: "10.0.0.5" };
 const trucks = [];
 const komponenPilih = () => "";

@@ -1,4 +1,4 @@
-"""Setiap lane operator konsol butuh sesi, kecuali empat yang memang terbuka.
+"""Setiap lane operator konsol butuh sesi, kecuali lima yang memang terbuka.
 
 Penjaga umum, bukan per rute: `/piston` lolos tanpa sesi berbulan-bulan karena
 satu-satunya rute yang lupa `Operator` (audit 2026-09-28).
@@ -12,6 +12,8 @@ TERBUKA = {
     ("GET", "/api/console/operators"),
     ("POST", "/api/console/login"),
     ("POST", "/api/console/logout"),
+    # Bundled stock photos for DEMO_MODE only: 404 on every factory console, never data.
+    ("GET", "/demo/{nama}"),
 }
 
 
