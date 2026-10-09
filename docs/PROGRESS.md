@@ -18,6 +18,25 @@ Next:           ...
 
 ---
 
+## 2026-10-09 · ci · The demo console upgrades itself after every release (PR #264)
+Changed:        New workflow demo-deploy.yml (workflow_call + Run workflow for rollback), called by
+                deploy.yml as job deploy-demo once BOTH the factory promote and the demo image are
+                done (final review: a version whose factory image failed never reaches the demo). It SSHes to the droplet as `deploy`
+                with a key whose authorized_keys line forces deploy/demo/demo-autograde-ci.sh: only
+                `status` or `upgrade vX.Y.Z` (anything else exit 2), one deploy at a time (flock,
+                exit 75), lock in /opt/autograde-demo opened for append (background security review
+                flagged a /tmp path). Secrets in the GitHub environment `demo` (tags v* and main);
+                host key pinned, never StrictHostKeyChecking=no; never `latest`.
+                Docs: droplet runbook (Upgrade otomatis + one-time setup), rules.md, README,
+                CLAUDE.md, .env.example.
+Validated:      bash deploy/demo/demo-autograde-ci.test.sh → passed 15, failed 0 (flock case skipped on
+                macOS, runs on CI Ubuntu). pytest unit+e2e+integration → 6178 passed, 48 skipped.
+Not validated:  The workflow has never run: needs the one-time setup (key, authorized_keys, environment
+                `demo`) and a tag. actionlint not installed.
+Decisions:      No `secrets: inherit`: environment secrets reach the called job through
+                `environment: demo`.
+Next:           One-time setup on the droplet and in GitHub, then the next tag.
+
 ## 2026-10-09 · console · Live demo console: DEMO_MODE simulates lines and the scale (PR #263)
 Changed:        New setting DEMO_MODE (default off), forwarded only by deploy/demo/docker-compose.yml.
                 The console refuses to boot with it while PLC_ENABLED, PLC_HOST, SCALE_PLC_HOST or

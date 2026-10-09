@@ -230,8 +230,8 @@ jobs:
   # red is published under neither name. It runs beside the factory build, not
   # after it: a failed demo build never holds back the image the factory pulls. The two
   # smoke tests are separate too, so `vX.Y.Z-cpu` can exist while the factory `vX.Y.Z`
-  # failed its smoke; the fix is a new tag either way, and `demo-autograde upgrade` to such
-  # a version is simply not done.
+  # failed its smoke; the fix is a new tag either way, and the demo is never upgraded to such
+  # a version: `deploy-demo` below waits for both images.
   demo:
     needs: ci
     uses: ./.github/workflows/demo-image.yml
@@ -240,3 +240,15 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+  # 2026-10-09: the demo console follows every release by itself, but only once BOTH images are
+  # released: a version the factory never got is never shown to clients either. SSH with a key
+  # that may only run `status` / `upgrade vX.Y.Z` (deploy/demo/demo-autograde-ci.sh). A failed
+  # upgrade leaves the demo on the version it ran; nothing here touches the factory image.
+  deploy-demo:
+    needs: [promote, demo]
+    uses: ./.github/workflows/demo-deploy.yml
+    with:
+      version: ${{ github.ref_name }}
+    permissions:
+      contents: read

@@ -113,3 +113,45 @@ def test_the_factory_release_is_still_gpu_with_sdk():
     release = _text(RELEASE)
     assert "TORCH_VARIANT=cu126" in release
     assert "WITH_SDK=true" in release
+
+
+# ── automatic demo upgrade (demo-deploy.yml, 2026-10-09) ─────────────────────
+
+DEPLOY_DEMO = WORKFLOWS / "demo-deploy.yml"
+
+
+def test_demo_upgrades_only_after_both_images_are_released():
+    """A version whose factory image failed (build or smoke) never reaches the demo either:
+    `deploy-demo` waits for the factory `promote` AND the demo image (final review 2026-10-09)."""
+    job = _workflow(RELEASE)["jobs"]["deploy-demo"]
+    assert set(job["needs"]) == {"promote", "demo"}
+    assert job["uses"] == "./.github/workflows/demo-deploy.yml"
+    assert job["with"]["version"] == "${{ github.ref_name }}"
+    # Environment secrets reach the called job through `environment: demo`; nothing else.
+    assert "secrets" not in job
+    # A manual demo-image run (an older version) does not deploy; Run workflow on demo-deploy does.
+    assert "deploy-demo" not in _workflow()["jobs"]
+
+
+def test_demo_deploy_runs_one_at_a_time_in_the_demo_environment():
+    wf = _workflow(DEPLOY_DEMO)
+    job = wf["jobs"]["deploy"]
+    assert job["environment"] == "demo"
+    assert wf["concurrency"] == {"group": "demo-deploy", "cancel-in-progress": False}
+    assert set(wf[True]) == {"workflow_call", "workflow_dispatch"}  # YAML 1.1: `on:` is True
+    assert wf["permissions"] == {"contents": "read"}
+
+
+def test_demo_deploy_only_sends_upgrade_and_checks_the_host_key():
+    text = _text(DEPLOY_DEMO)
+    assert '"upgrade $VERSION"' in text
+    assert r"^v[0-9]+\.[0-9]+\.[0-9]+$" in text
+    assert not re.search(r":latest\b", text), "factory PCs update from :latest"
+    assert "StrictHostKeyChecking=no" not in text
+    assert "UserKnownHostsFile=" in text
+
+
+def test_demo_deploy_input_never_reaches_a_shell_script_directly():
+    """`${{ inputs.* }}` or `${{ secrets.* }}` inside `run:` is script injection: `env` only."""
+    for step in _workflow(DEPLOY_DEMO)["jobs"]["deploy"]["steps"]:
+        assert "${{" not in step.get("run", ""), step.get("name")

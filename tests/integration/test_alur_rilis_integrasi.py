@@ -55,7 +55,7 @@ def _leluhur(jobs: dict, nama: str) -> set[str]:
 
 def test_tiap_workflow_yang_dipanggil_ada_dan_bisa_dipanggil():
     panggilan = _job_panggilan(_muat(RILIS))
-    assert set(panggilan) == {"ci", "demo", "smoke"}
+    assert set(panggilan) == {"ci", "demo", "smoke", "deploy-demo"}
     for nama, job in panggilan.items():
         assert job["uses"].startswith("./.github/workflows/"), nama
         assert "workflow_call" in _pemicu(_dipanggil(job)), nama

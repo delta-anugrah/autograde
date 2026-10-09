@@ -19,6 +19,7 @@ KIT = Path(__file__).resolve().parents[2] / "deploy" / "demo"
 COMPOSE = KIT / "docker-compose.yml"
 ENV_EXAMPLE = KIT / ".env.example"
 SCRIPT_TESTS = KIT / "demo-autograde.test.sh"
+CI_SCRIPT_TESTS = KIT / "demo-autograde-ci.test.sh"
 
 
 def _console() -> dict:
@@ -119,4 +120,11 @@ def test_kit_never_names_the_production_site():
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 def test_demo_autograde_script_suite_passes():
     result = subprocess.run(["bash", str(SCRIPT_TESTS)], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_ci_key_wrapper_suite_passes():
+    """The GitHub Actions key may only run `upgrade vX.Y.Z` or `status` (review focus 5)."""
+    result = subprocess.run(["bash", str(CI_SCRIPT_TESTS)], capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
