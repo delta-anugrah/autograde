@@ -184,3 +184,14 @@ jobs:
           set -euo pipefail
           docker buildx imagetools create --tag "$REGISTRY/$IMAGE_NAME:$VERSION-cpu" "$SOURCE"
           docker buildx imagetools inspect "$REGISTRY/$IMAGE_NAME:$VERSION-cpu"
+
+  # 2026-10-09: the demo follows every release by itself (deploy/demo/demo-autograde-ci.sh on the
+  # droplet). Only after `promote`, so `vX.Y.Z-cpu` exists. A failed upgrade rolls the demo back
+  # to the version it ran; it never touches the factory image.
+  deploy-demo:
+    needs: promote
+    uses: ./.github/workflows/demo-deploy.yml
+    with:
+      version: ${{ inputs.version || github.ref_name }}
+    permissions:
+      contents: read
