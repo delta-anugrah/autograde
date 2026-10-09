@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-10 · ci · deploy-demo passes the secrets on (PR #TBD)
+## 2026-10-10 · ci · deploy-demo passes the secrets on (PR #266)
 Changed:        deploy.yml job deploy-demo gets `secrets: inherit`. On the v1.27.0 tag the called job ran
                 in environment `demo` and still read all four DEMO_SSH_* as empty (ssh printed its usage,
                 exit 255): a reusable workflow only sees the secrets its caller hands over, environment
