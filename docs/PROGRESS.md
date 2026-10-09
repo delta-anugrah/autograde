@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-09 · console · Live demo console: DEMO_MODE simulates lines and the scale (PR #TBD)
+## 2026-10-09 · console · Live demo console: DEMO_MODE simulates lines and the scale (PR #263)
 Changed:        New setting DEMO_MODE (default off), forwarded only by deploy/demo/docker-compose.yml.
                 The console refuses to boot with it while PLC_ENABLED, PLC_HOST, SCALE_PLC_HOST or
                 SCALE_PLC_REGISTER is set. /api/console/state carries demo_mode; console.html then
