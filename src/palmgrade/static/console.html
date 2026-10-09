@@ -6755,7 +6755,9 @@ async function ambilStrip(kodeLines) {
   try {
     const hasil = await Promise.all(kodeLines.map((kode) =>
       api(`/api/console/history?${paramGrading(STRIP_N, 0, { line: kode, truk: "" })}`)));
-    return hasil.flatMap((r) => r.items);
+    const items = hasil.flatMap((r) => r.items);
+    // Demo mode: the simulated bunches lead, so the strip and its clock move with the counters.
+    return demoHidup.aktif ? barisDemoGrading().concat(items) : items;
   } catch (e) {
     return null;
   }

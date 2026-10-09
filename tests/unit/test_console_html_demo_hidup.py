@@ -6,8 +6,11 @@ Rendering in a real browser: `tests/browser/test_browser_demo_hidup.py`.
 """
 from __future__ import annotations
 
+import json
+import subprocess
+
 import pytest
-from konsol_js import HTML, NODE, jalankan
+from konsol_js import HTML, NODE, fungsi, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 
@@ -129,3 +132,19 @@ def test_only_ripe_is_acc_in_demo_rows():
                  " return barisDemoGrading().map((r) => [r.grade_class, r.ripeness_status]);",
                  FUNGSI + ["barisDemoGrading"])
     assert {tuple(r) for r in out} == {("Ripe", "ACC"), ("Unripe", "REJ")}
+
+
+@butuh_node
+def test_card_photo_strip_leads_with_the_simulated_bunches():
+    """The strip and its "Last bunch" clock read `ambilStrip`: in demo mode they move too."""
+    skrip = "\n".join([SIAP, """
+const STRIP_N = 4;
+const paramGrading = () => "";
+const api = async () => ({ items: [{ line_code: "Line 1", image_url: "/seed.webp", timestamp: "2026-10-09T01:00:00Z" }] });
+""", *(fungsi(n) for n in FUNGSI + ["barisDemoGrading", "ambilStrip"]), """
+(async () => { majuDemo(0); const r = await ambilStrip(["Line 1"]);
+  console.log(JSON.stringify(r.map((x) => [x.line_code, x.image_url]))); })();
+"""])
+    hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
+    assert hasil.returncode == 0, hasil.stderr[-800:]
+    assert json.loads(hasil.stdout) == [["Line 1", "/demo/frame-2.webp"], ["Line 1", "/seed.webp"]]
