@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-09 · ci · The demo console upgrades itself after every release (PR #TBD)
+## 2026-10-09 · ci · The demo console upgrades itself after every release (PR #264)
 Changed:        New workflow demo-deploy.yml (workflow_call + Run workflow for rollback), called by
                 deploy.yml as job deploy-demo once BOTH the factory promote and the demo image are
                 done (final review: a version whose factory image failed never reaches the demo). It SSHes to the droplet as `deploy`
