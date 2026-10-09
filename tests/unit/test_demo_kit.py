@@ -55,6 +55,15 @@ def test_forwards_every_setting_the_factory_console_gets():
     assert not missing, f"factory console gets these, demo does not: {sorted(missing)}"
 
 
+def test_demo_kit_turns_the_simulation_on():
+    assert _environment()["DEMO_MODE"] == "${DEMO_MODE}"
+    assert _env_example()["DEMO_MODE"] == "1"
+
+
+def test_factory_console_never_gets_demo_mode():
+    assert "DEMO_MODE" not in _compose_env_names("console", COMPOSE_PROD)
+
+
 def test_never_offers_update_now():
     """The demo upgrades with demo-autograde; no watcher answers a request.json there."""
     assert _environment()["UPDATE_DIR"] == "/app/update"

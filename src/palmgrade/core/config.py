@@ -38,6 +38,11 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def demo_mode_dari_env() -> bool:
+    """`DEMO_MODE`, the one place it is parsed (`Settings.demo_mode` and the console route)."""
+    return _as_bool(os.getenv("DEMO_MODE"), False)
+
+
 def _baca_media_env(path: str) -> dict[str, str]:
     """Isi `media.env` sebagai dict, atau kosong kalau tidak terbaca.
 
@@ -554,6 +559,10 @@ class Settings:
     scale_plc_error_bit: str = field(default_factory=lambda: os.getenv("SCALE_PLC_ERROR_BIT", ""))
     scale_poll_ms: int = field(default_factory=lambda: _plc_int("SCALE_POLL_MS", 500))
 
+    # Demo only (demo-autograde.smagri.id): the screen simulates live lines and a scale in the
+    # browser. Nothing simulated is stored or sent. The factory compose never forwards it.
+    demo_mode: bool = field(default_factory=lambda: demo_mode_dari_env())
+
     # ------------------------------------------------------------------ sumber kamera
 
     def __post_init__(self) -> None:
@@ -669,6 +678,25 @@ class Settings:
                 "INTERNAL_SECRET belum diisi atau sama dengan WEBHOOK_SECRET: perintah "
                 "konsol ke line memakai kunci yang juga dipegang program timbangan. Isi "
                 "INTERNAL_SECRET yang berbeda di .env dan compose host, lalu autograde restart."
+            )
+
+    def validate_demo_mode(self) -> None:
+        """Fake numbers on a screen that drives real pistons would be a costly lie.
+
+        `SCALE_PLC_HOST` is read from the raw env: the field falls back to `PLC_HOST`,
+        and only a value set on its own says the scale is wired.
+        """
+        if not self.demo_mode:
+            return
+        nyata = [n for n, v in (
+            ("PLC_ENABLED", self.plc_enabled), ("PLC_HOST", self.plc_host.strip()),
+            ("SCALE_PLC_HOST", os.getenv("SCALE_PLC_HOST", "").strip()),
+            ("SCALE_PLC_REGISTER", self.scale_plc_register.strip()),
+        ) if v]
+        if nyata:
+            raise RuntimeError(
+                f"DEMO_MODE is on while real hardware is configured ({', '.join(nyata)}). "
+                "DEMO_MODE belongs to the demo droplet only."
             )
 
     def _tolak_secret_lemah(self, nama: str, nilai: str) -> None:

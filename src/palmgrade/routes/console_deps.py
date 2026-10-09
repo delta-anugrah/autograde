@@ -19,7 +19,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from ..core.config import Settings
+from ..core.config import Settings, demo_mode_dari_env
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, INPUT_TIDAK_SAH, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.visit_manifest import detail_url_for
@@ -304,6 +304,13 @@ def get_scan_otomatis() -> ScanOtomatis:
     return ScanOtomatis(get_console_service(), get_gate_service(), get_timbangan_live())
 
 
+def get_demo_mode() -> bool:
+    """`DEMO_MODE` (demo-autograde.smagri.id only). Read per request on purpose, no
+    `lru_cache`: one env read is cheap, and a test that turns it on cannot leak a demo
+    screen into the next test."""
+    return demo_mode_dari_env()
+
+
 def hangatkan_singleton() -> None:
     """Build, before the first request, EVERY `lru_cache` singleton in this module.
 
@@ -345,6 +352,7 @@ Riwayat = Annotated[RiwayatService, Depends(get_riwayat_service)]
 Slip = Annotated[SlipGrading, Depends(get_slip_service)]
 Impor = Annotated[ImporGradingService, Depends(get_impor_grading_service)]
 Pembaruan = Annotated[PembaruanService, Depends(get_pembaruan_service)]
+DemoMode = Annotated[bool, Depends(get_demo_mode)]
 
 
 def require_operator(

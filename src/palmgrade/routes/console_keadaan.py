@@ -9,14 +9,15 @@ from __future__ import annotations
 from fastapi import APIRouter
 from starlette.concurrency import run_in_threadpool
 
-from .console_deps import Dev, Operator, Pembaruan, Service, Slip
+from .console_deps import DemoMode, Dev, Operator, Pembaruan, Service, Slip
 
 keadaan_router = APIRouter(tags=["console"])
 
 
 @keadaan_router.get("/api/console/state")
 async def console_state(
-    service: Service, dev: Dev, pembaruan: Pembaruan, slip: Slip, operator: Operator
+    service: Service, dev: Dev, pembaruan: Pembaruan, slip: Slip, operator: Operator,
+    demo_mode: DemoMode,
 ) -> dict:
     """Ringkasan hari kerja, plus keadaan langganan untuk banner operator.
 
@@ -43,4 +44,6 @@ async def console_state(
         "pembaruan": (await run_in_threadpool(pembaruan.keadaan)).as_dict(),
         # Batch 5.9: whether the Rekap tab offers Print (support switch, one small read).
         "slip_cetak": slip.aktif(),
+        # demo-autograde.smagri.id only: the screen simulates live lines and a scale.
+        "demo_mode": demo_mode,
     }
