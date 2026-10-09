@@ -89,3 +89,43 @@ def test_demo_cards_skip_the_camera_probe_and_keep_one_shape():
     assert kode[0] == "if (demoHidup.aktif) return;"
     muat = HTML[HTML.index("function feedMemuat(img)") :]
     assert "demoHidup.aktif" in muat[: muat.index("\n}")]
+
+
+# ── grading table and scale (Task 4) ─────────────────────────────────────
+
+
+@butuh_node
+def test_scale_cycles_like_the_design():
+    out = jalankan(["bacaanDemo"], "[0, 3, 8, 15, 16].map((d) => bacaanDemo(d))",
+                   tambahan=HTML[HTML.index("const KG_DEMO = ") :].split("\n")[0])
+    assert [r["keadaan"] for r in out] == ["stabil", "bergerak", "stabil", "bergerak", "stabil"]
+    assert out[2]["kg"] == 21640 and out[0]["kg"] == 0
+
+
+def test_demo_rows_only_on_page_one_without_a_filter():
+    """A filtered table (Line 2, one truck) or page 2 never shows simulated rows (review focus 2)."""
+    body = HTML.split("async function muatGrading()")[1].split("\n}\n")[0]
+    assert "demoHidup.aktif && gradingOffset === 0 && !adaSaringan()" in body
+
+
+def test_scale_tile_reads_the_demo_curve_in_demo_mode():
+    body = HTML.split("async function muatTimbanganLive() {")[1].split("\n}\n")[0]
+    assert body.strip().startswith("if (demoHidup.aktif) {")
+
+
+@butuh_node
+def test_demo_row_has_every_field_the_table_reads():
+    out = _jalan("majuDemo(0); return barisDemoGrading()[0];", FUNGSI + ["barisDemoGrading"])
+    assert set(out) >= {"timestamp", "line_code", "plate_number", "source_label",
+                        "ripeness_status", "grade_class", "image_url", "thumb_url"}
+    assert out["plate_number"] == "BE 8605 TSD"
+    assert (out["grade_class"], out["ripeness_status"]) == ("Ripe", "ACC")
+
+
+@butuh_node
+def test_only_ripe_is_acc_in_demo_rows():
+    """`tagHasil` colours by ripeness_status: a REJ class must not draw green."""
+    out = _jalan("for (let i = 0; i < 6; i++) majuDemo(i);"
+                 " return barisDemoGrading().map((r) => [r.grade_class, r.ripeness_status]);",
+                 FUNGSI + ["barisDemoGrading"])
+    assert {tuple(r) for r in out} == {("Ripe", "ACC"), ("Unripe", "REJ")}

@@ -5525,6 +5525,13 @@ async function muatGrading() {
   const per = Number(gradingPer);
   try {
     const r = await api(`/api/console/history?${paramGrading(per, gradingOffset, gradingSaring)}`);
+    // Demo mode: simulated rows on top, only on page 1 with no filter (they belong to no truck
+    // or line the operator picked, and past page 1 the operator is reading, not watching).
+    if (demoHidup.aktif && gradingOffset === 0 && !adaSaringan()) {
+      const tambah = barisDemoGrading();
+      r.items = tambah.concat(r.items).slice(0, per);
+      r.total += tambah.length;
+    }
     gradingTotal = r.total;
     // Deleted rows, or a filter that shrank the day, can leave the offset past the end.
     // Step back one page rather than showing an empty table with a live Previous button.
@@ -7022,6 +7029,10 @@ function gambarTimbanganLive(r) {
 const JEDA_TIMBANG_MATI_MS = 30000;
 let timbangLive = { r: null, pada: 0 };
 async function muatTimbanganLive() {
+  if (demoHidup.aktif) {
+    gambarTimbanganLive(bacaanDemo(Math.floor((Date.now() - demoHidup.mulai) / 1000)));
+    return;
+  }
   const belumDipasang = timbangLive.r && timbangLive.r.keadaan === "tidak_dipakai";
   if (!belumDipasang || Date.now() - timbangLive.pada >= JEDA_TIMBANG_MATI_MS) {
     try {
@@ -8069,6 +8080,26 @@ function gambarFeedDemo() {
     if (img && src && !img.src.endsWith(src)) img.src = src;
     c.classList.remove("putus");
   }
+}
+
+// Same curve as the design canvas: empty, truck drives on, settles, drives off. 16 s a lap.
+const KG_DEMO = [0, 0, 6200, 14900, 20800, 21720, 21660, 21640, 21640, 21640, 21640, 21640, 21640, 21640, 9800, 1200];
+function bacaanDemo(detik) {
+  const j = ((detik % KG_DEMO.length) + KG_DEMO.length) % KG_DEMO.length;
+  const kg = KG_DEMO[j];
+  const keadaan = (j >= 7 && j <= 13) || kg === 0 ? "stabil" : "bergerak";
+  return { keadaan, kg, umur_detik: 0 };
+}
+
+// Simulated bunches as rows of the Grading table, newest first. One demo truck (a plate from
+// scripts/seed-console-demo.py PLATES, rule 7); the seeded trucks carry no supplier, so no
+// source label. Only Ripe is ACC, as on the factory lines (tagHasil colours by it).
+function barisDemoGrading() {
+  return demoHidup.baris.map((b) => ({
+    timestamp: new Date(b.pada).toISOString(), line_code: b.line, plate_number: "BE 8605 TSD",
+    source_label: null, ripeness_status: b.kelas === "Ripe" ? "ACC" : "REJ", grade_class: b.kelas,
+    image_url: b.src, thumb_url: b.src,
+  }));
 }
 
 async function cekKamera() {
