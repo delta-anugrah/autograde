@@ -78,15 +78,23 @@ janjang lengkap dengan kotak deteksinya, angka Ripe/Unripe/Total naik, baris bar
 tabel Hasil grading (plat `BE 8605 TSD`), strip foto kecil di kartu ikut berganti, dan
 Timbangan sekarang naik, diam di 21.640 kg, lalu turun lagi (satu putaran 16 detik).
 
-Nyala lewat satu baris di `/opt/autograde-demo/.env`: `DEMO_MODE=1`, lalu
-`docker compose up -d`. Image lebih lama dari fitur ini mengabaikan baris itu.
+Menyalakannya, sekali, dari laptop (droplet tidak punya source code):
+
+1. **Salin ulang compose kit dulu.** Compose di droplet adalah salinan lama yang belum
+   meneruskan `DEMO_MODE`; tanpa langkah ini baris di `.env` diam saja dan layarnya tetap
+   seperti dulu, tanpa error:
+   `git show origin/main:deploy/demo/docker-compose.yml | ssh autoerpprod 'cat > /opt/autograde-demo/docker-compose.yml'`
+2. Tambahkan `DEMO_MODE=1` ke `/opt/autograde-demo/.env`, lalu `docker compose up -d` di
+   `/opt/autograde-demo`. Image lebih lama dari fitur ini mengabaikannya.
+3. Cek: `docker exec autograde_demo_console printenv DEMO_MODE` menjawab `1`.
 
 Yang perlu diketahui:
 
 - **Semua cuma di browser.** Tidak ada yang ditulis ke database dan tidak ada yang dikirim ke
   AutoERP demo. Tekan refresh = mulai lagi dari angka hasil seeder.
 - Baris simulasi hanya muncul di halaman 1 tabel tanpa saringan. Pilih satu line atau satu truk,
-  atau pindah ke halaman 2, dan yang tampil cuma data seeder.
+  atau pindah ke halaman 2, dan yang tampil cuma data seeder. Jumlah di bawah tabel halaman 1
+  ikut menghitung baris simulasi, jadi angkanya tidak persis sama dengan halaman 2.
 - Tab yang tidak sedang dilihat berhenti bergerak; tidak ada kerja di latar belakang.
 - Fotonya lima gambar bawaan (`src/palmgrade/static/demo/`, dibuat dengan
   `scripts/buat-frame-demo.py`), disajikan di `/demo/<nama>` **hanya** kalau `DEMO_MODE` nyala.

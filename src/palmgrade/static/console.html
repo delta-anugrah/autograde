@@ -8025,12 +8025,16 @@ async function aktifkanDemo(on) {
   // refresh() calls this every 2 s: `memuat` keeps a slow first fetch from starting twice.
   if (!on || demoHidup.aktif || demoHidup.memuat) return;
   demoHidup.memuat = true;
+  // A refusal with a JSON body (a proxy in front) must not switch it on with no frames: the
+  // camera boxes would vanish and every tick would throw. Off, and the next poll tries again.
+  let frames = null;
   try {
-    demoHidup.frames = (await (await fetch("/demo/frames.json", { cache: "force-cache" })).json()).frames;
-  } catch (e) {
-    demoHidup.memuat = false;
-    return;
-  }
+    const res = await fetch("/demo/frames.json", { cache: "force-cache" });
+    if (res.ok) frames = (await res.json()).frames;
+  } catch (e) { /* offline or not JSON: stays off, the next poll tries again */ }
+  demoHidup.memuat = false;
+  if (!Array.isArray(frames) || !frames.length) return;
+  demoHidup.frames = frames;
   demoHidup.aktif = true;
   demoHidup.mulai = Date.now();
   dipasang = false;  // redraw the cards so their <img> points at the demo frames

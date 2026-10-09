@@ -148,3 +148,24 @@ const api = async () => ({ items: [{ line_code: "Line 1", image_url: "/seed.webp
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
     assert hasil.returncode == 0, hasil.stderr[-800:]
     assert json.loads(hasil.stdout) == [["Line 1", "/demo/frame-2.webp"], ["Line 1", "/seed.webp"]]
+
+
+@butuh_node
+@pytest.mark.parametrize("jawaban", [
+    '{ ok: false, json: async () => ({ detail: "forbidden" }) }',
+    '{ ok: true, json: async () => ({ frames: [] }) }',
+])
+def test_a_bad_frames_answer_leaves_the_demo_off(jawaban):
+    """A proxy refusal with a JSON body must not switch the demo on with no frames: the camera
+    boxes would vanish and every tick would throw (final review 2026-10-09)."""
+    skrip = "\n".join([SIAP.replace("aktif: true", "aktif: false"), f"""
+let dipasang = true;
+const document = {{ hidden: false }};
+const setInterval = () => 0;
+const fetch = async () => ({jawaban});
+""", fungsi("aktifkanDemo"), """
+(async () => { await aktifkanDemo(true); console.log(JSON.stringify([demoHidup.aktif, demoHidup.memuat])); })();
+"""])
+    hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
+    assert hasil.returncode == 0, hasil.stderr[-800:]
+    assert json.loads(hasil.stdout) == [False, False]

@@ -34,9 +34,11 @@ Validated:      pytest tests/unit tests/e2e tests/integration → exit 0, 6171 p
                 ruff check src/ tests/ → All checks passed. tests/cek_skrip_konsol.py → OK.
                 tests/browser/test_browser_demo_hidup.py → 2 passed in Chromium and Firefox (and
                 fails with DEMO_MODE=0). Screenshots at 1440 and 1920, light and dark, by eye.
-Not validated:  Not on the droplet yet: needs a release and DEMO_MODE=1 in /opt/autograde-demo/.env.
+Not validated:  Not on the droplet yet: needs a release, the kit compose copied again (the droplet copy
+                does not forward DEMO_MODE), then DEMO_MODE=1 in /opt/autograde-demo/.env.
 Decisions:      /demo/<name> is public (stock photos, 404 on any factory console). DEMO_MODE is read
                 per request through console_deps.get_demo_mode, uncached, so tests cannot leak it.
+                A frames.json refusal leaves the demo off (final review).
 Next:           PR 2 of the plan: auto-deploy the demo after every tag.
 
 ## 2026-10-08 · vision · Detection boxes and FPS drawn like the console design (PR #261)
