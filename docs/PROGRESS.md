@@ -18,6 +18,22 @@ Next:           ...
 
 ---
 
+## 2026-10-10 · docs · README rewritten in English (PR #TBD)
+Changed:        README.md rewritten in English for an engineer opening the repo: what it is, system
+                context, line and console flow, grading rules, quick start (Mac and Linux),
+                configuration, make targets, operator console, demo data, camera sources, HTTP API,
+                evidence and upload, per-truck R2 detail, licence guard, testing, release and
+                deployment, contributing, documentation map. 843 mixed-language lines became 624.
+                Stale facts fixed: licence tokens are issued in AutoERP (not "the cloud API"),
+                captures.smagri.id is behind a password gate (not "public"), the hard-coded
+                /home/nexio video mount is gone (sources come from media.env), camera selection
+                names CAMERA_SERIAL and MEDIA_FILE. Long rationale stays in docs/ and is linked.
+Validated:      test_doc_links.py, test_dokumen_tanpa_em_dash.py → pass; every path and test file the
+                README names exists; make targets checked against the Makefile; package pins
+                against requirements-ci.txt; PLC coil map against docs/plc-mc-handoff.md.
+Not validated:  Rendering on GitHub (badges, alert blocks) not seen.
+Next:           None.
+
 ## 2026-10-10 · ci · deploy-demo passes the secrets on (PR #266)
 Changed:        deploy.yml job deploy-demo gets `secrets: inherit`. On the v1.27.0 tag the called job ran
                 in environment `demo` and still read all four DEMO_SSH_* as empty (ssh printed its usage,
