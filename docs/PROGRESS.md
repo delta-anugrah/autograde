@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-10 · docs · README rewritten in English (PR #TBD)
+## 2026-10-10 · docs · README rewritten in English (PR #267)
 Changed:        README.md rewritten in English for an engineer opening the repo: what it is, system
                 context, line and console flow, grading rules, quick start (Mac and Linux),
                 configuration, make targets, operator console, demo data, camera sources, HTTP API,
