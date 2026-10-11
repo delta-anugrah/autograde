@@ -1,614 +1,468 @@
-# autograde
+# AutoGrade
 
-AI camera service for the **Palmgrade** palm oil ripeness grading system.
+[![CI](https://github.com/delta-anugrah/autograde/actions/workflows/ci.yml/badge.svg?branch=staging)](https://github.com/delta-anugrah/autograde/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Runs as **3 camera containers** (one per line, each on its own Hikrobot industrial camera) plus a **4th container dari image yang sama**: konsol operator offline (`APP_MODE=console`, port **8100** di PC pabrik). Line melakukan deteksi ripeness YOLO real-time, menulis tiap hasil ke disk, lalu mengirimkannya lewat **dua jalur paralel**: realtime ke konsol lokal (poll 1 detik) dan **batch tiap jam** ke Cloudflare R2 (foto). Konsol mengirim satu rekap per kunjungan truk ke AutoERP.
+AutoGrade grades fresh fruit bunches (FFB) at a palm oil mill in real time. Industrial cameras
+watch the conveyor, a YOLO model classifies every bunch, a PLC fires the reject piston, and an
+offline operator console records each truck visit and sends one summary per visit to AutoERP.
 
-> **Baru pertama kali buka repo ini?** Baca [`docs/MANUAL.md`](docs/MANUAL.md) dulu (bahasa
-> Indonesia, versi cetak `docs/MANUAL.pdf`): sistem ini ngapain, cara pakai konsol, pasang,
-> operasional, peta folder (§9.1), dan langkah pertama (§9.2).
+One Docker image runs four times on the factory PC:
 
----
-
-## Quick Start: pilih jalur
-
-Ada **dua jalur yang sengaja dipisah**. Produksi selalu jalan di Linux; develop boleh di Mac.
-Jalur Linux tidak pernah diubah demi Mac, yang untuk Mac cuma tambahan.
-
-| | **Develop di Mac** (tanpa kamera) | **Linux / PC pabrik** (produksi) |
+| Container | Role | Port |
 |---|---|---|
-| Yang jalan | konsol operator, native (tanpa Docker) | 3 line kamera + konsol, di Docker |
-| Butuh | Python 3.12 | Docker, GPU NVIDIA + Container Toolkit, SDK MVS di `/opt/MVS`, model `.pt` |
-| Start | `make console` | `make up` (dari source) atau launcher `autograde` (image produksi, Lampung) |
-| Layar | http://127.0.0.1:8100/console | http://localhost:8000/console dari source, `:8100` image produksi |
+| `ripe_line_1`, `ripe_line_2`, `ripe_line_3` | One camera line each: capture, YOLOv8 + ByteTrack, PLC pulse, evidence on disk | 8001, 8002, 8003 |
+| `palmgrade_console` | Operator console (`APP_MODE=console`): grading, trucks, weighbridge, recap; talks to AutoERP | 8100 on the factory PC, 8000 in the dev compose |
 
-### Develop di Mac: dari nol
+The console never imports torch or OpenCV, so a dead camera line cannot take the operator screen
+down, and it keeps working with the internet down.
+
+New to the project? Start with [`docs/MANUAL.md`](docs/MANUAL.md) (Indonesian, printed version
+`docs/MANUAL.pdf`): what the system does, how the console is used, installation, operations, the
+folder map (§9.1) and first steps (§9.2).
+
+## Contents
+
+- [System context](#system-context)
+- [How it works](#how-it-works)
+- [Grading rules](#grading-rules)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Running](#running)
+- [Operator console](#operator-console)
+- [Camera sources](#camera-sources)
+- [HTTP API](#http-api)
+- [Evidence, upload and storage](#evidence-upload-and-storage)
+- [Per-truck grading detail (R2)](#per-truck-grading-detail-r2)
+- [Licence guard](#licence-guard)
+- [Testing](#testing)
+- [Release and deployment](#release-and-deployment)
+- [Contributing](#contributing)
+- [Documentation map](#documentation-map)
+- [License](#license)
+
+## System context
+
+| Component | Role |
+|---|---|
+| **AutoGrade** (this repo) | Factory PC: three camera lines and the operator console. Works offline. |
+| **AutoERP** (`delta-anugrah/autoerp`) | ERPNext fork with the `palm_mill` module. Receives one message per truck visit, issues licences, holds master data (suppliers, trucks, operator accounts). |
+| `palmgrade-api`, `palmgrade-frontend` | Retired on 2026-09-20. The console replaced them on the factory PC. |
+
+The lines post their events to the local console (`BACKEND_URL`), with the same contract the old
+API used, so the line code did not change when the console took over. The console calls
+AutoERP; AutoERP never calls the factory.
+
+## How it works
+
+### Camera line
+
+```
+Camera (Hikrobot GigE / OpenCV webcam or video / still photo)
+  -> FrameCaptureWorker (thread) -> frame_queue
+  -> FrameProcessingWorker (thread)
+       YOLOv8 + ByteTrack -> Ripe / Unripe / JK (empty bunch) / TP (long stalk)
+       bunch touches the capture line -> PLC pulse + hand a SaveJob over, then continue
+  -> CaptureSaveWorker (thread, queue of 8)
+       encode WebP (bbox, clean, thumb), write the JSON sidecar, add one outbox row
+  -> OutboxRetryWorker (polls every 1 s) -> POST BACKEND_URL (the local console)
+  -> BatchUploadWorker (hourly, separate path)
+       scan -> UploadManifest (state/upload_manifest.db) -> PUT images to Cloudflare R2
+       -> optional text POST to UPLOAD_API_URL (empty at the factory)
+       -> retention: delete uploaded files older than UPLOAD_RETENTION_DAYS
+  -> StreamingService -> MJPEG /api/video_feed (many viewers, one Condition broadcast)
+
+console -> POST /internal/assignment     (which truck is on this line)
+console -> POST /internal/manual-reject  (operator reject)
+```
+
+The detection thread never waits for disk or network: evidence is written first, then workers
+deliver it. Full flow and invariants: [`docs/overview.md`](docs/overview.md) §2 to §6.
+
+### Operator console
+
+```
+3 lines            -> POST /api/v1/internal/vision/events -+
+weighbridge program -> POST .../scale/weighing             +-> SQLite index state/console.db
+                                                           |   (the console never scans folders)
+                                                           +-> MasterDataWorker  <- suppliers, trucks, accounts from AutoERP
+                                                               ErpOutboxWorker   -> new trucks (§4.B) and truck visits (§4.C)
+                                                               VisitResendWorker -> yesterday's visits, once a day
+PLC word register (MC Protocol, port 1028) -> TimbanganLiveWorker -> live scale tile (when SCALE_PLC_REGISTER is set)
+
+/console -> one static HTML file, vanilla JS, no build step, no CDN
+            camera streams are <img> MJPEG straight from :8001/:8002/:8003, not through the console
+```
+
+## Grading rules
+
+The model (`models/release/best.pt`) has four classes. A class is not a verdict: the verdict is
+derived from the class in `src/palmgrade/domain/grade_class.py`. The binary `ripeness_status`
+drives the piston and is what gets booked; `grade_class` is the four-way detail on screen.
+
+| Model class | Verdict | PLC coil | Piston |
+|---|---|---|---|
+| `Ripe` | ACC | `PLC_COIL_BASE + 0` | no |
+| `Unripe` | REJ | `PLC_COIL_BASE + 1` | yes |
+| `JK` (empty bunch) | REJ | `PLC_COIL_BASE + 1` | yes |
+| `TP` (long stalk) | none | no pulse | no |
+
+- `PLC_COIL_BASE` per line: line 1 = M1000, line 2 = M1003, line 3 = M1006 (MC Protocol; map in
+  [`docs/plc-mc-handoff.md`](docs/plc-mc-handoff.md)). `Unripe` and `JK` share a coil because the
+  panel has two outputs per camera.
+- REJ bunches from an **Internal** truck are not pulsed (`src/palmgrade/domain/plc_signal.py`):
+  they go to the ramp anyway, so the PLC's NG counter is lower than the console's REJ count while
+  an internal truck unloads.
+- **Minimum size:** boxes smaller than `MINIMUM_SIZE` (460,000 px²) are forced to REJ.
+- **Tracking:** ByteTrack gives each bunch a `track_id`; a bunch is saved once (single trigger).
+- **Detection zone:** only boxes whose centre falls in the ROI (`ROI_X1/Y1/X2/Y2`, default the full
+  frame) count. The ROI set in the console's Setelan tab wins over `.env`. TP is exempt.
+- **When to photograph:** a bunch is captured when its box **touches** the capture line
+  (`GARIS_CAPTURE`, set from the console, `0` = off). The ROI says *where*, the line says *when*.
+  `SUMBU_GARIS` picks a vertical line (horizontal conveyor, px from the left) or a horizontal one
+  (px from the top).
+- **Long stalks:** a TP is paired with the nearest bunch within 1.5 times half its box diagonal,
+  and only if no other bunch in that frame is closer (`domain/garis_capture.tp_untuk_janjang`).
+  A TP that arrives late is counted in `tp_telat` on `/health/detail`.
+- **Overlapping bunches:** more than one unprocessed bunch in the ROI in the same frame forces all
+  of them to REJ.
+- **Labels:** boxes show the class only, no confidence percentage (from a few metres "54%" reads
+  like a ripeness level). The `mode_dev` switch in Setelan brings the number back for tuning.
+
+Rule texts with rationale: [`docs/rules.md`](docs/rules.md) (rules 0, 1c and 2).
+
+## Quick start
+
+Two paths, kept separate on purpose. Production always runs on Linux; development may run on a
+Mac. The Linux path is never changed for the Mac's sake.
+
+| | Develop on a Mac (no camera) | Linux / factory PC (production) |
+|---|---|---|
+| Runs | Operator console, native (no Docker) | Three camera lines and the console, in Docker |
+| Needs | Python 3.12 | Docker, an NVIDIA GPU with the Container Toolkit, Hikrobot MVS SDK in `/opt/MVS`, a `.pt` model |
+| Start | `make console` | `make up` from source, or the `autograde` launcher with the GHCR image (factory PCs) |
+| Screen | <http://127.0.0.1:8100/console> | <http://localhost:8000/console> from source, `:8100` with the production image |
+
+### Develop on a Mac
 
 ```bash
 git clone git@github.com:delta-anugrah/autograde.git
 cd autograde
 cp .env.example .env
 
-# venv khusus konsol + tes. Sengaja TIDAK memasang torch / ultralytics / opencv:
-# konsol tidak memakainya, dan requirements.txt penuh itu untuk image Docker.
-# `segno` (77 KB, pure-Python) dipakai membuat kartu QR truk di server: console.html
-# nol referensi https://, jadi pustaka QR dari CDN mati saat internet putus.
+# A small venv for the console and the tests. It deliberately leaves out torch, ultralytics and
+# OpenCV: the console does not use them, and requirements.txt is for the Docker image.
+# segno (pure Python) renders the truck QR cards on the server, so console.html needs no CDN.
 python3.12 -m venv .venv
 .venv/bin/pip install "fastapi==0.115.12" "uvicorn[standard]==0.34.0" "python-dotenv==1.1.0" \
   "httpx==0.28.1" "pydantic==2.11.3" "segno==1.6.6" \
   pytest ruff cryptography aiosqlite psutil boto3 pyyaml
 
-make operator                     # sekali: akun lokal buat login (tanya email + nama + sandi)
-make demo                         # opsional: isi layar dengan data contoh (lihat "Coba di lokal")
-make demo-reset                   # hapus data demo lalu isi ulang bersih
-make demo-off                     # sesudah showcase: hapus data demo, data sungguhan tidak disentuh
-make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
-.venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
+make operator        # once: a local account to sign in with (asks for email, name, password)
+make demo            # optional: fill the screen with sample data (see "Demo data")
+make console         # http://127.0.0.1:8100/console, Ctrl-C to stop
+.venv/bin/pytest tests/unit
 ```
 
-- **Tanpa AutoERP** konsol tetap jalan penuh dari data lokal (`ERP_URL` kosong di `.env`).
-  Tiga kartu kamera tampil **OFFLINE**, itu benar, di Mac tidak ada line kamera.
-- **Menyambung ke AutoERP lokal:** nyalakan dari repo `autoerp` (`make up`, lalu `make key-show`),
-  lalu tempel kuncinya ke `.env`. Langkah lengkap + tes end-to-end ada di
-  [Konsol operator](#konsol-operator-app_modeconsole); untuk E2E, `CONSOLE_LINE_HOST` di `.env`
-  harus `http://127.0.0.1` (di macOS `localhost` menunjuk `::1` dulu).
-- **Port 8100**, bukan 8000: AutoERP lokal memakai 8000.
+- Without AutoERP the console runs fully from local data (`ERP_URL` empty). The three camera cards
+  show **OFFLINE**: correct, there are no camera lines on a Mac.
+- Port **8100**, not 8000: a local AutoERP bench uses 8000.
+- `make up` and `make up-prod` stop at `Hikrobot MVS SDK not found at /opt/MVS` on a Mac, as
+  intended. `make up-dev` builds on Apple Silicon, but its console uses `network_mode: host` on
+  port 8000 (taken by AutoERP) and its lines have no camera.
 
-⚠️ **Target Docker bukan untuk Mac:**
-- `make up` / `make up-prod` butuh SDK MVS + GPU NVIDIA, jadi berhenti di
-  `Hikrobot MVS SDK not found at /opt/MVS`. Itu memang seharusnya.
-- `make up-dev` bisa dibuild di Apple Silicon, tapi container konsol memakai `network_mode: host`
-  di port 8000 (rebutan dengan AutoERP), dan line-nya tidak punya kamera.
+### Linux / factory PC
 
-### Linux / PC pabrik
+Prepare the machine with [Configuration](#configuration) and [`docs/SETUP.md`](docs/SETUP.md),
+then `make up` (all targets in [Running](#running)). Factory PCs do not run `make`; see
+[Release and deployment](#release-and-deployment).
 
-Pasang dulu lewat [Setup](#setup) dan [Production Deployment](#production-deployment-pindah-ke-pc-baru),
-lalu `make up` (daftar perintah lengkap di [Running](#running)). PC pabrik Lampung sehari-hari
-memakai launcher `autograde` di host (`autograde pull`, `autograde status`), bukan `make`, lihat `sawit/docs/runbooks/`.
-
----
-
-## Part of the Palmgrade System
-
-| Repo | Role | Port |
-|---|---|---|
-| **`autograde`** | AI camera + inference (per line) | 8001 / 8002 / 8003 |
-| **`autograde`** (`APP_MODE=console`) | Konsol operator offline: grading + timbangan | **8100** di PC pabrik & `make console`; 8000 di compose dev |
-| `palmgrade-api` | Business logic, auth, SSE broker, **pensiun**, diganti AutoERP | 2500 |
-| `palmgrade-frontend` | Operator dashboard UI: **pensiun**, konsol pindah ke sini | 3050 |
-
-> Sejak Fase 2 (rencana yang dulu bernama PalmOS, sekarang AutoERP) konsol menggantikan
-> peran `palmgrade_api` lokal di PC pabrik:
-> tiga line menyetel `BACKEND_URL` ke konsol (`http://console:8000` di dalam Docker,
-> `http://localhost:8100` kalau konsolnya native) dan mengirim event dengan kontrak yang
-> sama persis (7 → 4 container). **Nol perubahan di kode line.**
-
-> Full system architecture: see [`ARCHITECTURE.md`](../ARCHITECTURE.md)
-
----
-
-## How It Works
-
-```
-Camera (Hikrobot / OpenCV / Photo)
-    → FrameCaptureWorker  (thread) → frame_queue
-    → FrameProcessingWorker (thread)
-        → YOLOv8 + ByteTrack
-        → detect: Ripe / Unripe / JK (janjang kosong) / TP (tangkai panjang)
-        → janjang MENYENTUH garis capture → pulse PLC + serahkan SaveJob, lalu LANJUT
-    → CaptureSaveWorker (thread, antrean 8)     ← sejak 2026-09-18
-        → encode WebP bbox + clean + thumb, tulis JSON sidecar, satu baris outbox
-        → file di disk ITU antriannya untuk jalur cloud
-    → OutboxRetryWorker (poll 1 dtk) → POST BACKEND_URL = konsol lokal
-    → BatchUploadWorker (tiap jam, jalur terpisah ke cloud)
-        → _scan() → UploadManifest (SQLite, state/upload_manifest.db)
-        → PUT image ke Cloudflare R2
-        → POST teks ke UPLOAD_API_URL cuma kalau diisi (api cloud pensiun; di pabrik kosong)
-        → _retention(): hapus WebP+JSON yg `done` & lewat UPLOAD_RETENTION_DAYS
-    → StreamingService
-        → MJPEG /api/video_feed (multi-viewer via Condition broadcast)
-
-konsol → POST /internal/assignment → update state.current_truck_id + assignment_id
-konsol → POST /internal/manual-reject → trigger capture_manual_reject()
-```
-
-**Konsol operator** (container ke-4, `console_main.py`: sengaja tidak memuat torch/cv2,
-jadi satu line kamera mati tidak menjatuhkan layar operator):
-
-```
-3 line → POST /api/v1/internal/vision/events ┐
-program timbangan → POST .../scale/weighing  ├→ index SQLite state/console.db
-                                             │  (konsol TIDAK pernah memindai direktori)
-                                             └→ MasterDataWorker  ← supplier + truk dari AutoERP  (kalau ERP_URL diisi)
-                                                ErpOutboxWorker   → truk baru (§4.B) + kunjungan truk (§4.C)
-                                                VisitResendWorker → kunjungan kemarin, sekali sehari
-PLC register D (MC Protocol, port 1028) → TimbanganLiveWorker → kartu "Timbangan sekarang" (kalau SCALE_PLC_REGISTER diisi)
-
-/console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
-            stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
-```
-
-**Model deteksi**: `best.pt`: 4 kelas: `Ripe`, `Unripe`, `JK` (janjang
-kosong), `TP` (tangkai panjang).
-
-Putusannya **diturunkan** dari kelas, bukan sama dengan kelasnya
-(`domain/grade_class.py`). PLC punya dua coil dan AutoERP tiga kriteria, jadi
-`ripeness_status` yang biner tetap menjadi hal yang memicu piston dan yang
-dibukukan; `grade_class` adalah rincian 4 arah yang tampil di layar:
-
-| Kelas model | Verdict | Coil | Piston |
-|---|---|---|---|
-| `Ripe` | ACC | `PLC_COIL_BASE + 0` | tidak |
-| `Unripe` | REJ | `PLC_COIL_BASE + 1` | ya |
-| `JK` | REJ | `PLC_COIL_BASE + 1` | ya |
-| `TP` | tidak ada | tidak ada pulse | tidak |
-
-`PLC_COIL_BASE` per line: line 1 = M1000, line 2 = M1003, line 3 = M1006 (MC Protocol, peta `docs/plc-mc-handoff.md`). `Unripe` dan `JK`
-menembak coil yang sama: panel tidak bisa membedakannya, dan memisahkannya
-butuh piston ketiga. `TP` tidak pernah menyentuh PLC: dia properti sebuah
-janjang, bukan janjang. Satu pengecualian lagi: janjang REJ milik truk
-**Internal** sengaja tidak dipulse sama sekali (`domain/plc_signal.py`) karena
-tetap masuk ramp: jadi penghitung NG di PLC memang lebih kecil dari angka REJ
-di konsol saat truk internal lewat.
-**Ukuran minimum**: 460.000 px²: objek di bawah luas ini dipaksa jadi `rej`
-**Pelacakan**: ByteTrack: tiap buah dapat `track_id` unik, disimpan sekali saja (single-trigger)
-**Zona deteksi**: kotak ROI (`ROI_X1/Y1/X2/Y2`): cuma objek yang titik tengahnya jatuh di dalam kotak yang dihitung. Bawaannya `0,0,0,0` = satu frame penuh; bisa juga diatur dari tab Setelan di konsol (kotak area deteksi), yang menang atas `.env`. Kelas TP dikecualikan dari pemeriksaan ROI.
-**Titik ambil foto**: satu janjang difoto ketika kotaknya **menyentuh** garis capture (`GARIS_CAPTURE`, diatur dari layar support di konsol). ROI menjawab *di mana* (ini konveyornya), garis menjawab *kapan*. Sejak 2026-09-18 ini menggantikan "titik tengah masuk kotak ROI", yang baru memicu waktu separuh janjang sudah lewat, dan dengan ROI bawaan satu layar penuh, memicu begitu janjang terdeteksi di mana pun. `0` = tanpa garis, perilaku lama. `SUMBU_GARIS` memilih garis tegak (konveyor mendatar, px dari kiri) atau garis mendatar (konveyor tegak, px dari atas).
-**Tangkai panjang (TP)**: dipasangkan ke janjang **terdekat** dalam jarak 1,5 × setengah diagonal kotaknya, dan cuma kalau tidak ada janjang lain di frame itu yang lebih dekat (`domain/garis_capture.tp_untuk_janjang`). Satu janjang difoto apa adanya, punya tangkai atau tidak; TP yang muncul belakangan dihitung di `tp_telat` pada `/health/detail`.
-**Aturan buah bertumpuk**: >1 buah (belum diproses) berada dalam ROI di frame yang sama → semuanya di-force `rej`.
-**Label kotak**: kelasnya saja (`Ripe` / `Unripe` / …), tanpa persentase keyakinan, dari jarak beberapa meter "54%" terbaca sebagai tingkat kematangan. Saklar `mode_dev` di layar setelan mengembalikannya untuk menyetel ambang batas.
-
----
-
-## Prerequisites
-
-- Docker & Docker Compose
-- `make` (GNU Make)
-- Hikrobot MVS SDK installed at `/opt/MVS/` on the host, `make up` auto-copies all required libs
-- NVIDIA Container Toolkit: untuk GPU passthrough ke Docker (lihat [Production Deployment](#production-deployment-pindah-ke-pc-baru))
-- YOLO model file at `models/release/best.pt`
-
-> **Linux / PC pabrik tidak perlu Python/venv lokal.** Semua dijalankan via Docker, `python:3.11-slim` base image sudah include semua dependencies. Develop di Mac memakai venv kecil: lihat [Quick Start](#quick-start-pilih-jalur).
-
----
-
-## Project Structure
-
-```
-autograde/
-├── src/palmgrade/
-│   ├── main.py                  # FastAPI app entry point line kamera (lifespan)
-│   ├── console_main.py          # app entry point KONSOL (APP_MODE=console) — tanpa torch/cv2
-│   ├── static/console.html      # layar operator: satu file, vanilla JS, tanpa build & tanpa CDN
-│   ├── core/                    # Config, logging, DI wiring
-│   ├── routes/                  # FastAPI routers
-│   ├── controllers/             # Request handlers
-│   ├── services/                # Business logic
-│   ├── repositories/            # File I/O (JPEG, JSON)
-│   ├── pipelines/               # YOLO inference + frame processing
-│   ├── workers/                 # Background threads & asyncio tasks
-│   ├── integrations/
-│   │   ├── camera/              # HikrobotCamera / OpenCVCamera / PhotoCamera
-│   │   ├── notifications/       # WebhookClient (httpx)
-│   │   ├── storage/             # LocalFileStorage
-│   │   ├── upload/              # R2Uploader (boto3) + UploadManifest (SQLite per-item state)
-│   │   ├── outbox/              # OutboxStore — antrean realtime ke BACKEND_URL
-│   │   ├── erp/                 # ErpClient + ErpOutboxStore — antrean kirim ke AutoERP
-│   │   └── scheduler/           # UploadScheduler — APScheduler cron, hourly @ UPLOAD_MINUTE
-│   ├── domain/                  # Pure business rules (no I/O) — working_day, ffb_source, plate,
-│   │                            #   erp_master (dokumen ERP → baris konsol), erp_messages (§4.B/§4.C)
-│   ├── plc/                     # PLC: MC Protocol ke CPU Mitsubishi (Modbus/ODOT lama masih bisa dipilih), mati by default
-│   ├── schemas/                 # Pydantic request/response models
-│   └── license/                 # License guard (Ed25519 JWS, optional)
-├── models/
-│   └── release/
-│       └── best.pt    # YOLO model — required, not committed to git
-├── images/
-│   └── sample_sawit.jpg         # gambar contoh lama untuk CAMERA_TYPE=photo — lihat media/ untuk jalur baru
-├── media/                       # Video/foto sumber kamera per line, dipilih dari layar Support — not committed to git
-├── artifacts/                   # Runtime output — not committed to git
-│   ├── line-1/
-│   ├── line-2/
-│   └── line-3/
-├── state/                       # console.db + erp_outbox.db (konsol); outbox.db + license.db per line — not committed to git
-├── scripts/                     # console-kiosk.sh + palmgrade-console.desktop
-├── Makefile
-├── Dockerfile
-├── docker-compose.yml           # 4 services: line-1..3 (8001-8003) + console (8000; prod menimpanya jadi 8100)
-├── requirements.txt
-├── .env                         # Local env (copy from .env.example)
-├── .env.example
-├── media.env                    # Sumber kamera per line (Docker), ditulis layar Support — not committed to git
-└── media.env.example
-```
-
----
-
-## Setup
-
-### 1. Clone & copy env
+## Configuration
 
 ```bash
-git clone git@github.com:delta-anugrah/autograde.git
-cd autograde
-cp .env.example .env
+cp .env.example .env              # line, console, PLC, R2, AutoERP, licence
+cp media.env.example media.env    # camera source and model per line (written later by the console)
+mkdir -p models/release           # put best.pt here (not in git)
 ```
 
-### 2. Edit `.env`
-
-Key variables to fill in:
+Key settings in `.env`:
 
 ```env
-# Sumber kamera pindah ke `media.env` (per line, diatur layar Support).
-# Salin contohnya sekali saat pemasangan:
-cp media.env.example media.env
-# Berkas video/foto ditaruh di folder `media/`.
-
-# Backend — ke mana line mengirim event.
-# Di PC pabrik ini adalah KONSOL, bukan palmgrade-api (yang sudah pensiun):
-#   di dalam Docker      → http://console:8000
-#   `make line` native   → http://localhost:8100
-# Bawaan di kode masih :2500 (palmgrade-api) karena belum diganti; isi sendiri.
+# Where the lines send their events: the local console.
+#   inside Docker: http://console:8000    native `make line`: http://localhost:8100
 BACKEND_URL=http://localhost:8100
-WEBHOOK_SECRET=your-webhook-secret   # wajib ganti dari default!
-
-# INTERNAL_SECRET (opsional, sejak batch 1 keamanan): kunci perintah KONSOL → line
-# (restart, hapus data, coil PLC, piston), terpisah dari WEBHOOK_SECRET yang juga
-# dipegang program timbangan. Kosong = ikut WEBHOOK_SECRET, .env lama tetap jalan.
+# Shared secret line <-> console and the weighbridge program. Must not stay on the default:
+# with APP_ENV=production the lines and the console refuse to boot on a public default.
+WEBHOOK_SECRET=change-me
+# Key for console -> line commands (restart, delete data, PLC coils, piston). Empty = falls back
+# to WEBHOOK_SECRET, so an old .env keeps working.
 INTERNAL_SECRET=
-
-# Machine UUIDs — dulu harus cocok dengan machines.id di PostgreSQL palmgrade-api.
-# Sejak api pensiun, compose sudah membawa UUID bawaan; konsol mencocokkan event
-# berdasarkan machine_id, bukan port.
-LINE_1_MACHINE_ID=<uuid-from-db>
-LINE_2_MACHINE_ID=<uuid-from-db>
-LINE_3_MACHINE_ID=<uuid-from-db>
-
-# Model
+# One id per line; the console maps events to lines by machine_id. The compose files carry defaults.
+LINE_1_MACHINE_ID=<uuid>
+LINE_2_MACHINE_ID=<uuid>
+LINE_3_MACHINE_ID=<uuid>
+# Detection
 MODEL_FILE=best.pt
 CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
-
-# Kotak stream MJPEG (gambar dimuatkan dengan rasio asli kamera; juga grid angka ROI/garis capture; tidak mempengaruhi hasil simpan)
+# MJPEG stream box. The picture keeps the camera's aspect ratio inside it; also the grid for the
+# ROI and the capture line. Does not change what is saved.
 STREAM_WIDTH=1280
 STREAM_HEIGHT=720
 ```
 
-### 3. Place the model file
-
-```bash
-mkdir -p models/release
-# copy best.pt ke models/release/
-```
-
-### 4. Siapkan Hikrobot SDK (production only)
-
-Install Hikrobot MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy **seluruh** `/opt/MVS/lib/64/` (termasuk GigE transport layer) ke `sdk/lib64/` dan include ke Docker image.
-
-> Lihat panduan lengkap: [`docs/SETUP.md`](docs/SETUP.md)
-
----
-
-## Production Deployment (Pindah ke PC Baru)
-
-Checklist ini menyiapkan mesinnya: GPU, SDK kamera, model, `.env`. **Tapi PC
-pabrik tidak menjalankan `make up`**: di sana tidak ada source code sama
-sekali. Yang jalan adalah image GHCR
-`ghcr.io/delta-anugrah/autograde:vX.Y.Z` lewat launcher di `/opt/palmgrade/`,
-dengan tiga berkas compose (`base` + `prod` + `factory`) yang hidup di host,
-bukan di repo.
-
-Langkah pemasangan sebenarnya: `sawit/docs/runbooks/2026-08-21-checklist-pasang-pc-pabrik.md`
-dan skill `install-factory-pc`.
-
-⚠️ **Konsol operator di PC pabrik ada di port `8100`, bukan `8000`**,
-`docker-compose.prod.yml` menimpanya karena 8000 adalah port bench Frappe, dan
-PC yang kelak juga menjalankan ERP lokal akan bentrok diam-diam. Tiga konteks,
-tiga angka: `make console` native **8100**, compose dev **8000**, compose prod
-(PC pabrik) **8100**.
-
-⚠️ **Override Compose MENGGANTI blok dasar sebuah service, bukan menambahinya.**
-Begitu `prod` menyebut `environment:`, seluruh `environment:` di base dibuang,
-`network_mode` dan `container_name` ikut hilang. Terbukti di Lampung (Compose
-v2.40.3): 18 variabel konsol jadi 4. Karena itu blok konsol di `prod` ditulis
-**utuh**, dan menambah variabel konsol berarti menambahnya di situ juga.
-`docker compose config` di Mac (Compose v5.x) menggabungkan dengan benar, jadi
-tidak bisa dipakai membuktikan apa pun soal ini.
-
-Status (2026-09-28): PC Lampung menjalankan **AutoGrade saja** sejak 2026-09-20 (api dan
-frontend lama di-`stop`, volumenya utuh) dan tersambung ke AutoERP sejak 2026-09-22.
-`BACKEND_URL` menunjuk konsol lokal; `UPLOAD_API_URL` dikosongkan (api cloud pensiun).
-
-Menyiapkan mesinnya (NVIDIA Container Toolkit, SDK Hikrobot, model, `.env`, build image):
-[`docs/MANUAL.md`](docs/MANUAL.md) §5 dan [`docs/SETUP.md`](docs/SETUP.md). Compose dan launcher di
-host yang tidak ikut `autograde pull`: skill `.claude/skills/compose-host-pabrik/`.
-
----
+- A process environment variable beats `.env` (`override=False`). Check the process env first when
+  a setting "does not apply"; the effective values are on `/health/detail`.
+- `media.env` must reach Docker with `--env-file`, not `env_file:` (the Makefile does this).
+- Every variable with its default, including the ones that look unused but are not:
+  [`docs/backend-overview.md`](docs/backend-overview.md) § Environment Variables.
 
 ## Running
 
-### Semua command via `make`
+Everything goes through `make` from the repo root. Full list with flags:
+[`docs/commands.md`](docs/commands.md).
 
-```bash
-make up          # production: copy SDK dari /opt/MVS/, build GPU+SDK, start semua line
-make up-dev      # development: build CPU tanpa SDK, start semua line
-make start       # start semua line tanpa rebuild (pakai image yang sudah ada)
-make restart     # restart semua container — cukup untuk perubahan KODE (bind-mount .:/app)
-make up-1        # start line-1 saja tanpa rebuild
-make up-2        # start line-2 saja tanpa rebuild
-make up-3        # start line-3 saja tanpa rebuild
-make down        # stop semua
-make logs        # tail logs gabungan semua line
-make logs-1      # tail logs line-1 saja
-make logs-2      # tail logs line-2 saja
-make logs-3      # tail logs line-3 saja
-make ps          # status semua container
-make up-console  # konsol operator saja (port 8000) — aman di-restart tanpa ganggu line
-make logs-console # tail logs konsol
-make kiosk       # buka konsol layar penuh di PC ini (scripts/console-kiosk.sh)
-make rebuild     # rebuild image GPU/CUDA (tanpa SDK, tanpa start) — selalu GPU
-make rebuild-gpu # sama dengan make rebuild (alias, untuk kompatibilitas)
-make rebuild-clean # full rebuild --no-cache (hanya kalau cache dicurigai rusak — lambat)
-make build-engine  # build TensorRT FP16 engine — sekali per GPU, auto-skip kalau sudah ada
-make clean       # down + hapus image lokal
-make reset-data       # lihat dulu: berapa foto + basis data yang akan hilang
-make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik HAPUS
-```
+| Target | What it does |
+|---|---|
+| `make up` | Production build from source: copy the SDK from `/opt/MVS`, build GPU + SDK, start every line |
+| `make up-dev` | Development: CPU build without the SDK, start every line |
+| `make start` / `make restart` | Start without rebuilding / restart (enough for a code change: the source is bind-mounted) |
+| `make up-1`, `make up-2`, `make up-3` | Start one line without rebuilding |
+| `make down`, `make ps` | Stop everything / container status |
+| `make logs`, `make logs-1` ... `make logs-3` | Follow the logs of all lines or one line |
+| `make up-console`, `make logs-console`, `make restart-console` | The console container only (port 8000), safe to restart without touching the lines |
+| `make console` | The console natively on `127.0.0.1:8100` (Mac development) |
+| `make kiosk` | Open the console full screen on this PC (`scripts/console-kiosk.sh`) |
+| `make rebuild`, `make rebuild-clean` | Rebuild the GPU image / rebuild without cache (slow; only if the cache is suspect) |
+| `make build-engine` | Build the TensorRT FP16 engine, once per GPU; skipped when it exists |
+| `make reset-data` | Show what would be deleted (photos and databases) |
+| `make reset-data-fresh` | **Delete** `artifacts/` and `state/` (asks you to type HAPUS) |
 
-> ⚠️ **`make reset-data-fresh` tidak bisa dibatalkan dan tidak membuat backup.** Yang hilang:
-> semua foto dan sidecar (`artifacts/`), dan semua SQLite (`state/`): riwayat grading, truk,
-> timbangan, antrean yang belum terkirim, dan akun buatan `make operator`. **Dua akun bawaan
-> image dibuat ulang sendiri** saat konsol start, jadi cukup `make start` sesudahnya; layar
-> tidak terkunci. Container dimatikan lebih dulu: menghapus berkas SQLite di bawah proses yang
-> masih membukanya meninggalkan basis data separuh jadi, bukan basis data kosong.
-> Jangan di PC pabrik yang sedang produksi. AutoERP punya dua target nama sama
-> (`bench reinstall`, bukan `drop-site`).
->
-> **Tanpa terminal:** konsol → login support → tab **Setelan** → **Danger Zone**. Ada dua
-> tombol hapus: **data transaksi** (grading, foto, timbangan, antrean, log; truk/akun tetap)
-> dan **semua data**: plus restart semua line, logout paksa, dan hapus rekaman video.
-> Bedanya dengan target di atas: setelan grading dan `license.db` tidak ikut terhapus, dan
-> tombolnya menolak kalau ada line mati, truk terpasang, truk yang belum timbang kosong
-> (hari ini atau 12 jam terakhir), atau antrean yang belum terkirim.
-
-> **Satu image, tiga container**, hanya line-1 yang punya `build:` di docker-compose. Line-2 dan line-3 reuse image `palmgrade-vision:latest`. Jadi `make rebuild` cukup untuk update semua line (tinggal `make start` setelahnya).
->
-> **`make rebuild` selalu GPU**: tidak ada variant CPU untuk rebuild. Jika ingin build CPU (khusus dev tanpa GPU), gunakan `make up-dev`.
-
-> **Hot-reload**: source code di-mount via `.:/app`. Perubahan Python langsung terdeteksi tanpa rebuild image (saat `APP_ENV=development`). Di production cukup `make restart` untuk perubahan kode, `make up` hanya perlu kalau dependency / `Dockerfile` / SDK berubah.
-
-> **TensorRT**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT), jadi tidak di-commit dan tidak di-bake ke image: dibangun **sekali per GPU** on-machine (`make up` sudah memanggilnya; ~5–15 menit, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime otomatis **fallback ke `.pt`** (`pipelines/model_registry.py`) (akurasi sama, hanya lebih lambat, jadi gagal build bukan outage. Install TensorRT-nya lewat index NVIDIA (`pypi.nvidia.com`)) **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang.
-
-> **Video file**: kalau `CAMERA_TYPE=opencv` dan `CAMERA_VIDEO_PATH` diisi, path harus di dalam container. Semua 3 line sudah di-mount `/home/nexio/Desktop/Projects/sawit:/videos:ro`. Gunakan `CAMERA_VIDEO_PATH=/videos/namafile.mp4`.
-
-### Container per line
-
-| Container | Port | Camera Index | Machine ID env |
+| Container | Port | Camera index | Machine id |
 |---|---|---|---|
 | `ripe_line_1` | 8001 | 0 | `LINE_1_MACHINE_ID` |
 | `ripe_line_2` | 8002 | 1 | `LINE_2_MACHINE_ID` |
 | `ripe_line_3` | 8003 | 2 | `LINE_3_MACHINE_ID` |
-| `palmgrade_console` | 8000 | - | ketiganya (pemetaan `machine_id` → line) |
+| `palmgrade_console` | 8000 (dev), 8100 (prod) | none | all three (maps `machine_id` to a line) |
 
-### Konsol operator (`APP_MODE=console`)
+> [!WARNING]
+> `make reset-data-fresh` cannot be undone and makes no backup. It deletes every photo and sidecar
+> (`artifacts/`) and every SQLite file (`state/`): grading history, trucks, weighings, unsent
+> queues and accounts made with `make operator`. The two built-in image accounts are recreated at
+> the next console start. Never run it on a factory PC in production. Without a terminal, the
+> console's Danger Zone (support account, Setelan tab) deletes data more carefully: it keeps the
+> grading settings and the licence, and refuses while a line is down, a truck is assigned or a
+> queue is unsent.
 
-Layar di **`/console`**: port 8100 di PC pabrik (image produksi) dan `make console`, 8000 lewat `make up` / `make up-console` dari source. Satu berkas HTML statis: vanilla JS, **tanpa
-build step, tanpa Node, tanpa CDN**, harus tetap kebuka saat internet mati (dua font, Plus Jakarta
-Sans dan Barlow Condensed, tertanam di berkasnya sebagai woff2 lewat `scripts/tanam_font.py`;
-foto layar masuk juga tertanam, satu JPEG ≤ 60 KB per kelas dari `assets/masuk/` lewat
-`scripts/tanam_foto_masuk.py`).
-Menu di kiri (bisa disembunyikan), kepala dengan pil **Last Sync** (AutoERP dan Cloud Photo),
-ringkasan hari kerja (janjang, timbangan live, truk di line dan antrean bongkar), kartu
-kamera per line (foto terakhir, reject manual, piston, menu ⋯ untuk assign/lepas truk),
-dan 4 tab operator: Grading, Truk, Timbangan, **Rekap** (hari ini dan hari-hari sebelumnya,
-maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 5 tab tambahan (Log, Status,
-Akun, Line, Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di
-`localStorage`.
+- **One image, three line containers.** Only `line-1` has a `build:` block; lines 2 and 3 reuse
+  `palmgrade-vision:latest`. `make rebuild` then `make start` updates all three.
+- **Code reload.** The source is mounted at `/app`; with `APP_ENV=development` Python changes reload
+  without a rebuild. In production `make restart` is enough for code; rebuild only when
+  dependencies, the `Dockerfile` or the SDK change.
+- **TensorRT.** The FP16 engine (`engines/<model>.sm<cc>.engine`) is locked to the GPU and the
+  TensorRT version, so it is never committed or baked into the image. A missing or mismatched
+  engine falls back to the `.pt` model (`pipelines/model_registry.py`): same accuracy, slower.
+  TensorRT installs only from `pypi.nvidia.com`; the public PyPI package is a stub that hangs pip.
 
-- **Login (Fase 4).** Layar tertutup gerbang sampai ada yang masuk: operator mengetik **email
-  dan sandi** (tombol akun yang ada cuma mengisi kolom email, sandinya tetap wajib; sejak
-  2026-10-08 gerbangnya terbelah dua, foto kamera dengan satu kotak deteksi di kiri dan form di
-  kanan, plus tombol ID / EN), dan topbar
-  menampilkan namanya plus tombol **Keluar**. Semua `/api/console/*` menjawab 401 tanpa cookie
-  `konsol_sesi`; yang tetap terbuka cuma `/console`, daftar akun, dan `login`. Sesi berakhir 12 jam sesudah layar terakhir
-  disentuh (geser, aturan 19; polling tidak memperpanjang), dan Reject Manual tercatat atas nama yang sedang masuk.
+## Operator console
 
-  Akun datang dari **dua tempat**: AutoERP (DocType `AutoGrade Operator`, ditarik bareng master
-  data) dan **lokal** di PC ini (akun bawaan + akun support, supaya pabrik yang belum pernah
-  dapat internet tetap bisa dibuka). Keduanya **diverifikasi di pabrik**, jadi login tetap jalan
-  saat internet mati: yang ditarik hash-nya, bukan sandinya. Sandi minimal 8 karakter.
+The screen is `/console`: one static HTML file (`src/palmgrade/static/console.html`), vanilla JS,
+no build step, no Node, no CDN, zero `https://` references, so it opens with the internet down.
+Its two fonts (Plus Jakarta Sans, Barlow Condensed) and the sign-in photos are embedded
+(`scripts/tanam_font.py`, `scripts/tanam_foto_masuk.py`).
 
-  **Dua akun bawaan di tiap image**: `operator@autograde.local` (dipegang pabrik) dan
-  `support@autograde.local` (jalur masuk kita lewat AnyDesk). Email-nya sama di semua PKS
-  supaya support tidak perlu nanya dulu; **sandinya beda tiap PKS**, dibuat waktu pasang PC
-  dengan `make hash-sandi` lalu diisi ke `CONSOLE_DEFAULT_HASH` / `CONSOLE_SUPPORT_HASH`,
-  yang tertanam **hash**-nya, sandi mentah tidak pernah masuk image atau `.env`. Akun cuma
-  dibuat kalau email-nya belum ada, jadi **sandi yang sudah diganti pabrik tidak ketimpa
-  restart**, dan akun yang sudah dimatikan tidak dihidupkan lagi.
-  Akun lokal dibuat dari layar: login **support** → tab **Akun** → **Tambah akun** (sejak
-  2026-09-26). Di tabel yang sama ada **Ganti sandi**, **Matikan/Aktifkan**, dan **Jadikan
-  support/operator** untuk akun lokal; akun sendiri cuma bisa ganti sandi. Akun lokal **tidak
-  masuk ke AutoERP**: cuma ada di PC ini.
-  Dari terminal masih bisa: `make operator`, atau `make operator-docker` kalau konsolnya di
-  Docker. `AKSI=daftar` melihat daftar beserta asal tiap akun, `AKSI=matikan` mematikan satu
-  akun: sesinya langsung berakhir. Reset sandi lokal = `make operator` lagi dengan email yang
-  sama; sandi akun milik AutoERP direset **di AutoERP** (layar dan CLI-nya menolak, karena
-  tarikan berikutnya akan membatalkannya).
+- **Layout.** A collapsible menu on the left; a header with the **Last Sync** pills (AutoERP and
+  Cloud Photo); a day summary (bunches, live scale, trucks on the lines, unloading queue); one
+  card per camera line (live stream, latest photos, manual reject, piston, a menu to assign or
+  release a truck).
+- **Tabs.** Operators see Grading, Truk, Timbangan and Rekap. Support accounts also see Log,
+  Status, Akun, Line and Setelan. Indonesian and English, light (default) and dark theme; the
+  choices live in `localStorage`.
+- **Sign-in.** Email and password. Every `/api/console/*` call answers 401 without the
+  `konsol_sesi` cookie, except the page itself, the account list and `login`. A session ends 12 h
+  after the screen was last touched (polls do not extend it). Manual rejects are recorded under the
+  signed-in name.
+- **Accounts.** Two sources, both verified on the factory PC, so sign-in works offline: AutoERP
+  (DocType `AutoGrade Operator`, pulled with the master data, hashes only) and **local** accounts on
+  this PC. Every image carries two built-in accounts, `operator@autograde.local` and
+  `support@autograde.local`, whose password hashes are set per mill at install
+  (`make hash-sandi` -> `CONSOLE_DEFAULT_HASH`, `CONSOLE_SUPPORT_HASH`). They are created only when
+  missing, so a changed password survives a restart. Local accounts are managed in the Akun tab
+  (support) or with `make operator` / `make operator-docker`; AutoERP accounts are reset in AutoERP.
+- **Camera streams** go straight to the lines. Cards are drawn once and patched every 2 s (moving
+  DOM nodes would reopen the streams). Camera status shows as **ONLINE / OFFLINE** in words, never
+  colour alone.
+- **Manual reject without a mouse:** hold `Space`, then press `1`, `2` or `3`.
+- **Rekap** is what the supplier receives: one row per truck (bunches, Ripe/Unripe/JK/TP, ratio,
+  net weight), today or up to 31 days back, with CSV download. Grading and weighing stay two
+  sources placed side by side (rule 17). Bunches graded before a truck was assigned show as
+  **Tanpa truk** (no truck) rather than being dropped. Support accounts can import a CSV from another
+  PC, all or nothing, and undo an import (rule 26).
+- **Full screen** is the browser's job: `make kiosk` runs the browser in kiosk mode through
+  `scripts/console-kiosk.sh`, and `scripts/palmgrade-console.desktop` starts it at login.
 
-⚠️ **Memasang AutoGrade di PC yang SUDAH jalan dengan palmgrade-api butuh satu langkah
-  tambahan: `make rekonsiliasi-truk` (OPS-2), dikerjakan SEBELUM `ERP_URL` diisi.** Truk
-  lama ber-id acak dari palmgrade-api, AutoGrade menurunkan id dari plat, dan kolom plat
-  tidak punya indeks unik: jadi tarikan pertama membuat baris kedua untuk truk yang sama
-  dan tonase satu truk terbelah dua tanpa pesan apa pun. Tanpa `TULIS=1` perintahnya cuma
-  melihat; `--db <path>` untuk mencoba di salinan dulu. PC baru (DB kosong) tidak perlu.
-  Langkah lengkapnya: `../docs/runbooks/2026-09-15-checklist-ops2-rekonsiliasi-truk-lampung.md`.
+> [!IMPORTANT]
+> Installing AutoGrade on a PC that already ran `palmgrade-api` needs `make rekonsiliasi-truk`
+> (OPS-2) **before** `ERP_URL` is set. Old truck ids were random, AutoGrade derives ids from the
+> plate, and the plate column has no unique index: without it the first pull splits one truck's
+> tonnage over two rows, silently. A new PC with an empty database does not need it.
 
-- **Stream kamera tidak lewat konsol**: kartunya `<img>` MJPEG langsung ke `:8001/8002/8003`.
-  Kartu dirender **sekali** lalu ditambal tiap 2 detik; urutan pakai CSS `order`. Memindah DOM =
-  stream putus lalu buka lagi. Status kamera dicek tiap 5 detik dan muncul sebagai
-  **ONLINE / OFFLINE** di judul kartu, warna tidak pernah jadi satu-satunya sinyal.
-- **Reject manual tanpa mouse**: tahan `SPACE` lalu tekan `1` / `2` / `3`.
-- **Tab Rekap** (sejak 2026-09-28 = Rekap + Riwayat) = yang diserahkan ke supplier: dibuka di
-  hari ini, satu baris per truk: janjang, Ripe/Unripe/JK/TP, rasio, dan neto timbangan. Grading dan timbangan tetap **dua sumber
-  terpisah** yang cuma disandingkan; neto dijumlah per truk di Python, bukan di-JOIN ke query
-  grading (satu truk bisa punya lebih dari satu tiket sehari, dan join itu akan mengalikan
-  jumlah janjang dengan jumlah tiket). Janjang yang ter-grading sebelum truk dipasang muncul
-  sebagai baris **Tanpa truk**: dibuang justru menyembunyikan yang perlu dilihat operator.
-- **Hari-hari sebelumnya** di tab yang sama: ganti tanggal (maks 31 hari) + **Unduh CSV** untuk
-  semua operator. **Impor CSV** untuk akun support saja: CSV Per janjang hasil unduhan (PC ini atau PC
-  lain) diperiksa dulu, lalu diimpor utuh atau ditolak utuh; janjang hari ini tidak diimpor, yang
-  sudah ada dilewati, dan satu impor bisa dibatalkan (`docs/rules.md` aturan 26).
-- **Coba di lokal tanpa kamera**: `make up-console` lalu buka
-  <http://localhost:8000/console>. DB-nya kosong, jadi tab-tabnya masih polos,
-  isi dengan **`make demo`**: 10 truk, ~6 kunjungan per hari selama seminggu, ratusan
-  janjang dengan ACC/REJ/JK terbagi, dan dua akun untuk masuk. **Dev dan demo saja,
-  jangan pernah di PC pabrik**: skrip itu menulis ke database yang sama dengan punya
-  operator. Dia menolak database yang sudah punya data sungguhan (truk ber-id bukan
-  turunan plat, atau akun dari AutoERP), tapi jangan bergantung pada penolakan itu.
+### Demo data
 
-  ```bash
-  make demo                       # 7 hari riwayat
-  make demo HARI=3                # lebih pendek
-  make demo-reset                 # hapus data demo lama dulu, lalu isi ulang (AKSI=reset juga masih jalan)
-  make demo-off                   # sesudah showcase: hapus data demo, berhenti di situ (tidak isi ulang)
-  make console                    # → http://127.0.0.1:8100/console
-  ```
+```bash
+make demo           # 10 trucks, about 6 visits a day for a week, two accounts
+make demo HARI=3    # a shorter history
+make demo-reset     # delete the demo data, then seed again
+make demo-off       # after a showcase: delete the demo data and stop there
+make console        # http://127.0.0.1:8100/console
+```
 
-  Masuk dengan `operator@demo.autoerp.test` atau `support@demo.autoerp.test`, sandi
-  `sawit2026`. Di PC pabrik (konsol di Docker) pakai `make demo-docker`.
+Sign in as `operator@demo.autoerp.test` or `support@demo.autoerp.test`, password `sawit2026`.
+With the console in Docker use `make demo-docker`. **Never on a factory PC:** the seeder writes to
+the operator's database (it refuses one with real data, but do not rely on that). The plates match
+the AutoERP seeder (`erpnext/palm_mill/demo.py`) so one truck is the same truck on both screens;
+change a plate on one side and change it on the other in the same PR. Ids are deterministic
+(uuid5), so seeding twice adds nothing.
 
-  **Platnya sama persis dengan seeder AutoERP** (`erpnext/palm_mill/demo.py`), jadi
-  seed dua-duanya dan satu truk adalah truk yang sama di dua layar: kunjungan di konsol
-  pabrik, tiketnya di ERP Desk. Ganti plat di sini → ganti di sana dalam PR yang sama.
-  AutoERP punya tiga perintah `make` yang sama persis (`demo`/`demo-reset`/`demo-off`),
-  jadi urutan showcase di dua layar tidak perlu dihafal beda-beda.
+For a moving screen (camera frames, counters, a scale that rises and falls) like
+`demo-autograde.smagri.id`: `DEMO_MODE=1 make console`. The simulation runs in the browser only and
+writes nothing; the console refuses to boot with `DEMO_MODE` next to a PLC or scale setting
+([runbook](docs/runbooks/2026-09-28-konsol-demo-droplet.md) § Mode demo hidup).
 
-  Skripnya menulis ke SQLite langsung, jadi konsolnya **tidak perlu hidup** dan tidak ada
-  secret yang dilewatkan di baris perintah. Versi lama butuh `WEBHOOK_SECRET`, tiga
-  machine id, dan sandi operator cuma untuk mulai.
+After seeding, `CONSOLE_EMAIL=operator@demo.autoerp.test CONSOLE_SANDI=sawit2026 scripts/smoke-console.sh`
+checks the session lock, calls every endpoint the screen uses, confirms the page served is the one
+in the working tree, and checks three past traps (the "Tanpa truk" row, net weight of a truck with
+two tickets summed rather than multiplied, `bruto_kg` "14.820" refused). It must report zero FAIL.
 
-  Mau layar yang **bergerak** (foto kamera berganti, angka naik, timbangan naik turun) seperti
-  di `demo-autograde.smagri.id` (yang naik versi sendiri sesudah tiap tag rilis, lewat
-  `demo-deploy.yml`): `DEMO_MODE=1 make console`. Simulasinya cuma di browser,
-  tidak menulis apa pun, dan konsol menolak menyala kalau PLC atau timbangan diisi
-  (`docs/runbooks/2026-09-28-konsol-demo-droplet.md` § Mode demo hidup).
+A `console.html` change needs only a browser refresh (the file is bind-mounted). A Python change
+needs `make restart-console`; `make up-console` is not enough, because `up -d` does nothing while
+the container runs.
 
-  Tanpa itu kamera akan tampil **OFFLINE**: itu benar, tidak ada line yang jalan. Semua id-nya
-  uuid5 deterministik, jadi dijalankan dua kali tidak menambah baris. Ubah `console.html`
-  → cukup refresh browser (berkasnya bind-mount); ubah kode **Python** → `make restart-console`.
-  `make up-console` tidak cukup: `up -d` itu no-op kalau kontainernya sudah jalan, jadi
-  proses lama tetap memegang kode lama.
+### Connecting to a local AutoERP
 
-  Sesudah seed, jalankan `CONSOLE_EMAIL=operator@demo.autoerp.test CONSOLE_SANDI=sawit2026
-  scripts/smoke-console.sh`: dia memeriksa gembok dulu (lane data 401 tanpa sesi, lane
-  gerbang terbuka), lalu masuk dan mengetuk semua endpoint yang dipakai UI, memastikan
-  halaman yang dilayani memang berkas di working tree (bukan salinan di dalam image), dan
-  mengecek tiga jebakan yang pernah menggigit: baris "Tanpa truk" tidak dibuang, neto truk
-  bertiket-dua **dijumlah** bukan dikali, dan `bruto_kg` "14.820" ditolak. Harus **nol FAIL**;
-  tanpa `CONSOLE_EMAIL` bagian sesudah gembok dilewati, dan dua jebakan rekap memang
-  butuh seed dijalankan dulu.
-- **Tersambung ke AutoERP, di MacBook tanpa Docker.** AutoERP dinyalakan dari repo
-  `autoerp` (bench native), kuncinya diambil dengan `make key-show` lalu ditempel ke `.env`
-  di sini. Konsol membaca `.env` sendiri, jadi perintahnya pendek:
+```bash
+cd ../autoerp && make up && make key-show   # paste ERP_API_KEY and ERP_API_SECRET into .env
+cd ../autograde && make console             # native uvicorn on 127.0.0.1:8100
+```
 
-  ```bash
-  cd ../autoerp && make up && make key-show   # tempel ERP_API_KEY + ERP_API_SECRET ke .env
-  cd ../autograde
-  make console                                # = uvicorn native di 127.0.0.1:8100
-  ```
+Set `ERP_URL=http://pks.localhost:8000`, `ERP_API_KEY`, `ERP_API_SECRET`, `ERP_COMPANY` and
+`CONSOLE_LINE_HOST=http://127.0.0.1` in `.env` (on macOS `localhost` resolves to `::1` first, the
+lines listen on IPv4 only). `make console` sets `WEBHOOK_SECRET=devsecret`, which beats `.env`.
+Do not run `create_integration_user` again to read a key: it rotates the secret.
 
-  **Kenapa bukan target Docker di Mac:** `make up` butuh SDK MVS + GPU NVIDIA (PC pabrik),
-  dan container konsol memakai `network_mode: host` di port 8000 yang dipegang AutoERP.
-  `make up-dev` sekarang bisa dibuild di Apple Silicon, tapi untuk develop konsol jalur
-  native inilah yang dipakai. Target Docker adalah jalur Linux/pabrik dan tidak diubah.
+End-to-end tests against a real AutoERP (11 tests, they clean up after themselves; they need port
+8001 free and one operator account):
 
-  Baris ERP di `.env`: `ERP_URL=http://pks.localhost:8000`, `ERP_API_KEY`, `ERP_API_SECRET`,
-  `ERP_COMPANY`, dan `CONSOLE_LINE_HOST=http://127.0.0.1` (di macOS `localhost` menunjuk `::1`
-  dulu, line cuma IPv4). Port **8100** karena 8000 milik AutoERP. `WEBHOOK_SECRET=devsecret`
-  (dipasang `make console`) menimpa `.env`: variabel lingkungan selalu menang atas berkas,
-  supaya cocok dengan secret yang dipakai tes. **Jangan** `bench start` dua kali dan jangan
-  jalankan `create_integration_user` ulang untuk melihat kunci (itu merotasi secret).
+```bash
+E2E_CONSOLE_URL=http://127.0.0.1:8100 E2E_WEBHOOK_SECRET=devsecret \
+E2E_EMAIL=operator@pks.test E2E_SANDI=<password> \
+E2E_ERP_URL=http://pks.localhost:8000 E2E_ERP_API_KEY=<key> E2E_ERP_API_SECRET=<secret> \
+E2E_ERP_ADMIN_PASSWORD=admin .venv/bin/pytest tests/e2e -v
+```
 
-  Tes end-to-end lawan AutoERP asli, 11 tes, membersihkan datanya sendiri, butuh port 8001
-  kosong dan satu operator (`make operator`) karena API konsol sekarang butuh sesi:
+## Camera sources
 
-  ```bash
-  E2E_CONSOLE_URL=http://127.0.0.1:8100 E2E_WEBHOOK_SECRET=devsecret \
-  E2E_EMAIL=operator@pks.test E2E_SANDI=<sandi> \
-  E2E_ERP_URL=http://pks.localhost:8000 E2E_ERP_API_KEY=<key> E2E_ERP_API_SECRET=<secret> \
-  E2E_ERP_ADMIN_PASSWORD=admin .venv/bin/pytest tests/e2e -v
-  ```
-- **Layar penuh = urusan browser**, bukan halaman. `make kiosk` menjalankan Chrome `--kiosk`
-  lewat `scripts/console-kiosk.sh`; untuk jalan otomatis saat login pasang
-  `scripts/palmgrade-console.desktop`. Tiga hal di skrip itu jangan dihapus: `--user-data-dir`
-  tetap (pilihan operator hidup di `localStorage`), tunggu konsol menjawab dulu (sesudah listrik
-  mati desktop sering login sebelum Docker siap), dan `xset s off -dpms`.
+The source is chosen per line from the console (Line tab, Sumber Kamera, support only), stored in
+`media.env` and read by the line at boot. No code change is needed to switch.
 
-### Camera type (dikontrol via env var `CAMERA_TYPE`)
-
-| `CAMERA_TYPE` | Sumber | Dikontrol oleh |
+| `CAMERA_TYPE` | Source | Selected by |
 |---|---|---|
-| `hikrobot` | Kamera industrial Hikrobot via **RJ45 LAN** (GigE Vision) | `CAMERA_DEVICE_INDEX` |
-| `opencv` | Webcam **atau** video file | `CAMERA_VIDEO_PATH` (jika diisi) → video file; jika kosong → webcam via `CAMERA_DEVICE_INDEX` |
-| `photo` | Gambar statis, di-loop terus | `CAMERA_PHOTO_PATH` |
+| `hikrobot` | Hikrobot industrial camera over Ethernet (GigE Vision) | `CAMERA_SERIAL`, then `CAMERA_DEVICE_INDEX` |
+| `opencv` | Webcam or video file | `MEDIA_FILE` or `CAMERA_VIDEO_PATH` for a file, else `CAMERA_DEVICE_INDEX` |
+| `photo` | A still image, looped | `MEDIA_FILE` or `CAMERA_PHOTO_PATH` |
 
-`opencv` menggunakan `cv2.VideoCapture()` yang bisa terima `int` (webcam index) maupun `str` (path file video): satu class, dua source.
+- GigE cameras need `network_mode: host` (set in the compose files) so the container can discover
+  them by UDP broadcast; camera and host must share a subnet.
+- A line starts without a camera: `/health/detail` reports `camera_connected: false` and
+  `FrameCaptureWorker` retries until the camera appears, no restart needed.
+- The MJPEG stream fits the picture into the `STREAM_WIDTH` x `STREAM_HEIGHT` box at the camera's
+  own aspect ratio (861 x 720 for a 1224 x 1024 camera). Saved photos keep the full resolution.
 
-**Tidak perlu edit kode** saat switch environment, cukup ubah env var di `.env`.
+Camera tuning and network: [`docs/camera-spec.md`](docs/camera-spec.md),
+[`docs/runbooks/2026-09-21-sumber-kamera-per-line.md`](docs/runbooks/2026-09-21-sumber-kamera-per-line.md).
 
-**Hikrobot (GigE Vision) di Docker**: kamera terhubung via RJ45 LAN, bukan USB. Docker-compose sudah dikonfigurasi dengan `network_mode: host` sehingga container bisa langsung discover kamera via UDP broadcast. Tidak perlu konfigurasi tambahan selain pastikan kamera dan host ada di subnet yang sama.
+## HTTP API
 
-**Graceful startup**: app tetap jalan meskipun kamera belum terhubung saat startup. `health.detail.camera_connected` akan `false`, dan `FrameCaptureWorker` otomatis retry sampai kamera terdeteksi. Begitu kamera dicolok (dan MVS di-close), `camera_connected` berubah jadi `true` tanpa restart container.
-
-**MJPEG stream**: gambar dimuatkan ke dalam kotak 1280×720 (`STREAM_WIDTH`/`STREAM_HEIGHT`) dengan rasio asli kamera, mis. 861×720 untuk kamera 1224×1024 (sejak 2026-10-07). Frame asli Hikrobot 4K tetap disimpan ke disk; resize hanya untuk stream.
-
----
-
-## API Endpoints
-
-Daftar endpoint line dan konsol yang selalu mutakhir ada di `docs/backend-overview.md` bagian **HTTP Surface**
-(konsol: semua `/api/console/*` butuh sesi, lane support `/api/console/dev/*` butuh peran
-`support`). Payload, event, dan variabel lingkungan lengkap ada di berkas yang sama.
+The complete, current list of line and console endpoints, payloads and environment variables is in
+[`docs/backend-overview.md`](docs/backend-overview.md) § HTTP Surface. Every `/api/console/*` route
+needs a session; the support routes `/api/console/dev/*` need the `support` role.
 
 ```bash
 # Line
-curl http://localhost:8001/health            # 200 sehat; 503 kalau AI mati atau kamera tersambung tapi berhenti mengirim gambar
-curl http://localhost:8001/health/detail     # selalu 200; capture_save_dropped dan tp_telat harus 0; ada fps terukur, umur frame, disk, lisensi, plc.connected
+curl http://localhost:8001/health          # 200 healthy; 503 when the AI is dead or a connected camera stops sending frames
+curl http://localhost:8001/health/detail   # always 200; capture_save_dropped and tp_telat must be 0
 
-# Konsol (8100: image produksi dan `make console`; 8000: dari source)
-curl -s -c /tmp/konsol.jar -H 'content-type: application/json' \
-  -d '{"email":"operator@pks.test","sandi":"<sandi>"}' http://localhost:8100/api/console/login
-curl -b /tmp/konsol.jar http://localhost:8100/api/console/state
-curl -b /tmp/konsol.jar 'http://localhost:8100/api/console/riwayat?tampilan=truk'   # per truk, 7 hari terakhir
+# Console (8100: production image and `make console`; 8000: dev compose)
+curl -s -c /tmp/console.jar -H 'content-type: application/json' \
+  -d '{"email":"operator@pks.test","sandi":"<password>"}' http://localhost:8100/api/console/login
+curl -b /tmp/console.jar http://localhost:8100/api/console/state
 ```
 
-> **Log (sejak batch 3, `docs/rules.md` aturan 33 sampai 35).** Tiap baris `docker logs` bertanda jam zona pabrik (`+07:00`, dari `FACTORY_TZ`) dan kode line (`line-1`) atau `console`; `LOG_LEVEL` mengatur keluaran proses saja. Gangguan PLC, kamera, dan tarikan master data dicatat sekali saat mulai dan sekali saat pulih. WARNING/ERROR tiap line juga disimpan di `state/line-N/log_line.db` dan ditarik konsol ke **tab Log** (tag line, jam pertama muncul, traceback), jadi tetap ada walau container dibuat ulang. ERROR bisa dikirim ringkas ke Discord kalau `DISCORD_WEBHOOK_URL` diisi (kosong = mati).
+- **Logs** carry the factory time zone (`FACTORY_TZ`) and the line code or `console` on every line.
+  Line warnings and errors are also stored in `state/line-N/log_line.db` and pulled into the
+  console's Log tab, so they survive a recreated container. Errors can be sent to Discord as a
+  digest when `DISCORD_WEBHOOK_URL` is set (rules 33 to 35).
+- **Weighbridge:** `neto_kg` is computed, never trusted (more than 1 kg off `bruto - tara` is
+  refused with 400), and the 1-tonne minimum catches a thousands separator read as a decimal
+  (`14.820` as 14.82 kg). Rules 15 and 20.
 
-⚠️ `neto_kg` **dihitung, tidak pernah dipercaya mentah** (beda > 1 kg dari `bruto − tara` ditolak
-400), dan `MINIMUM_BERAT_KG` = **1 ton** menangkap pemisah ribuan (`14.820` terbaca 14,82 kg).
-Rinciannya `docs/rules.md` aturan 15 dan 20.
+## Evidence, upload and storage
 
----
+Every graded bunch is written to disk first. Two paths deliver it, independently:
 
-## Event Payload (`BatchUploadWorker`, cuma kalau `UPLOAD_API_URL` diisi)
+1. **Realtime to the console:** one outbox row per bunch in `state/line-N/outbox.db`, sent by
+   `OutboxRetryWorker` (1 s poll, backoff from 5 s to 10 min per row, never gives up).
+2. **Hourly to Cloudflare R2:** `BatchUploadWorker` scans the result folders, records each item in
+   `state/upload_manifest.db` (`pending` -> `image_uploaded` -> `done`, or `poisoned`), and PUTs the
+   images. Retries never give up; only the backoff grows.
 
-Setiap deteksi ditulis ke disk (`artifacts/results/`) sebagai WebP + JSON. **File di disk itulah
-antriannya**: tidak ada write ke outbox lagi. Sejam sekali `BatchUploadWorker` men-scan folder itu,
-mencatat tiap item di `UploadManifest`, PUT gambar beranotasi + thumbnail-nya ke Cloudflare R2, lalu
-baru POST payload teks di bawah ke `POST /api/v1/internal/vision/events`. Artinya event sampai ke
-cloud dengan **lag sampai ~1 jam**, bukan near-real-time.
+```
+artifacts/line-1/results/2026-05-18/                     date folder (UTC)
+  2026-05-18_103000_auto_ripeness.json                   sidecar, FLAT in the date folder
+  2026-05-18_103000_auto_tp.json                         long stalk, when detected
+  083000_B1234XY_a3f9c201/                               one folder per truck visit (factory time)
+    bbox/{acc,rej}/2026-05-18_103000_auto.webp            with boxes; uploaded to R2
+    clean/{acc,rej}/2026-05-18_103000_auto.webp           without boxes; for retraining, never uploaded
+    thumb/{acc,rej}/2026-05-18_103000_auto.webp           400 px; uploaded to R2 for the viewer
+  _belum-assign/                                         graded before a truck was assigned
 
-> ⚠️ **`UPLOAD_API_URL` kosong = tanpa penerima teks, dan itu setelan Lampung.** `palmgrade-api`
-> dimatikan (Opsi B): gambar yang sampai di R2 **itulah** upload-nya, jadi item langsung `done`
-> begitu PUT gambar sukses, POST di bawah ini **tidak pernah terjadi**, dan retensi tetap jalan.
-> Sebelum ini kosong berarti tiap item macet selamanya di `image_uploaded` dan disk pabrik penuh
-> (`upload_events_url` di `core/config.py`).
+state/line-1/                                            outside the static /captures mount
+  upload_manifest.db   outbox.db   license.db   log_line.db
+```
+
+> [!WARNING]
+> - **Sidecars must stay flat in the date folder.** The uploader finds them with
+>   `glob("*/*_ripeness.json")`; a sidecar in a subfolder is never found and uploads stop with no
+>   error and no log. Only images move into subfolders; the uploader reads their place from
+>   `image_path` in the JSON.
+> - **Truck folders use `FACTORY_TZ`, file names stay UTC.** File names derive the uuid5
+>   `event_id` and must not shift; the folder name is the one place a person reads the time
+>   (`domain/capture_layout.py`, written by `services/capture_writer.py`).
+> - **`results/` is not an archive.** Retention deletes `done` items older than
+>   `UPLOAD_RETENTION_DAYS` (default 7), all three variants together; after that the only copy is in
+>   R2. `poisoned` items are kept for inspection. With `R2_BUCKET` empty, retention does not run
+>   at all, so nothing cleans the disk; the per-line disk monitor (`DISK_PERINGATAN_GB` 15,
+>   `DISK_KRITIS_GB` 5) warns on the console but deletes nothing.
+
+Since 2026-09-28 `outbox.db` and `license.db` live in `state/`, not `artifacts/` (they used to be
+reachable through the `/captures` mount). An upgraded PC absorbs the old files at first boot
+(`services/pindah_db_line.py`); a failed absorb is reported on `/health/detail`
+(`outbox_lama_tertinggal: true`) and blocks Danger Zone deletes until it succeeds.
+
+Photos are served as static files at
+`GET /captures/results/{date}/{HHMMSS}_{plate}_{assign8}/{bbox|clean|thumb}/{acc|rej}/{file}`.
+
+### Text upload payload (only when `UPLOAD_API_URL` is set)
+
+At the factory `UPLOAD_API_URL` is empty: the image in R2 is the upload, an item is `done` as soon
+as its image PUT succeeds, and the POST below never happens. When it is set, each item is posted
+after its image:
 
 ```json
 {
   "event_id": "uuid",
   "assignment_id": "uuid",
-  "machine_id": "uuid-from-machines-table",
+  "machine_id": "uuid",
   "truck_id": "uuid-or-null",
   "timestamp": "2026-05-18T10:30:00.123456+00:00",
   "image_path": "https://captures.smagri.id/<machine_id>/2026-05-18/083000_B1234XY_a3f9c201/bbox/rej/2026-05-18_103000_123456_auto.webp",
@@ -622,222 +476,149 @@ cloud dengan **lag sampai ~1 jam**, bukan near-real-time.
 }
 ```
 
-**Field contracts:**
-- `event_id`: UUID: used by API for idempotency. **Auto detection** = uuid5 deterministik (`machine_id:timestamp` dari nama file) supaya re-upload item yang sama menghasilkan `event_id` sama → API balas `already_processed`, no double count. Formulanya **sengaja identik** dengan outbox lama, jadi event yang sudah terkirim di era outbox tidak dobel kalau file-nya ikut ter-scan lagi; **manual reject** = uuid4
-- `assignment_id`: key-nya **hanya ada kalau meta punya `assignment_id`**, di-omit, bukan dikirim `null`
-- `image_path`: **URL absolut R2** (`{R2_PUBLIC_URL}/{r2_key}`), bukan path relatif. Gambarnya di-PUT ke R2 lebih dulu; POST baru jalan setelah PUT sukses
-- `timestamp`: ISO-8601 **UTC-aware** (`datetime.now(timezone.utc)`)
-- `prediction`: `"Acc"` / `"Rej"`: required
-- `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
-- `tp_status`: `"PASS"` atau `null`: bukan `"TP"`
-- `truck_id`: boleh `null`. `_scan()` **tidak** memfilter truck: event tanpa truck aktif ikut ter-upload dengan `truck_id: null` (beda dari perilaku outbox lama yang men-skip-nya). API tetap menyimpan event, truck fields di MongoDB null
-- Event tahan restart karena **file-nya ada di disk**, bukan karena SQLite queue. Progres per-item ada di `state/upload_manifest.db` (`pending` → `image_uploaded` → `done`, atau `poisoned`). Retry **tidak ada batasnya**: item gagal tidak pernah menyerah, statusnya tetap dan hanya backoff-nya yang maju
+- `event_id`: uuid5 of `machine_id:timestamp` for automatic captures, so a re-upload is answered
+  `already_processed`; uuid4 for manual rejects.
+- `assignment_id` is omitted, not `null`, when the capture had no assignment.
+- `image_path` is the absolute R2 URL; the image is PUT before the POST.
+- `timestamp` is ISO-8601 in UTC with an offset.
+- `ripeness_status` is `ACC` or `REJ`; `tp_status` is `PASS` or `null`, never `"TP"` (rule 7).
+- `truck_id` may be `null`: events without an active truck are uploaded too.
 
----
+## Per-truck grading detail (R2)
 
-## Artifact Output
+Each truck released from a line gets one detail page that the office can open from the AutoERP
+ticket. The factory PC accepts no inbound connections, so the page lives in R2 next to the
+photos (`captures.smagri.id`, behind a password gate since 2026-09-24).
 
-```
-artifacts/line-1/
-├── results/                   # Satu-satunya sumber kebenaran (auto + manual)
-│   └── 2026-05-18/                                   # tanggal = UTC
-│       ├── 2026-05-18_103000_auto_ripeness.json      # Detection metadata — DATAR, lihat ⚠️
-│       ├── 2026-05-18_103000_auto_tp.json            # Long stalk metadata (if detected)
-│       ├── 2026-05-18_104500_manual_ripeness.json
-│       ├── 083000_B1234XY_a3f9c201/                  # satu folder per kunjungan truk
-│       │   ├── bbox/acc/ · bbox/rej/                 # bergambar kotak — ini yang ditunjuk
-│       │   │   └── 2026-05-18_103000_auto.webp       #   image_path, dan yang naik ke R2
-│       │   ├── clean/acc/ · clean/rej/               # polos — buat latih model ulang
-│       │   │   └── 2026-05-18_103000_auto.webp       #   nama berkasnya SAMA persis
-│       │   └── thumb/acc/ · thumb/rej/               # 400px WebP q60 dari bbox/ — naik ke R2
-│       │       └── 2026-05-18_103000_auto.webp       #   juga, buat grid viewer.html
-│       └── _belum-assign/                            # ter-grading sebelum truk dipasang
+1. When a truck is released (or once all its lines are released, at the empty weighing), the
+   console builds **one JSON per visit** from its own database (`domain/visit_manifest.py`, pure)
+   at key `visits/<visit_id>.json`. `visit_id` is the `weighings` row id, the same number as
+   `autograde_visit_id` on the ERP ticket.
+2. The JSON goes through its own queue (`workers/visit_manifest_worker.py`, database
+   `manifest_outbox.db`), so a dead R2 never holds back AutoERP and the reverse. The worker also
+   uploads `static/viewer.html` once per process, so viewer and manifests never drift.
+3. `detail_url` = `{R2_PUBLIC_URL}/viewer.html?visit=<visit_id>` is deterministic and is sent to
+   AutoERP without waiting for the upload; photos not yet uploaded show as such in the viewer.
+4. `static/viewer.html` has zero external dependencies, reads its manifest by relative path and
+   shows a photo grid with filters (All, ACC, REJ, Long stalk).
 
-state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount statis /captures
-├── upload_manifest.db         # state per-item BatchUploadWorker (pending/image_uploaded/done/poisoned)
-├── outbox.db                  # antrean realtime ke BACKEND_URL (OutboxRetryWorker, poll 1 dtk)
-└── license.db                 # penjaga jam lisensi (satu penanda jam tertinggi), kalau LICENSE_ENABLED
-```
+`detail_url` is sent only when R2 is configured. Without R2 the key is **absent**, not an empty
+string: each message to AutoERP replaces the parts it carries, so an empty string would erase a URL
+AutoERP already has (`domain/erp_messages.py`). The Status tab shows this queue as **Manifest R2**,
+reading "not active" rather than zero while R2 is not set. Setup and rollout:
+`sawit/docs/runbooks/2026-09-16-rencana-detail-grading-r2.md`.
 
-> Sejak batch 1 keamanan (2026-09-28) `outbox.db` dan `license.db` hidup di `state/`, bukan
-> `artifacts/`: keduanya dulu ikut tersaji lewat mount statis `/captures` (aturan berkas DB /
-> tersembunyi 404 baru ditambahkan belakangan). PC yang sedang upgrade menyerap isi berkas lama
-> ke lokasi baru saat boot pertama (`services/pindah_db_line.py`), bukan memindah berkasnya.
-> Serapan yang gagal tidak disembunyikan: `/health/detail` melapor `outbox_lama_tertinggal: true`
-> dengan `outbox_pending: null`, Danger Zone menahan hapus data (hambatan `outbox_lama`), dan
-> hapus data tidak membuang `artifacts/outbox.db` itu. Boot berikutnya mencoba menyerapnya lagi.
+## Licence guard
 
-> ⚠️ **Sidecar JSON WAJIB tetap datar di folder tanggal.** `BatchUploadWorker._scan()`
-> mencarinya dengan `glob("*/*_ripeness.json")`: kedalaman dipatok dua. Sidecar yang ikut
-> masuk subfolder tidak akan pernah ketemu, dan upload ke R2 + cloud berhenti **tanpa error
-> dan tanpa log**. Yang pindah ke subfolder cuma gambar; pengunggah membaca letaknya dari
-> `image_path` di dalam JSON, bukan dari letak JSON-nya.
->
-> ⚠️ **Nama folder truk pakai `FACTORY_TZ`, nama berkas tetap UTC.** Nama berkas menurunkan
-> `event_id` (uuid5) jadi tidak boleh bergeser; nama folder itu satu-satunya tempat manusia
-> membaca jam. Truk yang bongkar 16:00 WIB terarsip `090000` bikin folder ini tidak berguna.
-> Dua zona dalam satu pohon memang disengaja, **folder buat manusia, berkas buat mesin**.
-> Aturannya di `src/palmgrade/domain/capture_layout.py`, penulisnya `services/capture_writer.py`.
->
-> ⚠️ **Salinan `clean/` tidak diupload ke mana pun**, dia bukti mentah buat melatih model
-> ulang, dan model tidak boleh dilatih pakai gambar yang sudah dicoret prediksinya sendiri.
-> `thumb/` beda: dia **memang** naik ke R2 berdampingan dengan `bbox/` (§ detail per truk di
-> bawah). Konsekuensinya pemakaian disk **tiga kali lipat**; retensi menghapus ketiganya
-> bersamaan (`domain/capture_layout.twins_of`). Gagal menulis thumbnail cuma di-log, tidak
-> pernah menggagalkan capture: line tidak boleh berhenti karena pratinjau tidak muat.
-
-> Folder `captures/`, `errors/`, dan `logs/` **sudah tidak ada**. Dulu dibuat saat startup tapi tidak pernah ditulis: manual reject disimpan ke `results/`, foto REJ ditemukan via metadata (`ripeness_status: "REJ"`) bukan salinan terpisah, dan log keluar ke stdout supaya `docker logs` yang mengurus. Startup cuma membuat `results/`: dijaga `tests/unit/test_artifact_dirs.py`.
-
-> ⚠️ **`results/` bukan arsip permanen.** `BatchUploadWorker._retention()` menghapus WebP + JSON yang
-> statusnya `done` dan sudah lewat `UPLOAD_RETENTION_DAYS` (default **7**). Setelah itu satu-satunya
-> salinan gambar ada di R2 (`captures.smagri.id`). Item `poisoned` **tidak** dihapus: file-nya
-> sengaja ditinggal biar bisa diperiksa manual.
-
-Images are served as static files: `GET /captures/results/{date}/{HHMMSS}_{plat}_{assign8}/{bbox|clean|thumb}/{acc|rej}/{filename}`
-
----
-
-## Detail Grading per Truk (R2)
-
-Sejak 2026-09-16, tiap truk yang dilepas dari line dapat **satu halaman detail** yang bisa
-dibuka dari tiket AutoERP di kantor, bukan cuma dari PC pabrik. PC pabrik nol inbound (cuma
-AnyDesk), jadi halamannya tidak bisa hidup di konsol; dia hidup di R2, domain publik yang sama
-dengan foto (`captures.smagri.id`).
-
-Alurnya, saat konsol melepas truk dari line (`_queue_grading`; pada timbang kosong, sekali
-sesudah semua line truk itu lepas, di `record_weighing`):
-
-1. Konsol membaca semua janjang kunjungan itu, dari setiap line yang membongkar truknya, dari
-   SQLite-nya sendiri (`ConsoleStore.bunches_for_visit`), lalu merakit **satu JSON per kunjungan**
-   (`domain/visit_manifest.py`, murni: tanpa I/O) di kunci `visits/<visit_id>.json`.
-   `visit_id` = id baris `weighings`, angka yang sama dengan `autograde_visit_id` di tiket ERP.
-2. JSON itu masuk **antrean sendiri** (`workers/visit_manifest_worker.py`, `ErpOutboxStore` yang
-   sama dengan outbox AutoERP, tapi berkas DB beda, `manifest_outbox.db`). Alasannya sederhana:
-   R2 mati tidak boleh menahan pesan ke AutoERP, dan AutoERP mati tidak boleh menahan manifest.
-   Worker juga mengunggah `static/viewer.html` sekali per proses ke kunci `viewer.html`, jadi
-   viewer dan manifest tidak pernah drift, keduanya ikut naik lewat jalur yang sama.
-3. `detail_url` = `{R2_PUBLIC_URL}/viewer.html?visit=<visit_id>` **deterministik**: bisa dikirim
-   ke AutoERP tanpa menunggu upload manifest selesai. Kalau fotonya belum sampai, viewer cukup
-   menampilkan "belum terunggah" untuk gambar itu.
-4. `static/viewer.html` (±16 KB, **nol dependensi eksternal**, di belakang Cloudflare Access,
-   halaman ini tidak boleh menoleh ke host lain sama sekali) mem-fetch manifestnya sendiri
-   (relatif, `visits/<id>.json`) dan menampilkan grid foto: header plat/pemasok/tanggal/line +
-   `counts`, filter Semua/ACC/REJ/Tangkai Panjang, grid `thumb` (jatuh ke `image` kalau thumbnail-nya
-   hilang), dan klik untuk memperbesar ke foto penuh.
-
-> ⚠️ **`detail_url` dikirim lagi ke AutoERP, tapi cuma kalau R2 terkonfigurasi.** Sebelum ini
-> field-nya sengaja dikosongkan, karena satu-satunya halaman detail hidup di konsol, LAN-only.
-> Sekarang: dengan R2 terisi, `detail_url` ikut payload `grading`; tanpa R2 key-nya **absen**,
-> bukan string kosong: tiap kiriman ke AutoERP mengganti seluruh bagian yang dibawanya, jadi
-> string kosong akan **menghapus** URL yang sudah dipunya AutoERP dari kiriman sebelumnya
-> (`domain/erp_messages.py` `_grading()`).
->
-> ⚠️ **`R2_BUCKET` kosong = bukan cuma manifest yang mati.** Sama seperti retensi foto (lihat
-> blockquote di atas), `run_batch_once()` pulang lebih awal sebelum `_retention()` kalau
-> `R2_BUCKET` kosong: mematikan R2 tanpa pengganti berarti tidak ada yang membersihkan disk
-> pabrik sama sekali, bukan cuma kehilangan tautan detail.
->
-> Sejak batch 3.7 tiap line punya pemantau disk sendiri (`DISK_PERINGATAN_GB` 15, `DISK_KRITIS_GB` 5) yang
-> memunculkan pita peringatan di konsol walau `R2_BUCKET` kosong. Pemantau itu **tidak menghapus apa pun**; pembersihan
-> tetap cuma lewat retensi R2.
-
-Layar **Antrean** di menu developer (`role=support`) punya baris kedua untuk antrean ini
-(`GET /api/console/dev/antrean/manifest`): dan baris itu membaca `aktif: false` saat R2 belum
-diisi, **bukan** nol pending/nol gagal: antrean yang belum pernah mulai dan antrean yang macet
-kelihatan sama-sama nol kalau tidak ada penanda eksplisit itu.
-
-⚠️ **Belum bisa dibuka dari kantor hari ini.** Kodenya siap, tapi tiga langkah pasang belum
-dikerjakan: Cloudflare Access di `captures.smagri.id` (domain itu **publik** sekarang), aturan
-lifecycle R2 90 hari, dan `.env` PC Lampung (`R2_*` di konsol, `UPLOAD_API_URL` dikosongkan).
-Rencana lengkap + urutan: `../docs/runbooks/2026-09-16-rencana-detail-grading-r2.md`.
-
----
-
-## License Guard (optional, disabled by default)
+Off by default (`LICENSE_ENABLED=false`).
 
 ```env
 LICENSE_ENABLED=true
 LICENSE_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\nMCow...\n-----END PUBLIC KEY-----
-LICENSE_TOKEN=<token from the cloud API>
+LICENSE_TOKEN=<token issued in AutoERP>
 ```
 
-Kalau dinyalakan, semua rute (kecuali `/health`, `/api/video_feed`, `/captures`) diblokir untuk
-lisensi yang kedaluwarsa, **dan** `FrameProcessingWorker` berhenti menjalankan inferensi,
-pemblokiran di HTTP saja akan membiarkan kamera tetap grading dan PLC tetap menyortir buah. Coil
-alive PLC ikut dijatuhkan, jadi langganan yang kedaluwarsa kelihatan dari lantai pabrik.
-
-Token dipasang offline dengan `palmgrade license <token>`; tidak ada server lisensi yang dihubungi.
-
----
+Tokens are Ed25519-signed and issued in AutoERP (DocType `AutoGrade Licence`, Administrator only);
+the factory only verifies them, offline (rule 22). On a factory PC a new token is installed with
+the launcher, `palmgrade license <token>`. With an expired licence every route except `/health`,
+`/api/video_feed` and `/captures` is blocked, `FrameProcessingWorker` stops inference, and the
+PLC alive coil drops, so an expired subscription is visible on the floor. Details:
+[`docs/overview.md`](docs/overview.md) §10.
 
 ## Testing
 
-Unit test di sini **sengaja murni-logic**, tidak butuh torch / OpenCV / MVS SDK / GPU, jadi cepat dan jalan di runner CI ringan. Pengujian yang butuh hardware/model asli (inference YOLO, kamera fisik) tetap di luar CI. `tests/integration/` berisi rangkaian komponen sungguhan tanpa hardware (konsol ↔ line lewat transport ASGI, berkas di folder sementara, render layar lewat node) dan jalan di CI.
-
-### Menjalankan test
-
-Dari `autograde/`:
+Unit tests are pure logic: no torch, OpenCV, camera SDK or GPU, so they run on a plain CI runner.
+`tests/integration/` wires real components without hardware (console and lines over an ASGI
+transport, files in a temporary folder, screen rendering through node). `tests/browser/` drives the
+real console in Firefox and Chromium with Playwright.
 
 ```bash
-# CI menjalankan keduanya (lihat .github/workflows/ci.yml).
-# Di Mac, venv dari Quick Start sudah berisi semua paket ini — cukup .venv/bin/pytest tests/unit
-pip install -r requirements-ci.txt    # versi dikunci, sama dengan requirements.txt
+pip install -r requirements-ci.txt     # pinned, same versions as requirements.txt
 ruff check src/ tests/
-python tests/cek_skrip_konsol.py src/palmgrade/static/console.html   # seluruh <script> konsol bisa diparse
-pytest tests/unit/ -rs
+python tests/cek_skrip_konsol.py src/palmgrade/static/console.html   # every <script> block parses
+pytest tests/unit tests/e2e tests/integration -rs
+make test-browser                      # once per machine: make browser-siap
 ```
 
-> Konfigurasi pytest ada di `pyproject.toml` (`pythonpath=["src"]`): tidak perlu set `PYTHONPATH` manual. Tidak memakai `pytest-asyncio`: kode async diuji lewat `asyncio.run` stdlib supaya dependency CI minimal.
+CI (`.github/workflows/ci.yml`) runs all of the above on every PR to `staging` and `main`. The
+ruleset `ci-wajib-lolos` requires the jobs `lint-and-test`, `browser (chromium)` and
+`browser (firefox)`; renaming a job or a matrix entry locks every PR. pytest settings are in
+`pyproject.toml` (`pythonpath = ["src"]`); async code is tested with `asyncio.run`, without
+`pytest-asyncio`.
 
-### Cakupan (`tests/unit/`)
-
-| Area | File | Yang dikunci |
+| Area | Main tests | What they lock |
 |---|---|---|
-| Domain rules | `test_rules.py` | Klasifikasi ripeness (inti keputusan bisnis) |
-| Idempotency | `test_event_id.py` | `event_id` uuid5 deterministik (anti double-count) |
-| **Batch upload** | `test_batch_upload_worker.py`, `test_upload_manifest.py`, `test_r2_uploader.py`, `test_batch_upload_thumb.py` | Discovery + rekonstruksi payload; manifest `pending → image_uploaded → done` (+ `poisoned`) **tanpa retry cap & tanpa TTL**; `r2_key` deterministik + prefix `machine_id` yang mengisolasi antar-line; thumbnail naik bersama `bbox/` dan tidak jadi racun kalau tidak ada; `UPLOAD_API_URL` kosong → item `done` begitu foto sampai, tanpa POST teks |
-| **Outage & crash** | `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Jantung requirement "internet mati berapa lama pun → nol data hilang, nol duplikat"; `os._exit` di tengah transisi state → manifest tetap konsisten (WAL + `synchronous=FULL`) |
-| **Tutup line & bukti utuh (batch 2A)** | `test_capture_save_kuras.py`, `test_penutup_line.py`, `test_langkah_tutup_line.py`, `test_upload_scheduler_stop.py`, `test_main_penutup_wiring.py`, `test_bahaya_tunggu_tutup_line.py`, `test_berkas_utuh.py`, `test_tulis_atomik.py`, `test_local_file_storage_atomik.py`, `test_batch_upload_nol_byte.py` | Semua jalan keluar line lewat satu urutan tutup berbatas waktu; `os._exit` cuma di `penutup_line`; listrik padam tidak meninggalkan berkas 0 byte bernama sah; bukti yang tidak utuh tidak diunggah dan tidak dihapus |
-| Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
-| Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_outbox_migrasi.py`, `test_outbox_retry_worker.py`, `test_kirim_antrean_line.py`, `test_edge_realtime_outbox.py` | Persist → jeda per baris 5 dtk sampai 10 mnt, TANPA batas nyerah; baris failed versi lama dihidupkan saat dibuka; konsol mati = satu percobaan per ≤30 dtk; tersambung lagi = semua dikirim sekarang |
-| **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `work_date` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
-| **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang kosong **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
-| **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
-| **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |
-| **Kunjungan truk** | `test_visit_message.py`, `test_erp_queue.py`, `test_visit_triggers.py`, `test_visit_resend.py` | Bentuk pesan §4.C; `stage` diturunkan dari keadaan kunjungan; bagian yang tidak ada tidak dikirim; grading ikut lewat tautan assignment yang ditulis saat truk dilepas; kirim ulang harian sekali sehari |
-| **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_visit`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu kunjungan (semua line) urut waktu; antrean manifest sendiri (`manifest_outbox.db`): R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
-| **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, timbangan jadi Weighbridge Ticket, grading mendarat di tiket saat truk dilepas dari line. Di-skip tanpa variabel `E2E_*` |
-| **Timbangan live** | `plc/test_pembaca_timbangan.py`, `test_timbangan_live_domain.py`, `test_console_timbangan_live_route.py`, `plc/test_plc_mc_client.py` (`read_words`), `tests/browser/test_browser_timbangan_live.py` | Berat live dari register PLC (aturan 39): 16/32-bit + desimal, angka disembunyikan saat putus/basi/error, balasan terpotong ditolak, layar menulis Belum tersambung tanpa register |
-| Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
-| PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |
-| Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
-| **CI dan rilis** | `test_ci_gerbang_rilis.py`, `test_ci_skrip_konsol.py`, `test_requirements_ci_terkunci.py`, `test_rilis_lewat_smoke.py`, `test_smoke_image.py`, `tests/e2e/test_smoke_image_docker.py`, `test_cek_skrip_konsol.py`, `test_demo_image_workflow.py`, `tests/integration/test_alur_rilis_integrasi.py`, `tests/e2e/test_ci_skrip_konsol_lane.py` | Image pabrik dan demo baru dibangun sesudah `ci.yml` hijau di commit tag yang sama; seluruh `<script>` `console.html` diparse seperti browser (syntax error di luar fungsi yang diuji ikut ketahuan); paket CI dikunci ke versi runtime; ruff seluruh `src/`; image tidak `pip install` sendiri saat jalan; image baru dapat tag rilis + `latest` sesudah lolos cek asap |
-| Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
-| Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |
-| SDK boundary | `test_hikrobot_frame.py`, `test_mvs_error.py` | Konversi frame + mapping error SDK |
-| **License** | `test_license_manager.py`, `test_license_local_repo.py` | Verifikasi JWS **Ed25519 asli** (tamper/kid/foreign-key ditolak), state machine efektif (ACTIVE/TRIAL/EXPIRED/CANCEL/GRACE, online↔offline, anti-rollback `server_time`, device-id, `nbf`), warning window, dan hash-chain + high-water-mark di SQLite |
+| Batch upload | `test_batch_upload_worker.py`, `test_upload_manifest.py`, `test_r2_uploader.py`, `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Any outage length: no data lost, no duplicates; a crash mid-transition leaves the manifest consistent |
+| Line shutdown | `test_penutup_line.py`, `test_capture_save_kuras.py`, `test_berkas_utuh.py`, `test_tulis_atomik.py` | One bounded shutdown order; a power cut never leaves a 0-byte file with a valid name |
+| Idempotency and time | `test_event_id.py`, `test_capture_timestamp.py` | Deterministic uuid5 ids; timezone-aware timestamps |
+| Realtime outbox | `test_outbox_store.py`, `test_outbox_retry_worker.py`, `test_kirim_antrean_line.py` | Per-row backoff, no give-up limit, immediate flush on reconnect |
+| Console | `test_console_store.py`, `test_working_day.py`, `test_console_html*.py` | SQLite index, working day across midnight, screen invariants |
+| Weighbridge | `test_weighing.py`, `test_timbangan_live_domain.py`, `plc/test_pembaca_timbangan.py` | Computed net weight, merged empty weighing, live scale reading |
+| AutoERP | `test_erp_master_data.py`, `test_erp_outbox_worker.py`, `test_visit_message.py`, `test_visit_resend.py` | Exact DocType fields, rejected vs unreachable, contract §4.B and §4.C |
+| Per-truck detail | `test_visit_manifest.py`, `test_visit_manifest_worker.py`, `test_viewer_html.py` | Manifest shape, its own queue, a viewer without external dependencies |
+| PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | MC Protocol and Modbus clients, pulse and heartbeat state machine |
+| Licence | `test_license_manager.py`, `test_license_local_repo.py` | Real Ed25519 verification, state machine, anti-rollback |
+| CI and release | `test_ci_gerbang_rilis.py`, `test_rilis_lewat_smoke.py`, `test_demo_image_workflow.py`, `tests/integration/test_alur_rilis_integrasi.py` | Images build only after CI passes on the tagged commit; release tags only after the image smoke test |
+| End to end | `tests/e2e/test_console_autoerp.py` | Console and a real AutoERP; skipped without the `E2E_*` variables |
 
-**Prinsip menambah test:**
-- Uji **logic murni** (domain, state machine, persistence SQLite), hindari test yang menyeret framework berat/hardware ke CI.
-- Untuk async, ikuti pola `asyncio.run` (lihat `test_event_broadcast_worker.py` / `test_license_local_repo.py`).
-- Seluruh `src/` dan `tests/` di-lint (`ruff check src/ tests/`, sejak batch 4.4); berkas baru ikut otomatis.
+New logic gets a failing pure-logic test first; hardware never enters CI
+([`docs/coding-standard.md`](docs/coding-standard.md) T1 to T4).
 
----
+## Release and deployment
 
-## Environment Variables Reference
+- **Image:** `ghcr.io/delta-anugrah/autograde` (one name; pinned by
+  `tests/unit/test_deploy_image_name.py`). Container names, the local tag `palmgrade-vision:latest`
+  and the package `src/palmgrade/` never change: renaming them breaks installed factory PCs.
+- **Release:** a `vX.Y.Z` tag on `main` runs `.github/workflows/deploy.yml`: CI on the tagged commit,
+  then the factory image (GPU, CUDA, camera SDK) and the demo image `vX.Y.Z-cpu` are built as
+  candidates, smoke-tested (`scripts/smoke_image.py`) and only then promoted. The factory image
+  also gets `latest`; the demo image never does.
+- **Factory PCs do not build or run `make`.** They run the GHCR image through the launcher in
+  `/opt/palmgrade/` with three compose files that live on the host. `:latest` is downloaded after a
+  healthy start and installed at the next start, or at once with **Update now** in the Status tab.
+  A version that fails its health check at start is rolled back by the launcher. Install steps:
+  [`docs/SETUP.md`](docs/SETUP.md), [`docs/MANUAL.md`](docs/MANUAL.md) §5, and the
+  `install-factory-pc` skill in the sawit workspace.
+- **Demo:** `demo-autograde.smagri.id` is upgraded by the job `deploy-demo` after both images of a
+  tag are released ([runbook](docs/runbooks/2026-09-28-konsol-demo-droplet.md) § Upgrade otomatis).
 
-Tabel lengkap (line, konsol, PLC, R2, AutoERP, lisensi) beserta variabel yang kelihatan mati
-padahal dipakai: [`docs/backend-overview.md`](docs/backend-overview.md) bagian Environment
-Variables. Contoh isian: `.env.example` (dev dan produksi) dan `media.env.example` (sumber kamera
-dan model per line).
+> [!WARNING]
+> On the factory PC the console listens on **8100**, not 8000 (`docker-compose.prod.yml`), because
+> 8000 is the Frappe bench port. A compose override that names `environment:` **replaces** the base
+> block instead of merging with it (proven on Compose 2.40.3 at the factory; Compose 5.x on a Mac
+> merges and proves nothing), which is why the console block in `prod` is written out in full. A
+> new setting the factory must receive goes through the `compose-host-pabrik` skill.
 
----
+## Contributing
 
-## Git Workflow
+- Default branch `staging`. Branch from `staging`, open a PR, **squash-merge** into `staging`.
+  Releases are a PR `staging` -> `main` merged with a **merge commit**. Compare the two branches
+  with `git diff --stat origin/staging origin/main` (empty = no difference), not `git cherry`.
+- Direct pushes to `staging` and `main` are blocked; CI must pass.
+- PR titles `<type>(<scope>): ...`; titles, bodies and commit messages in English; no em dashes; no
+  AI attribution lines in commits.
+- Read [`docs/coding-standard.md`](docs/coding-standard.md) before writing code and
+  [`docs/REVIEW-CHECKLIST.md`](docs/REVIEW-CHECKLIST.md) before opening a PR. A behaviour change
+  updates its doc in the same PR, and every task adds its report to
+  [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
-- **Default branch**: `staging`: all development goes here first
-- **Branch protection**: org ruleset blocks direct push to `main` and `staging`, use PR
-- **Flow**: branch baru dari `staging` → PR **squash merge** ke `staging` → PR **merge commit** ke `main`
-- PR rilis `staging` → `main` **jangan** di-squash: `main` sengaja menyimpan merge commit-nya.
-  Cek isi pakai `git diff --stat origin/staging origin/main` (kosong = nol beda), bukan `git cherry`
-- Commit message: **tidak boleh** ada baris `Co-Authored-By: Claude` atau referensi AI apa pun
+## Documentation map
+
+| Topic | Read |
+|---|---|
+| The system for a newcomer, operating the console (Indonesian) | [`docs/MANUAL.md`](docs/MANUAL.md) |
+| Architecture, workers, invariants, artifact layout, console internals | [`docs/overview.md`](docs/overview.md) |
+| Endpoints, payloads, every environment variable | [`docs/backend-overview.md`](docs/backend-overview.md) |
+| The numbered rules and their reasons | [`docs/rules.md`](docs/rules.md) |
+| Coding standard | [`docs/coding-standard.md`](docs/coding-standard.md) |
+| Every `make` target, tests, CI | [`docs/commands.md`](docs/commands.md) |
+| Installing a machine (NVIDIA, MVS SDK, camera IPs) | [`docs/SETUP.md`](docs/SETUP.md) |
+| PLC integration and commissioning | [`docs/plc-integration.md`](docs/plc-integration.md), [`docs/plc-mc-handoff.md`](docs/plc-mc-handoff.md) |
+| Camera hardware and tuning | [`docs/camera-spec.md`](docs/camera-spec.md) |
+| Operational runbooks | [`docs/runbooks/`](docs/runbooks/) |
+| Change log, newest first | [`docs/PROGRESS.md`](docs/PROGRESS.md) |
+| Rules for AI agents working in this repo | [`CLAUDE.md`](CLAUDE.md) |
+
+## License
+
+[MIT](LICENSE).
