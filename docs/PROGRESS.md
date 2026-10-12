@@ -30,7 +30,7 @@ Changed:        The console queues each bunch's `clean/` photo plus a JSON manif
                 rules 7 and 25 amended; MANUAL 2.31 + PDF (49 pages); README, overview, backend-overview,
                 skills compose-host-pabrik, konsol-autograde, panduan-autograde, spek-pc-pabrik.
 Validated:      ruff check src/ tests/ → All checks passed!
-                pytest tests/unit → 5677 passed, 28 skipped
+                pytest tests/unit → 5681 passed, 28 skipped
                 pytest tests/e2e → 428 passed, 20 skipped (AutoERP services and docker images not set)
                 pytest tests/integration → 196 passed (4 new: real WebP from CaptureRepository → ingest →
                 outbox → worker → in-memory bucket, and → local S3 on 127.0.0.1 through the real
