@@ -109,6 +109,7 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 37. Gate times (scan 1 arrive, scan 4 leave) stay on the factory PC and never go to AutoERP; scan 1 may be skipped; scan 4 before the weigh-out is refused; a cancelled arrival is kept as history; a weighed-out ticket with no scan 4 counts as finished after 24 h or when the truck returns, nothing written.
 38. Update now: the console never touches Docker, it only writes a marker in `UPDATE_DIR` for the host watcher; it releases every assigned truck first (a line that does not answer stops the install), and a full-screen curtain holds the screen until the reload.
 39. Live scale: the console reads the weighbridge weight from a PLC word register on its own port and shows it; only a scan may save it as a ticket weight, and only when fit (stable, or the same kg for 2 s, at least 1,000 kg); a cut, stale or faulted reading shows a dash. Support can switch on a dummy scale (30,000 / 10,000 kg, still sent to AutoERP, orange band on every tab).
+40. Training photos: every `clean/` photo plus a JSON manifest goes to the nexio inbox bucket through its own outbox (`training_outbox.db`), photo before manifest, never sent twice; off while `TRAINING_INBOX_BUCKET` is empty; seen on the Status tab, not Last Sync.
 
 Conventions (full text in `docs/rules.md` § Conventions): process env vars beat `.env`
 (`override=False`); three image sources (`CAMERA_TYPE` = `hikrobot` / `opencv` / `photo`,

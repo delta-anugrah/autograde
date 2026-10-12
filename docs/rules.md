@@ -134,7 +134,7 @@ end of this file.
    ⚠️ **TP cuma dicari untuk janjang ACC.** Unripe dan JK dibuang piston, jadi
    tangkainya tidak dibayar dan tidak dicatat, angka TP karena itu lebih kecil
    daripada sebelum tanggal itu, dan turunnya disengaja.
-   **`image_url` = `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp`** (consistent with `/captures` mount): folder KELAS, bukan verdict (sejak 2026-09-20: `acc`/`rej` melebur Unripe dan JK, membuang persis yang dibeli retrain 4 kelas), dan janjang Ripe bertangkai panjang turun satu level lagi ke `Ripe/TP/` supaya mencari hasil TP cukup membuka satu folder. Capture manual → `unknown/` (tidak pernah lewat model). ⚠️ **Tidak ada pembaca yang boleh mematok kedalaman folder**, `Ripe/TP/` satu level lebih dalam, dan `_twin()` yang dulu menganggap verdict tepat di bawah `bbox` mengembalikan `None` untuknya: kembaran yang tidak ketemu adalah kembaran yang tidak dihapus siapa pun, karena `clean/` dan `thumb/` tidak punya baris manifest sendiri. Satu folder per truk, **tiga berkas per janjang**: `bbox/` (bergambar kotak, ini yang ditunjuk `image_path` dan yang naik R2), `clean/` (polos, buat latih model ulang; **tidak** diupload), dan `thumb/` (sejak 2026-09-16: 400px WebP q60 dari frame `bbox/`, naik ke R2 berdampingan dengan `bbox/` (apa yang dimuat grid `viewer.html`). Jam folder pakai `FACTORY_TZ`, **bukan** UTC) folder dibaca manusia, nama berkas dibaca mesin. Truk belum di-assign → `_belum-assign/`. **JSON sidecar-nya TETAP datar di folder tanggal**: `BatchUploadWorker._scan()` mencarinya dengan `glob("*/*_ripeness.json")` (kedalaman dipatok dua), jadi sidecar yang ikut masuk subfolder bikin upload cloud berhenti **tanpa error**. Aturannya di `domain/capture_layout.py` (`CaptureVariant.THUMB`, `twins_of()`), penulisnya `services/capture_writer.py` (satu-satunya yang menulis gambar, dipakai jalur auto maupun manual). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`), thumbnail quality 60; folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada**, dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
+   **`image_url` = `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp`** (consistent with `/captures` mount): folder KELAS, bukan verdict (sejak 2026-09-20: `acc`/`rej` melebur Unripe dan JK, membuang persis yang dibeli retrain 4 kelas), dan janjang Ripe bertangkai panjang turun satu level lagi ke `Ripe/TP/` supaya mencari hasil TP cukup membuka satu folder. Capture manual → `unknown/` (tidak pernah lewat model). ⚠️ **Tidak ada pembaca yang boleh mematok kedalaman folder**, `Ripe/TP/` satu level lebih dalam, dan `_twin()` yang dulu menganggap verdict tepat di bawah `bbox` mengembalikan `None` untuknya: kembaran yang tidak ketemu adalah kembaran yang tidak dihapus siapa pun, karena `clean/` dan `thumb/` tidak punya baris manifest sendiri. Satu folder per truk, **tiga berkas per janjang**: `bbox/` (bergambar kotak, ini yang ditunjuk `image_path` dan yang naik R2), `clean/` (polos, buat latih model ulang; **tidak** diupload ke bucket captures. Exception since 2026-10-13: with `TRAINING_INBOX_BUCKET` set, the console sends every `clean/` photo (or only the priority ones) to the separate nexio inbox bucket, never `bbox/` or `thumb/`; rule 40), dan `thumb/` (sejak 2026-09-16: 400px WebP q60 dari frame `bbox/`, naik ke R2 berdampingan dengan `bbox/` (apa yang dimuat grid `viewer.html`). Jam folder pakai `FACTORY_TZ`, **bukan** UTC) folder dibaca manusia, nama berkas dibaca mesin. Truk belum di-assign → `_belum-assign/`. **JSON sidecar-nya TETAP datar di folder tanggal**: `BatchUploadWorker._scan()` mencarinya dengan `glob("*/*_ripeness.json")` (kedalaman dipatok dua), jadi sidecar yang ikut masuk subfolder bikin upload cloud berhenti **tanpa error**. Aturannya di `domain/capture_layout.py` (`CaptureVariant.THUMB`, `twins_of()`), penulisnya `services/capture_writer.py` (satu-satunya yang menulis gambar, dipakai jalur auto maupun manual). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`), thumbnail quality 60; folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada**, dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
 8. **Encode atau tulis gagal → `LocalFileStorage.write_image` raises `OSError`** (termasuk `cv2.error`) (no orphaned JSON records pointing at an image that was never written). Kegagalan menulis **`thumb/`** khusus TIDAK melempar, janjang tetap tersimpan tanpa thumbnail, `logger.error` saja (lihat rule 7).
    Foto dan sidecar ditulis utuh-atau-tidak-sama-sekali: `cv2.imencode` di memori lalu `tulis_atomik`
    (temp `.<nama>.<acak>.tmp` + fsync + `os.replace` + fsync folder); listrik padam meninggalkan
@@ -787,6 +787,14 @@ end of this file.
     janjang yang ditolak konsol (`outbox_failed`: selalu 0 pada line versi ini, baris itu kini
     ikut `outbox_pending` dan menahan hapus data; peringatannya tetap ada untuk line yang masih
     di image lama), kiriman AutoERP yang gagal, foto yang belum naik R2.
+    ⚠️ **Training photo queue (since 2026-10-13, rule 40):** delete data (both modes) also
+    empties `state/training_outbox.db` (`TrainingOutboxStore.hapus_semua`, counted in `antrean`),
+    with no hindrance and no warning: those photos feed retraining, nothing the mill is paid on.
+    One batch (up to 20 rows) that `TrainingUploadWorker` had already picked before the wipe may
+    still reach the nexio inbox afterwards, as long as its `clean/` file is still on disk (the
+    line deletes it only at its next boot). Its row is already gone, so `mark_sent` changes
+    nothing and the photo is never sent a second time. Accepted on purpose: checking each row
+    again before upload costs a query per photo to save a handful of photos once.
     Konfirmasi hapus **diketik** (`HAPUS`, huruf besar), walau Uji PLC sudah membuangnya:
     hapus data jarang dipakai dan tidak bisa dibatalkan. Tiap aksi meninggalkan satu
     WARNING `[Danger Zone] … oleh <email>`; untuk hapus data ditulis SESUDAH log
@@ -1464,6 +1472,47 @@ end of this file.
     mengingatkannya. Kotak timbangan live menulis **Dummy** hanya selama tidak ada timbangan
     terpasang (`tidak_dipakai`); dengan timbangan terpasang kotak itu tetap menulis keadaan
     timbangannya, tetapi scan tetap menyimpan berat dummy.
+
+40. **Training photos to the nexio inbox: own queue, `clean/` only, never sent twice** (2026-10-13,
+    nexio spec `nexio-vision-ai/docs/architecture/AUTOGRADE_TO_NEXIO_PIPELINE.md` §3-§6).
+    Every graded bunch's `clean/` photo (rule 7) plus one JSON manifest (contract
+    `autograde-training-sample/v1`, `domain/training_sample.py`, fixtures in
+    `tests/fixtures/autograde-training-sample/v1/`, copied byte for byte by nexio) goes to the R2
+    bucket `nexio-inbox`, where the nexio training app imports it.
+    **On only when complete**: `TRAINING_INBOX_BUCKET`, the endpoint (`TRAINING_INBOX_ENDPOINT`, or
+    derived from `R2_ACCOUNT_ID`) and both keys. Bucket empty = off: no outbox file, no worker, no
+    ingest hook. Bucket set but a key or the endpoint empty = off with one WARNING at start
+    (`routes/console_deps._build_training`), never a worker that fails every minute.
+    **Queued at ingest, sent by a worker** (rule 1, L5). `ConsoleService._ingest` calls
+    `TrainingInbox.offer` only on a bunch's FIRST arrival (`add_inspection` returned True), and the
+    store uses `INSERT OR IGNORE` on `event_id`: a redelivered event adds nothing. `offer` never
+    raises: an exception in `_ingest` would make the line resend the event forever, so a package
+    that fails to queue is logged with its event id and lost for training only. A bunch from an
+    unknown machine id is not queued (no mount to read its photo from). The photo path is derived
+    from the event's `image_path` (`bbox/` to `clean/` under the read-only mount
+    `artifacts/<line_code>`), never by scanning (rule 11); a path that leaves the mount is refused.
+    `TRAINING_INBOX_SEND=priority` queues only manual rejects, confidence below
+    `TRAINING_INBOX_LOW_CONFIDENCE`, JK and bunches with a TP; `all` (default) queues every bunch.
+    **Own file**: `state/training_outbox.db` (`TrainingOutboxStore`), apart from `erp_outbox` and the
+    manifest queue, so a dead inbox never holds an AutoERP message or a visit manifest.
+    **Photo before manifest**: `TrainingUploadWorker` (every 60 s) drains batch after batch (20 rows)
+    until nothing is due, so a day's backlog leaves in one tick. Keys
+    `v1/<machine_id>/<UTC day>/<event_id>.webp` then `.json`; nexio imports a photo only once its
+    manifest exists, and a retry overwrites both keys. Every upload has a timeout
+    (`r2_uploader.KIRIM_CONFIG`: connect 10 s, read 60 s, 2 attempts).
+    **How a row ends**: `sent` (never re-sent); `gone` when the `clean/` file is missing, empty or a
+    leftover `.tmp` (terminal, the pass goes on; retention under rule 9 can cause it after a long
+    outage); `error` with backoff (30 s doubling to 1 h, no give-up limit) when an upload fails,
+    which also stops the pass with one WARNING per tick, or when one photo or manifest cannot be
+    read, which holds that row only. `sent` and `gone` rows are pruned after 7 days.
+    **Seen on Status, not Last Sync**: support sub-tab Status → Foto training
+    (`GET /api/console/dev/antrean/training`) shows waiting, failed and the last send, rows worded
+    from `error_kind`; "belum disetel" when off, never a zero. Last Sync keeps its two rows (rule 27).
+    Danger Zone empties the queue (rule 25).
+    **Shared factory `.env` block**: the host script `kirim-video.sh` (sawit repo,
+    `sawit/docs/runbooks/2026-10-13-kirim-video-ke-nexio-inbox.md`) reads the same four
+    `TRAINING_INBOX_*` keys from the factory `.env` plus its own switch `TRAINING_INBOX_VIDEOS`
+    (default off), which the console never reads. Changing a key changes both senders.
 
 ---
 

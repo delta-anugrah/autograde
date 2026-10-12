@@ -34,7 +34,7 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
 
 - Menambah env var yang dibaca **konsol**? Tambahkan juga di blok `console:` di
   `docker-compose.prod.yml` (dijaga `tests/unit/test_console_compose_env.py`, prefiks
-  `ERP_`, `CONSOLE_`, `LOG_`, `R2_`, `MEDIA_`, `LICENSE_`), **lalu tulis di PR** bahwa compose
+  `ERP_`, `CONSOLE_`, `LOG_`, `R2_`, `MEDIA_`, `LICENSE_`, `DISCORD_`, `SCALE_`, `TRAINING_`), **lalu tulis di PR** bahwa compose
   host pabrik harus ditambah tangan, lengkap dengan barisnya.
 - Menambah mount (folder `models/`, `engines/`, `videos/`, `media/`)? Sama: repo + langkah tangan.
 - Mengubah launcher? Ubah salinan di repo `sawit` (`docs/runbooks/files/`) dan beri langkah
@@ -60,6 +60,16 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
   menyimulasikan line dan timbangan, dan `Settings.validate_demo_mode` menolak boot kalau
   `PLC_ENABLED`, `PLC_HOST`, `SCALE_PLC_HOST` atau `SCALE_PLC_REGISTER` terisi. Rilisnya tetap
   "No host-side change required".
+- **`TRAINING_INBOX_*` foto training ke nexio** (2026-10-13, aturan 40): rilisnya sendiri
+  "No host-side change required" (tanpa variabel ini fitur mati, sub-tab Status menulis belum
+  disetel). Menyalakannya butuh enam baris di blok `console:` compose host, persis seperti
+  `docker-compose.prod.yml` repo (`- TRAINING_INBOX_BUCKET=${TRAINING_INBOX_BUCKET:-}`, `_ACCESS_KEY_ID`,
+  `_SECRET_ACCESS_KEY`, `_ENDPOINT` dengan bawaan kosong, `_SEND` bawaan `all`,
+  `_LOW_CONFIDENCE` bawaan `0.60`), nilainya di `.env` (token tulis-saja untuk bucket
+  `nexio-inbox`, bukan token `R2_*`), lalu `autograde restart`. Cek: `docker exec
+  palmgrade_console printenv TRAINING_INBOX_BUCKET`. Skrip host `kirim-video.sh` (repo sawit)
+  membaca empat kunci yang sama langsung dari `.env` plus saklarnya sendiri
+  `TRAINING_INBOX_VIDEOS`, jadi satu blok `.env` dipakai berdua dan tidak perlu baris compose.
 - **`AI_MATI_DETIK`** (batch 2.1, opsional): bawaan 30 jalan tanpa perubahan host, jadi rilisnya
   sendiri "No host-side change required". Tapi **menyetelnya** (misal `AI_MATI_DETIK=60` di
   `.env` untuk line yang lambat) tidak berpengaruh apa pun sampai tiga blok line
