@@ -189,6 +189,41 @@ def _disk_gb(nama: str, bawaan: float) -> float:
     return nilai
 
 
+#: Same values as domain/training_sample.SEND_MODES (pinned by test_training_settings.py);
+#: core/ does not import domain/.
+_TRAINING_SEND_MODES = ("all", "priority")
+_TRAINING_LOW_CONFIDENCE_DEFAULT = 0.60
+
+
+def _training_send(raw: str) -> str:
+    """TRAINING_INBOX_SEND: blank or a typo keeps sending everything; a typo logs a WARNING."""
+    nilai = (raw or "").strip().lower()
+    if not nilai:
+        return "all"
+    if nilai not in _TRAINING_SEND_MODES:
+        logger.warning("TRAINING_INBOX_SEND=%r tidak dikenal, dipakai 'all' (pilihan: all, priority)", raw)
+        return "all"
+    return nilai
+
+
+def _training_threshold(raw: str) -> float:
+    """TRAINING_INBOX_LOW_CONFIDENCE: blank is the default; a non-number or outside 0-1 warns."""
+    if not (raw or "").strip():
+        return _TRAINING_LOW_CONFIDENCE_DEFAULT
+    try:
+        nilai = float(raw)
+    except (TypeError, ValueError):
+        nilai = -1.0
+    if not 0.0 <= nilai <= 1.0:
+        logger.warning(
+            "TRAINING_INBOX_LOW_CONFIDENCE=%r bukan angka 0-1, dipakai %.2f",
+            raw,
+            _TRAINING_LOW_CONFIDENCE_DEFAULT,
+        )
+        return _TRAINING_LOW_CONFIDENCE_DEFAULT
+    return nilai
+
+
 # The committed default WEBHOOK_SECRET, also the docker-compose fallback. Fine
 # for dev, MUST be replaced in production — see Settings.validate_for_runtime().
 # Kept as one constant so it never spreads as a magic string.
@@ -395,6 +430,21 @@ class Settings:
     r2_secret_access_key: str = field(default_factory=lambda: os.getenv("R2_SECRET_ACCESS_KEY", ""))
     r2_bucket: str = field(default_factory=lambda: os.getenv("R2_BUCKET", ""))
     r2_public_url: str = field(default_factory=lambda: os.getenv("R2_PUBLIC_URL", "").rstrip("/"))
+
+    # Training photos to the nexio inbox (nexio spec 6.4). Empty bucket = off.
+    # Its own token, write-only on the inbox bucket, never the captures token.
+    training_inbox_bucket: str = field(default_factory=lambda: os.getenv("TRAINING_INBOX_BUCKET", "").strip())
+    training_inbox_access_key_id: str = field(default_factory=lambda: os.getenv("TRAINING_INBOX_ACCESS_KEY_ID", ""))
+    training_inbox_secret_access_key: str = field(
+        default_factory=lambda: os.getenv("TRAINING_INBOX_SECRET_ACCESS_KEY", "")
+    )
+    training_inbox_endpoint: str = field(
+        default_factory=lambda: os.getenv("TRAINING_INBOX_ENDPOINT", "").strip().rstrip("/")
+    )
+    training_inbox_send: str = field(default_factory=lambda: _training_send(os.getenv("TRAINING_INBOX_SEND", "all")))
+    training_inbox_low_confidence: float = field(
+        default_factory=lambda: _training_threshold(os.getenv("TRAINING_INBOX_LOW_CONFIDENCE", "0.60"))
+    )
     # The text POST goes to the CLOUD API. BACKEND_URL stays on the LOCAL API
     # (the realtime webhook).
     upload_api_url: str = field(default_factory=lambda: os.getenv("UPLOAD_API_URL", "").rstrip("/"))
@@ -888,6 +938,18 @@ class Settings:
     def erp_outbox_db_path(self) -> Path:
         """Messages waiting for AutoERP — its own file, like the line outbox."""
         return self.state_dir / "erp_outbox.db"
+
+    @property
+    def training_outbox_db_path(self) -> Path:
+        """Training photos waiting for the nexio inbox, its own file."""
+        return self.state_dir / "training_outbox.db"
+
+    @property
+    def training_inbox_endpoint_url(self) -> str:
+        """Where training photos go. Empty when neither an endpoint nor an R2 account is set (= off)."""
+        if self.training_inbox_endpoint:
+            return self.training_inbox_endpoint
+        return f"https://{self.r2_account_id}.r2.cloudflarestorage.com" if self.r2_account_id else ""
 
     @property
     def console_db_path(self) -> Path:
