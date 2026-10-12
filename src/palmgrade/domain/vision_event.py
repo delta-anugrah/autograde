@@ -72,6 +72,8 @@ def build_event_payload(
     tp_status: str | None = None,
     tp_confidence: float | None = None,
     grade_class: str | None = None,
+    tp_bounding_box: dict[str, Any] | None = None,
+    model_file: str | None = None,
 ) -> dict[str, Any]:
     """`image_path` HARUS relatif (`captures/results/<tgl>/<file>.webp`).
 
@@ -100,4 +102,8 @@ def build_event_payload(
         "capture_type": capture_type,
         "image_path": image_path,
         "bounding_box": bounding_box or {},
+        # Training manifest for nexio (spec §4). Optional on purpose: a line on an
+        # older image and a manual reject send neither, and the console copes.
+        "tp_bounding_box": tp_bounding_box or None,
+        "model_file": (model_file or "").strip() or None,
     }

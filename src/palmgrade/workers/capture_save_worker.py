@@ -366,6 +366,9 @@ class CaptureSaveWorker:
             tp_status=TP_PASS if job.tp else None,
             tp_confidence=job.tp["tp_confidence"] if job.tp else None,
             grade_class=job.grade_class,
+            tp_bounding_box=_kotak(job.tp["bbox"]) if job.tp else None,
+            # The file this line was configured with (media.env per line, else MODEL_FILE).
+            model_file=self.settings.model_file,
         )
         try:
             self.outbox_store.add_event(

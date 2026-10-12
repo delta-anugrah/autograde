@@ -424,11 +424,15 @@ konsol. Nama field dan nilainya HARUS tepat:
   "tp_confidence": 0.88,
   "capture_type": "auto | manual",
   "image_path": "captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp",
-  "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
+  "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 },
+  "tp_bounding_box": { "x_min": 1102, "y_min": 1290, "x_max": 1380, "y_max": 1488 } | null,
+  "model_file": "ripe_v7.pt | null"
 }
 ```
 
 **Kontrak penting:**
+- `tp_bounding_box` dan `model_file` (2026-10): opsional, `null` kalau tidak diketahui (reject manual,
+  line lama); keduanya dipakai manifest training nexio.
 - `event_id`: kunci idempotensi di sisi penerima. uuid5 deterministik dari `machine_id:timestamp`
   untuk **auto maupun manual**; `BatchUploadWorker` menghitungnya ulang dari **nama file**, jadi
   dua jalur tidak pernah dobel.
