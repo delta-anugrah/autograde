@@ -18,6 +18,22 @@ Next:           ...
 
 ---
 
+## 2026-10-13 · console · Demo: simulated trucks, weighbridge and Rekap; demo is read-only (PR #TBD)
+Changed:        In DEMO_MODE the screen now simulates truck visits computed from the clock (pure
+                functions kunjunganDemo/keadaanDemo, no storage): a truck every 10 to 20 minutes from
+                the seeded trucks arrives, weighs in, queues, unloads on every line (automatic
+                assignment), weighs out and leaves. The truck card and the unloading queue, the
+                Weighbridge board and table (gambarTimbangan split out of muatTimbangan), today's
+                tally, Rekap per truck for today, and the line counters all come from that one model,
+                so they agree; the camera tick runs only while a truck unloads. The server is
+                read-only in DEMO_MODE: a router-wide dependency (tolak_tulis_saat_demo) answers 403
+                `mode_demo` to every /api/console write except login, logout and session renew, and the
+                screen words it. Odometer digits fade at the edges and the scale rolls in 0.45 s, so a
+                rolling digit no longer reads as broken in a still photo.
+Validated:      see the PR (unit, e2e, integration, browser in Chromium and Firefox).
+Not validated:  Not on the droplet yet: needs a release.
+Next:           Release, then check demo-autograde.smagri.id.
+
 ## 2026-10-10 · docs · README rewritten in English (PR #267)
 Changed:        README.md rewritten in English for an engineer opening the repo: what it is, system
                 context, line and console flow, grading rules, quick start (Mac and Linux),

@@ -125,8 +125,15 @@ pertama merah, tanpa akibat lain):
 
 Sejak 2026-10-09 layar demo terlihat **hidup**, seperti desain: kotak kamera berganti foto
 janjang lengkap dengan kotak deteksinya, angka Ripe/Unripe/Total naik, baris baru muncul di atas
-tabel Hasil grading (plat `BE 8605 TSD`), strip foto kecil di kartu ikut berganti, dan
-Timbangan sekarang naik, diam di 21.640 kg, lalu turun lagi (satu putaran 16 detik).
+tabel Hasil grading, strip foto kecil di kartu ikut berganti, dan Timbangan sekarang naik, diam
+di 21.640 kg, lalu turun lagi (satu putaran 16 detik).
+
+Sejak 2026-10-13 **truknya ikut disimulasikan**: tiap 10 sampai 20 menit satu truk (plat dari
+data seeder) datang, timbang isi, antre, dipasang otomatis ke ketiga line, bongkar 9 sampai 16
+menit, timbang kosong, lalu pulang. Akibatnya kotak "Di line sekarang" dan "Antrean bongkar"
+berisi, tab Timbangan (papan dan tabel) dan Rekap hari ini terisi, dan angka janjang di kartu
+sama dengan Rekap. Semuanya dihitung dari jam: refresh menampilkan truk yang sama di tahap yang
+sama. Di sela dua truk, line menunggu (foto kamera berhenti berganti), sama seperti di pabrik.
 
 Menyalakannya, sekali, dari laptop (droplet tidak punya source code):
 
@@ -141,7 +148,11 @@ Menyalakannya, sekali, dari laptop (droplet tidak punya source code):
 Yang perlu diketahui:
 
 - **Semua cuma di browser.** Tidak ada yang ditulis ke database dan tidak ada yang dikirim ke
-  AutoERP demo. Tekan refresh = mulai lagi dari angka hasil seeder.
+  AutoERP demo.
+- **Demo hanya-baca.** Selama `DEMO_MODE` nyala, server menolak semua penyimpanan dari layar
+  (Catat datang, Timbang, Lepas, Reject Manual, setelan, akun), kecuali masuk dan keluar.
+  Layar menjawab "Ini layar demo: tidak ada yang disimpan". Mengisi ulang data tetap lewat
+  `demo-autograde reset` (seeder menulis langsung ke basis data, bukan lewat layar).
 - Baris simulasi hanya muncul di halaman 1 tabel tanpa saringan. Pilih satu line atau satu truk,
   atau pindah ke halaman 2, dan yang tampil cuma data seeder. Jumlah di bawah tabel halaman 1
   ikut menghitung baris simulasi, jadi angkanya tidak persis sama dengan halaman 2.
@@ -191,7 +202,7 @@ yang benar, lalu hapus tiket uji itu).
 |---|---|---|
 | Unit | `tests/unit/test_demo_image_workflow.py`, `tests/unit/test_demo_kit.py` | tidak ada |
 | Kunci CI (`upgrade`/`status` saja) | `deploy/demo/demo-autograde-ci.test.sh` (dijalankan juga oleh `test_demo_kit.py`), `tests/unit/test_demo_image_workflow.py` | bash; kasus kunci butuh `flock` (CI, droplet) |
-| Mode demo hidup | `tests/unit/test_demo_mode_setting.py`, `tests/unit/test_demo_frames.py`, `tests/unit/test_console_html_demo_hidup.py`, `tests/browser/test_browser_demo_hidup.py` | node, Playwright |
+| Mode demo hidup | `tests/unit/test_demo_mode_setting.py`, `tests/unit/test_demo_frames.py`, `tests/unit/test_demo_hanya_baca.py`, `tests/unit/test_console_html_demo_hidup.py`, `tests/unit/test_console_html_demo_truk.py`, `tests/browser/test_browser_demo_hidup.py` | node, Playwright |
 | Skrip | `deploy/demo/demo-autograde.test.sh` (dijalankan juga oleh `test_demo_kit.py`) | bash |
 | E2E | `tests/e2e/test_demo_kit_docker.py` | Docker + image demo yang sudah dibangun |
 

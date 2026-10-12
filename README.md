@@ -325,8 +325,10 @@ change a plate on one side and change it on the other in the same PR. Ids are de
 (uuid5), so seeding twice adds nothing.
 
 For a moving screen (camera frames, counters, a scale that rises and falls) like
-`demo-autograde.smagri.id`: `DEMO_MODE=1 make console`. The simulation runs in the browser only and
-writes nothing; the console refuses to boot with `DEMO_MODE` next to a PLC or scale setting
+`demo-autograde.smagri.id`: `DEMO_MODE=1 make console`. Trucks arrive, weigh in, queue, unload on
+the lines, weigh out and leave, computed from the clock in the browser; the Weighbridge and Rekap tabs
+follow. Nothing is written: the server refuses every write except sign-in while `DEMO_MODE` is on,
+and the console refuses to boot with `DEMO_MODE` next to a PLC or scale setting
 ([runbook](docs/runbooks/2026-09-28-konsol-demo-droplet.md) § Mode demo hidup).
 
 After seeding, `CONSOLE_EMAIL=operator@demo.autoerp.test CONSOLE_SANDI=sawit2026 scripts/smoke-console.sh`
