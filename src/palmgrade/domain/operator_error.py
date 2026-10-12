@@ -98,6 +98,8 @@ SLIP_MATI = "slip_mati"
 SLIP_TIDAK_ADA = "slip_tidak_ada"
 # Shift cutoff (batch 5.11): HH:MM between 00:00 and 23:59.
 CUTOFF_TIDAK_SAH = "cutoff_tidak_sah"
+# DEMO_MODE (demo-autograde.smagri.id): the demo is read-only, a visitor's click stores nothing.
+MODE_DEMO = "mode_demo"
 
 CODES = (
     PLAT_KOSONG,
@@ -153,6 +155,7 @@ CODES = (
     SLIP_MATI,
     SLIP_TIDAK_ADA,
     CUTOFF_TIDAK_SAH,
+    MODE_DEMO,
 )
 
 

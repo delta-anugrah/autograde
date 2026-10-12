@@ -20,7 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from ..core.config import Settings, demo_mode_dari_env
-from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, INPUT_TIDAK_SAH, OperatorError
+from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, INPUT_TIDAK_SAH, MODE_DEMO, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.client import ErpClient
@@ -311,6 +311,7 @@ def get_demo_mode() -> bool:
     return demo_mode_dari_env()
 
 
+
 def hangatkan_singleton() -> None:
     """Build, before the first request, EVERY `lru_cache` singleton in this module.
 
@@ -353,6 +354,22 @@ Slip = Annotated[SlipGrading, Depends(get_slip_service)]
 Impor = Annotated[ImporGradingService, Depends(get_impor_grading_service)]
 Pembaruan = Annotated[PembaruanService, Depends(get_pembaruan_service)]
 DemoMode = Annotated[bool, Depends(get_demo_mode)]
+
+
+#: Writes that stay open in demo mode: signing in and out is how a visitor sees the screen.
+_TULIS_BOLEH_SAAT_DEMO = frozenset({
+    "/api/console/login", "/api/console/logout", "/api/console/session/renew",
+})
+_BACA = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def tolak_tulis_saat_demo(request: Request, demo_mode: DemoMode) -> None:
+    """DEMO_MODE is read-only (2026-10-13). The demo faces the internet and its screen simulates
+    trucks and weighings in the browser; a stored click would sit next to that simulation and
+    an assignment would wait on lines that do not exist on the droplet. Router-wide, so a new
+    route is covered without anyone remembering it."""
+    if demo_mode and request.method not in _BACA and request.url.path not in _TULIS_BOLEH_SAAT_DEMO:
+        raise _operator_error(403, OperatorError(MODE_DEMO, "demo is read-only"))
 
 
 def require_operator(
