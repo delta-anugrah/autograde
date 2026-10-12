@@ -8,7 +8,12 @@ import logging
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from palmgrade.integrations.erp.outbox_store import GAGAL_KONSOL, GAGAL_TAK_TERJANGKAU, GAGAL_TUJUAN
+from palmgrade.integrations.erp.outbox_store import (
+    GAGAL_KONSOL,
+    GAGAL_KUNCI_DITOLAK,
+    GAGAL_TAK_TERJANGKAU,
+    GAGAL_TUJUAN,
+)
 from palmgrade.integrations.upload.training_outbox_store import TrainingOutboxStore
 from palmgrade.workers import training_upload_worker as mod
 from palmgrade.workers.training_upload_worker import TrainingUploadWorker
@@ -203,3 +208,26 @@ def test_drain_prunes_old_done_rows(tmp_path):
     clock[0] += 8 * 86400
     asyncio.run(w.drain())
     assert store._db.execute("SELECT COUNT(*) FROM training_outbox").fetchone()[0] == 0
+
+
+def test_a_value_error_on_read_holds_that_row_and_the_pass_goes_on(tmp_path):
+    # Final review I1: an embedded null byte in the path raises ValueError, not OSError.
+    store = TrainingOutboxStore(tmp_path / "o.db")
+    store.enqueue("e-1", "line-1", str(tmp_path / "bad\x00.webp"), {**MANIFEST, "event_id": "e-1"})
+    _queue(tmp_path, store, "e-2")
+    up = FakeUploader()
+    assert asyncio.run(TrainingUploadWorker(store, up).drain()) == 1
+    assert _status(store, "e-1") == "error"
+    assert store.failed_rows()[0]["error_kind"] == GAGAL_KONSOL
+    assert _status(store, "e-2") == "sent"
+
+
+def test_upload_warning_names_the_classified_kind(tmp_path, caplog):
+    store = TrainingOutboxStore(tmp_path / "o.db")
+    _queue(tmp_path, store)
+    denied = ClientError({"Error": {"Code": "AccessDenied"}, "ResponseMetadata": {"HTTPStatusCode": 403}}, "PutObject")
+    with caplog.at_level(logging.WARNING, logger=mod.__name__):
+        asyncio.run(TrainingUploadWorker(store, FakeUploader(fail_after=0, exc=denied)).drain())
+    text = caplog.records[0].getMessage()
+    assert "unreachable" not in text
+    assert GAGAL_KUNCI_DITOLAK in text

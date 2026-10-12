@@ -117,8 +117,9 @@ class TrainingUploadWorker:
                 self.outbox.mark_gone(row.event_id, str(exc))
                 logger.warning("Training photo %s (%s) skipped: %s", row.event_id, row.line_code, exc)
                 continue
-            except OSError as exc:
-                # Unreadable, not missing (permission, a directory in its place): it may read next time.
+            except (OSError, ValueError) as exc:
+                # Unreadable, not missing (permission, a directory in its place, a null byte in the path):
+                # it may read next time, and it holds this row only.
                 self.outbox.mark_error(row.event_id, str(exc), jenis=GAGAL_KONSOL)
                 logger.warning("Training photo %s (%s) unreadable: %s", row.event_id, row.line_code, exc)
                 continue
@@ -134,10 +135,11 @@ class TrainingUploadWorker:
                     self._uploader.put_bytes, manifest_body, manifest_key, content_type=MANIFEST_CONTENT_TYPE
                 )
             except Exception as exc:  # noqa: BLE001 : any upload failure: keep the row, stop the pass (D5)
-                self.outbox.mark_error(row.event_id, str(exc), jenis=jenis_gagal_r2(exc))
+                jenis = jenis_gagal_r2(exc)
+                self.outbox.mark_error(row.event_id, str(exc), jenis=jenis)
                 logger.warning(
-                    "R2 nexio inbox unreachable, holding training photos (at %s, %s): %s",
-                    row.event_id, row.line_code, exc,
+                    "R2 nexio inbox upload failed (%s), holding training photos (at %s, %s): %s",
+                    jenis, row.event_id, row.line_code, exc,
                 )
                 return sent, True
             self.outbox.mark_sent(row.event_id)
