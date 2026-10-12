@@ -114,3 +114,17 @@ def test_unknown_app_version_goes_out_as_null(monkeypatch, tmp_path):
     )
     svc = _rakit(monkeypatch, uji)
     assert svc.training_inbox._autograde_version == ""
+
+
+def test_a_corrupt_outbox_file_does_not_stop_the_console(monkeypatch, tmp_path, caplog):
+    """Final review M4: a damaged training_outbox.db turns the feature off, the console boots."""
+    uji = _settings(
+        tmp_path, training_inbox_bucket="nexio-inbox", training_inbox_endpoint=ENDPOINT,
+        training_inbox_access_key_id="k", training_inbox_secret_access_key="s",
+    )
+    uji.training_outbox_db_path.parent.mkdir(parents=True, exist_ok=True)
+    uji.training_outbox_db_path.write_bytes(b"this is not a sqlite file" * 100)
+    with caplog.at_level(logging.INFO, logger="palmgrade.routes.console_deps"):
+        svc = _rakit(monkeypatch, uji)
+    assert svc.training_inbox is None and svc.training_worker is None
+    assert len([r for r in caplog.records if r.levelno == logging.ERROR and "Training" in r.getMessage()]) == 1

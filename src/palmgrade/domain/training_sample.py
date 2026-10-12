@@ -180,7 +180,9 @@ def photo_path(artifacts_dir: Path, line_code: str, image_path: str | None) -> P
     Same root as the `/captures/<line>` mount in console_main.py. None when the event
     has no path or was written flat (before the bbox/clean layout): no clean twin exists.
     """
-    if not image_path or image_path.lower().startswith(("http://", "https://")):
+    if not image_path or "\x00" in image_path or "\x00" in (line_code or ""):
+        return None
+    if image_path.lower().startswith(("http://", "https://")):
         return None
     if not line_code or any(c in line_code for c in "/\\") or ".." in line_code:
         return None

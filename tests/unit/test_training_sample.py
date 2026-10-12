@@ -142,6 +142,11 @@ def test_photo_path_none_for_a_flat_old_capture_or_no_path(tmp_path):
     assert ts.photo_path(tmp_path, "line-2", None) is None
 
 
+def test_photo_path_none_for_a_null_byte(tmp_path):
+    assert ts.photo_path(tmp_path, "line-2", IMAGE_PATH.replace("results", "res\x00ults")) is None
+    assert ts.photo_path(tmp_path, "line\x002", IMAGE_PATH) is None
+
+
 @pytest.mark.parametrize(
     "bad",
     [

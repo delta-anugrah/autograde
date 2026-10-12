@@ -8,6 +8,7 @@ them by identity (`app.dependency_overrides[console.get_console_service]`).
 from __future__ import annotations
 
 import logging
+import sqlite3
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -141,7 +142,12 @@ def _build_training(settings: Settings) -> tuple[TrainingInbox | None, TrainingU
             "Training photos to nexio off: TRAINING_INBOX_BUCKET is set but its keys or endpoint are empty"
         )
         return None, None
-    outbox = TrainingOutboxStore(settings.training_outbox_db_path)
+    try:
+        outbox = TrainingOutboxStore(settings.training_outbox_db_path)
+    except (sqlite3.Error, OSError):
+        # A damaged or unopenable file must not stop the operator screen from booting.
+        logger.exception("Training photos to nexio off: the outbox file cannot be opened")
+        return None, None
     inbox = TrainingInbox(
         outbox,
         artifacts_dir=settings.artifacts_dir,
