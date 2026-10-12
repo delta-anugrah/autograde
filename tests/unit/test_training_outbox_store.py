@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from palmgrade.integrations.erp.outbox_store import GAGAL_TAK_TERJANGKAU
+from palmgrade.integrations.erp.outbox_store import GAGAL_KONSOL, GAGAL_TAK_TERJANGKAU
 from palmgrade.integrations.upload.training_outbox_store import KEEP_DONE_S, TrainingOutboxStore
 
 
@@ -160,3 +160,40 @@ def test_due_uses_the_index(tmp_path):
         "EXPLAIN QUERY PLAN SELECT * FROM training_outbox WHERE status IN ('pending','error') AND next_attempt_at <= 0"
     ).fetchall()
     assert any("idx_training_outbox_due" in str(tuple(r)) for r in plan)
+
+
+def test_mark_error_never_resurrects_a_done_row(tmp_path):
+    # A late error report (e.g. a pass racing a Danger Zone or a second worker) must not
+    # bring a sent photo back into the queue: a sent photo is never sent again.
+    s = _store(tmp_path)
+    s.enqueue("sent", "line-1", "/p/s.webp", {})
+    s.mark_sent("sent")
+    s.enqueue("gone", "line-1", "/p/g.webp", {})
+    s.mark_gone("gone", "missing")
+    s.mark_error("sent", "late", jenis=GAGAL_TAK_TERJANGKAU)
+    s.mark_error("gone", "late", jenis=GAGAL_TAK_TERJANGKAU)
+    status = dict(s._db.execute("SELECT event_id, status FROM training_outbox").fetchall())
+    assert status == {"sent": "sent", "gone": "gone"}
+    assert s.failed_count() == 0
+    assert s.last_sent_at() is not None
+
+
+def test_due_sets_aside_a_row_whose_manifest_cannot_be_read(tmp_path):
+    clock = Clock()
+    s = _store(tmp_path, clock)
+    s.enqueue("bad", "line-1", "/p/b.webp", {"event_id": "bad"})
+    s.enqueue("odd", "line-1", "/p/o.webp", {"event_id": "odd"})
+    clock.t += 1
+    s.enqueue("good", "line-1", "/p/g.webp", {"event_id": "good"})
+    with s._db:
+        s._db.execute("UPDATE training_outbox SET manifest='{not json' WHERE event_id='bad'")
+        s._db.execute("UPDATE training_outbox SET manifest='[1, 2]' WHERE event_id='odd'")
+    assert [r.event_id for r in s.due(10)] == ["good"]
+    rows = {r["key"]: r for r in s.failed_rows()}
+    assert set(rows) == {"bad", "odd"}
+    assert rows["bad"]["last_error"] == "manifest unreadable"
+    assert rows["bad"]["error_kind"] == GAGAL_KONSOL
+    assert rows["bad"]["attempts"] == 1
+    assert rows["bad"]["next_attempt_at"] == clock.t + 3600
+    clock.t += 3599
+    assert [r.event_id for r in s.due(10)] == ["good"]

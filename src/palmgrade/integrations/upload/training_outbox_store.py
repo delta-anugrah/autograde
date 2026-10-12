@@ -11,6 +11,7 @@ rather than requeued, and a sent photo is never sent again.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -18,6 +19,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from ..erp.outbox_store import GAGAL_KONSOL
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 
@@ -45,6 +50,8 @@ STATUS_SELESAI = ("sent", "gone")
 _BACKOFF_BASE_S = 30
 _BACKOFF_MAX_S = 3600
 _ERROR_CHARS = 500
+#: A row whose stored manifest no longer parses: our own side, retried at the backoff ceiling.
+MANIFEST_UNREADABLE = "manifest unreadable"
 #: Sent and gone rows are kept a week for support, then deleted: 10,000 rows a day.
 KEEP_DONE_S = 7 * 86400
 
@@ -82,19 +89,36 @@ class TrainingOutboxStore:
             return cur.rowcount == 1
 
     def due(self, limit: int) -> list[TrainingPackage]:
-        """Oldest first, so a backlog leaves in the order it was graded."""
+        """Oldest first, so a backlog leaves in the order it was graded.
+
+        A row whose manifest no longer parses is set aside (status error, an hour's wait)
+        instead of raising: being oldest, it would otherwise head every batch and stall the queue.
+        """
         tanda = ", ".join("?" * len(STATUS_BELUM_TERKIRIM))
-        with self._lock:
+        paket: list[TrainingPackage] = []
+        with self._lock, self._db:
             rows = self._db.execute(
                 f"""SELECT event_id, line_code, photo_path, manifest, attempts FROM training_outbox
                     WHERE status IN ({tanda}) AND next_attempt_at <= ?
                     ORDER BY created_at, rowid LIMIT ?""",
                 (*STATUS_BELUM_TERKIRIM, self._clock(), limit),
             ).fetchall()
-        return [
-            TrainingPackage(r["event_id"], r["line_code"], r["photo_path"], json.loads(r["manifest"]), r["attempts"])
-            for r in rows
-        ]
+            for r in rows:
+                manifest = _baca_manifest(r["manifest"])
+                if manifest is None:
+                    self._sisihkan_rusak(r["event_id"], r["line_code"])
+                    continue
+                paket.append(TrainingPackage(r["event_id"], r["line_code"], r["photo_path"], manifest, r["attempts"]))
+        return paket
+
+    def _sisihkan_rusak(self, event_id: str, line_code: str) -> None:
+        """Called inside the lock and transaction of `due()`."""
+        self._db.execute(
+            """UPDATE training_outbox SET status='error', attempts=attempts + 1, last_error=?, error_kind=?,
+                   next_attempt_at=? WHERE event_id=?""",
+            (MANIFEST_UNREADABLE, GAGAL_KONSOL, self._clock() + _BACKOFF_MAX_S, event_id),
+        )
+        logger.error("Training outbox: %s (%s) set aside, %s", event_id, line_code, MANIFEST_UNREADABLE)
 
     def mark_sent(self, event_id: str) -> None:
         self._close(event_id, "sent", None)
@@ -110,17 +134,24 @@ class TrainingOutboxStore:
             )
 
     def mark_error(self, event_id: str, error: str, *, jenis: str) -> None:
-        """Back off one row only; the worker carries on with the next one."""
+        """Back off one row only; the worker carries on with the next one.
+
+        Only a row still waiting is touched: a sent or gone row is never brought back.
+        """
+        tanda = ", ".join("?" * len(STATUS_BELUM_TERKIRIM))
         with self._lock, self._db:
-            row = self._db.execute("SELECT attempts FROM training_outbox WHERE event_id=?", (event_id,)).fetchone()
+            row = self._db.execute(
+                f"SELECT attempts FROM training_outbox WHERE event_id=? AND status IN ({tanda})",
+                (event_id, *STATUS_BELUM_TERKIRIM),
+            ).fetchone()
             if row is None:
                 return
             attempts = row["attempts"] + 1
             delay = min(_BACKOFF_BASE_S * 2 ** (attempts - 1), _BACKOFF_MAX_S)
             self._db.execute(
-                """UPDATE training_outbox SET status='error', attempts=?, last_error=?, error_kind=?,
-                       next_attempt_at=? WHERE event_id=?""",
-                (attempts, error[:_ERROR_CHARS], jenis, self._clock() + delay, event_id),
+                f"""UPDATE training_outbox SET status='error', attempts=?, last_error=?, error_kind=?,
+                       next_attempt_at=? WHERE event_id=? AND status IN ({tanda})""",
+                (attempts, error[:_ERROR_CHARS], jenis, self._clock() + delay, event_id, *STATUS_BELUM_TERKIRIM),
             )
 
     def pending_count(self) -> int:
@@ -158,3 +189,12 @@ class TrainingOutboxStore:
         """Danger Zone: the photos themselves are being deleted, so are their packages."""
         with self._lock, self._db:
             return self._db.execute("DELETE FROM training_outbox").rowcount
+
+
+def _baca_manifest(teks: str) -> dict[str, Any] | None:
+    """The stored manifest, or None when it is not a JSON object (a damaged row)."""
+    try:
+        manifest = json.loads(teks)
+    except (ValueError, TypeError):
+        return None
+    return manifest if isinstance(manifest, dict) else None
