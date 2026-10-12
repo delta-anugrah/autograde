@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-13 · console · Demo: simulated trucks, weighbridge and Rekap; demo is read-only (PR #TBD)
+## 2026-10-13 · console · Demo: simulated trucks, weighbridge and Rekap; demo is read-only (PR #268)
 Changed:        In DEMO_MODE the screen now simulates truck visits computed from the clock (pure
                 functions kunjunganDemo/keadaanDemo, no storage): a truck every 10 to 20 minutes from
                 the seeded trucks arrives, weighs in, queues, unloads on every line (automatic
