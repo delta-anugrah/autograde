@@ -26,7 +26,8 @@ from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.client import ErpClient
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient
-from ..integrations.upload.r2_uploader import R2Uploader
+from ..integrations.upload.r2_uploader import KIRIM_CONFIG, R2Uploader
+from ..integrations.upload.training_outbox_store import TrainingOutboxStore
 from ..license.manager import LicenseManager
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
@@ -48,7 +49,9 @@ from ..services.scan_service import ScanService
 from ..services.slip_grading import SlipGrading
 from ..services.status_sinkron import StatusSinkron
 from ..services.timbangan_live import TimbanganLive
+from ..services.training_inbox import TrainingInbox
 from ..workers.master_data_worker import MasterDataWorker
+from ..workers.training_upload_worker import TrainingUploadWorker
 from ..workers.visit_manifest_worker import VisitManifestWorker
 
 logger = logging.getLogger(__name__)
@@ -101,6 +104,7 @@ def get_console_service() -> ConsoleService:
             else (lambda visit_id: None)
         ),
     )
+    training_inbox, training_worker = _build_training(settings)
     service = ConsoleService(
         settings,
         store,
@@ -108,11 +112,55 @@ def get_console_service() -> ConsoleService:
         erp_queue=queue,
         manifest_queue=manifest_worker,
         status_sinkron=status_sinkron,
+        training_inbox=training_inbox,
+        training_worker=training_worker,
     )
     # Automatic assignment takes the same Update now lock as manual Tugaskan (rules 36, 38):
     # the SAME singleton the install route reads, or the two would not see each other.
     service.pakai_penjaga_pembaruan(get_pembaruan_service())
     return service
+
+
+def _build_training(settings: Settings) -> tuple[TrainingInbox | None, TrainingUploadWorker | None]:
+    """Training photos to the nexio inbox (nexio spec §6), or (None, None) when off.
+
+    Independent of R2_BUCKET and ERP_URL. On only with a bucket, an endpoint and both
+    keys: a half-filled `.env` must not start a worker that fails every minute, so it
+    stays off with one WARNING. Off means no outbox file, no worker, no ingest hook.
+    """
+    lengkap = (
+        settings.training_inbox_endpoint_url
+        and settings.training_inbox_access_key_id
+        and settings.training_inbox_secret_access_key
+    )
+    if not settings.training_inbox_bucket:
+        logger.info("Training photos to nexio off: TRAINING_INBOX_BUCKET is empty")
+        return None, None
+    if not lengkap:
+        logger.warning(
+            "Training photos to nexio off: TRAINING_INBOX_BUCKET is set but its keys or endpoint are empty"
+        )
+        return None, None
+    outbox = TrainingOutboxStore(settings.training_outbox_db_path)
+    inbox = TrainingInbox(
+        outbox,
+        artifacts_dir=settings.artifacts_dir,
+        company=settings.erp_company,
+        # The Dockerfile default `unknown` is not a version: the manifest says null.
+        autograde_version="" if settings.app_version == "unknown" else settings.app_version,
+        send_mode=settings.training_inbox_send,
+        low_confidence=settings.training_inbox_low_confidence,
+    )
+    uploader = R2Uploader(
+        account_id=settings.r2_account_id,
+        access_key_id=settings.training_inbox_access_key_id,
+        secret_access_key=settings.training_inbox_secret_access_key,
+        bucket=settings.training_inbox_bucket,
+        endpoint_url=settings.training_inbox_endpoint_url,
+        # Every upload has a timeout (B4); without a config boto's defaults apply.
+        config=KIRIM_CONFIG,
+    )
+    return inbox, TrainingUploadWorker(outbox, uploader)
 
 
 @lru_cache
@@ -159,6 +207,7 @@ def get_dev_service() -> DevService:
         manifest_outbox=(
             service.manifest_queue.outbox if service.manifest_queue is not None else None
         ),
+        training_outbox=_training_outbox(service),
         settings=settings,
         license_manager=_build_license_manager(settings),
         console_store=service.store,
@@ -178,6 +227,11 @@ def get_lapor_discord() -> LaporDiscord:
     """Lapor galat ke Discord (batch 3.5). Satu store untuk handler, worker, dan layar;
     `store` None kalau `DISCORD_WEBHOOK_URL` kosong, bukan https, atau antreannya rusak."""
     return rakit_lapor_discord(get_console_service().settings)
+
+
+def _training_outbox(service: ConsoleService) -> TrainingOutboxStore | None:
+    """The one training queue, shared with the Status tab and Danger Zone; None when off."""
+    return service.training_inbox.outbox if service.training_inbox is not None else None
 
 
 def _build_license_manager(settings) -> LicenseManager | None:
@@ -231,6 +285,7 @@ def get_bahaya_service() -> BahayaService:
         # Hari kerja yang sama dengan strip "Hari ini" dan tab Timbangan.
         hari_kerja=service.today,
         tarik_master=tarik,
+        training_outbox=_training_outbox(service),
     )
 
 

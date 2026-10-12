@@ -16,6 +16,7 @@ from bahaya_palsu import HASH, LINES, LinePalsu, buka_tiket, hitung, isi_data
 from palmgrade.core.log_sink import install_log_sink
 from palmgrade.domain.bahaya import MODE_SEMUA, MODE_TRANSAKSI
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
+from palmgrade.integrations.upload.training_outbox_store import TrainingOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.log_repository import LogStore
 from palmgrade.services.akun_bawaan import EMAIL_BAWAAN, EMAIL_SUPPORT
@@ -32,7 +33,8 @@ HARI = "2026-09-25"
 @pytest.fixture
 def rakit(tmp_path):
     def buat(
-        *, erp_aktif=True, hash_bawaan=HASH, hash_support=HASH, tarik_master=None, tunggu_mati_s=2.0
+        *, erp_aktif=True, hash_bawaan=HASH, hash_support=HASH, tarik_master=None, tunggu_mati_s=2.0,
+        training=None,
     ):
         store = ConsoleStore(tmp_path / "console.db")
         log = LogStore(tmp_path / "log.db")
@@ -44,6 +46,7 @@ def rakit(tmp_path):
             erp_aktif=erp_aktif, hash_bawaan=hash_bawaan, hash_support=hash_support,
             hari_kerja=lambda: HARI,
             tarik_master=tarik_master, tunggu_mati_s=tunggu_mati_s, jeda_cek_s=0.0,
+            training_outbox=training,
         )
         return svc, store, log, outbox, manifest, line
     return buat
@@ -244,6 +247,19 @@ def test_hapus_transaksi_sukses(rakit, jejak):
     assert len(baris) == 1
     assert "support@pks.id" in baris[0]["message"]
     assert "transaksi" in baris[0]["message"]
+
+
+def test_hapus_transaksi_mengosongkan_antrean_training(rakit, tmp_path):
+    """Foto training yang belum terkirim ikut terhapus: janjangnya sudah tidak ada."""
+    training = TrainingOutboxStore(tmp_path / "training_outbox.db")
+    training.enqueue("e-1", "line-1", "/p/1.webp", {})
+    training.enqueue("e-2", "line-1", "/p/2.webp", {})
+    svc, *_ = rakit(erp_aktif=False, training=training)
+
+    hasil = asyncio.run(svc.hapus_data(mode=MODE_TRANSAKSI, konfirmasi="HAPUS", oleh="s"))
+
+    assert training.pending_count() == 0
+    assert hasil["konsol"]["antrean"] == 2
 
 
 def test_menunggu_line_mati_sebelum_menghapus_konsol(rakit):
