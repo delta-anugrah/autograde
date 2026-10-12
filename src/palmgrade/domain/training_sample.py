@@ -77,16 +77,25 @@ def _segment(value: str) -> str:
     return "_" if set(cleaned) <= {"."} else cleaned
 
 
+def normalise_captured_at(value: str) -> str:
+    """The timestamp as nexio accepts it: with a UTC offset.
+
+    One with an offset passes through untouched; a naive one is read as UTC and gets
+    `+00:00`, so the manifest and the object key always agree on the day.
+    """
+    moment = datetime.fromisoformat(value)
+    if moment.tzinfo is not None:
+        return value
+    return moment.replace(tzinfo=UTC).isoformat()
+
+
 def object_keys(machine_id: str, captured_at: str, event_id: str) -> tuple[str, str]:
     """(photo key, manifest key). The day is the UTC day of `captured_at`.
 
     nexio's validator checks the key's day against the UTC day of `captured_at`, so a
     timestamp without an offset is read as UTC rather than as the machine's local time.
     """
-    moment = datetime.fromisoformat(captured_at)
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
-    day = moment.astimezone(UTC).strftime("%Y-%m-%d")
+    day = datetime.fromisoformat(normalise_captured_at(captured_at)).astimezone(UTC).strftime("%Y-%m-%d")
     base = f"{KEY_PREFIX}/{_segment(machine_id)}/{day}/{_segment(event_id)}"
     return f"{base}.webp", f"{base}.json"
 
@@ -136,7 +145,7 @@ def build_manifest(
     return {
         "schema": SCHEMA,
         "event_id": str(payload["event_id"]),
-        "captured_at": str(payload["timestamp"]),
+        "captured_at": normalise_captured_at(str(payload["timestamp"])),
         "capture_type": capture_type,
         "folder": folders_of(payload.get("image_path")),
         "source": {
@@ -173,6 +182,11 @@ def photo_path(artifacts_dir: Path, line_code: str, image_path: str | None) -> P
     """
     if not image_path or image_path.lower().startswith(("http://", "https://")):
         return None
+    if not line_code or any(c in line_code for c in "/\\") or ".." in line_code:
+        return None
     relative = image_path.lstrip("/").removeprefix("captures/").lstrip("/")
+    # Pure check, no filesystem: an event's path is data from a line, never trusted to stay in the mount.
+    if ".." in relative.replace("\\", "/").split("/"):
+        return None
     twins = clean_twin_of(artifacts_dir / line_code / relative)
     return twins[0] if twins else None

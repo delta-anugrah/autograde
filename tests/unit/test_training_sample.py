@@ -140,3 +140,32 @@ def test_photo_path_is_the_clean_twin_under_the_line_mount(tmp_path):
 def test_photo_path_none_for_a_flat_old_capture_or_no_path(tmp_path):
     assert ts.photo_path(tmp_path, "line-2", "captures/results/2026-10-05/x.webp") is None
     assert ts.photo_path(tmp_path, "line-2", None) is None
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "../../etc/passwd",
+        "captures/line-1/../../x/bbox/acc/a.webp",
+        "captures/results/../../../x/bbox/Ripe/a.webp",
+        "captures\\..\\x\\bbox\\Ripe\\a.webp",
+    ],
+)
+def test_photo_path_refuses_a_path_that_climbs_out_of_the_mount(tmp_path, bad):
+    assert ts.photo_path(tmp_path, "line-2", bad) is None
+
+
+@pytest.mark.parametrize("bad_line", ["", "..", "a/b", "../x", "a\\b"])
+def test_photo_path_refuses_an_unsafe_line_code(tmp_path, bad_line):
+    assert ts.photo_path(tmp_path, bad_line, IMAGE_PATH) is None
+
+
+def test_naive_timestamp_is_normalised_to_utc_in_manifest_and_key():
+    m = _build(_auto_payload(timestamp="2026-10-05T03:12:44.123456"))
+    assert m["captured_at"] == "2026-10-05T03:12:44.123456+00:00"
+    photo, _ = ts.object_keys("M1", "2026-10-05T03:12:44", "e-1")
+    assert photo == "v1/M1/2026-10-05/e-1.webp"
+
+
+def test_timestamp_with_offset_is_kept_verbatim():
+    assert ts.normalise_captured_at("2026-10-05T23:30:00+07:00") == "2026-10-05T23:30:00+07:00"
