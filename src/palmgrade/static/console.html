@@ -8019,9 +8019,7 @@ function capFeedBaru(sekarang) {
 // of the seeded data. Browser memory only: nothing is posted, a reload starts over.
 const JEDA_DEMO_MS = 2600;
 const BATAS_BARIS_DEMO = 30;
-const demoHidup = { aktif: false, memuat: false, frames: null, lines: [], mulai: 0, langkah: 0, idx: {}, tambah: {}, baris: [] };
-
-function nolDemo() { return { ripe: 0, unripe: 0, jk: 0, tp: 0 }; }
+const demoHidup = { aktif: false, memuat: false, frames: null, lines: [], mulai: 0, langkah: 0, idx: {}, baris: [], keadaan: null };
 
 async function aktifkanDemo(on) {
   // refresh() calls this every 2 s: `memuat` keeps a slow first fetch from starting twice.
@@ -8041,40 +8039,71 @@ async function aktifkanDemo(on) {
   demoHidup.mulai = Date.now();
   dipasang = false;  // redraw the cards so their <img> points at the demo frames
   // A hidden tab (left open overnight) does no work: nothing moves that nobody sees.
-  setInterval(() => { if (!document.hidden) { majuDemo(Date.now()); gambarFeedDemo(); } }, JEDA_DEMO_MS);
+  setInterval(() => {
+    if (!document.hidden) { majuDemo(Date.now(), demoHidup.keadaan && demoHidup.keadaan.diLine); gambarFeedDemo(); }
+  }, JEDA_DEMO_MS);
 }
 
 // Five photos shared by every line. Line n starts at photo 2n (mod 5) so neighbours never
-// show the same one; each tick moves ONE line, in turn, to its next photo and counts it.
+// show the same one; each tick moves ONE line, in turn, to its next photo and adds a Grading row
+// for the truck on the lines. No truck unloading = no tick: the lines wait, as at the mill.
 function idxDemo(line) {
   return demoHidup.idx[line] ?? (2 * Math.max(0, demoHidup.lines.indexOf(line))) % demoHidup.frames.length;
 }
 
-function majuDemo(sekarangMs) {
-  if (!demoHidup.lines.length) return;
+function majuDemo(sekarangMs, truk) {
+  if (!demoHidup.lines.length || !truk) return;
   const line = demoHidup.lines[demoHidup.langkah % demoHidup.lines.length];
   demoHidup.langkah += 1;
   const i = demoHidup.idx[line] = (idxDemo(line) + 1) % demoHidup.frames.length;
   const frame = demoHidup.frames[i];
-  const t = demoHidup.tambah[line] = demoHidup.tambah[line] || nolDemo();
   for (const k of frame.kelas) {
-    t[k.toLowerCase()] += 1;
-    demoHidup.baris.unshift({ pada: sekarangMs, line, kelas: k, src: frame.src });
+    demoHidup.baris.unshift({ pada: sekarangMs, line, kelas: k, src: frame.src,
+      plat: truk.plate_number, sumber: truk.source_label });
   }
   demoHidup.baris.length = Math.min(demoHidup.baris.length, BATAS_BARIS_DEMO);
 }
 
-// Called in refresh() right after the state arrives, before anything draws a number.
-// Ripe counts as ACC and Unripe/JK as REJ, the factory rule (only ACC and REJ reach the PLC).
-function terapkanDemoLines(lines) {
-  for (const l of lines) {
-    const t = demoHidup.tambah[l.line_code];
-    if (!t) continue;
-    for (const k of ["ripe", "unripe", "jk", "tp"]) l[k] = (l[k] || 0) + t[k];
-    l.total = (l.total || 0) + t.ripe + t.unripe + t.jk + t.tp;
-    l.acc = (l.acc || 0) + t.ripe;
-    l.rej = (l.rej || 0) + t.unripe + t.jk;
-  }
+// Today's simulated bunches per line (janjangHariDemo, same order as `lines`) on top of what the
+// server counted. Ripe is ACC, Unripe and JK are REJ: the factory rule (only ACC and REJ reach
+// the PLC).
+function terapkanDemoLines(lines, hari) {
+  lines.forEach((l, i) => {
+    const h = hari[i];
+    if (!h) return;
+    for (const k of ["ripe", "unripe", "jk", "tp", "total", "acc", "rej"]) l[k] = (l[k] || 0) + h[k];
+  });
+}
+
+// Local midnight: the demo's working day. A real mill's cutoff does not matter for a showcase.
+function awalHariDemo(sekarangMs) {
+  const d = new Date(sekarangMs);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+// The seeded trucks the console already loaded for the Truk tab (`trucks`).
+function trukDemo() {
+  return (trucks || []).filter((t) => t.plate_number && t.status !== "inactive");
+}
+
+// Called in refresh() right after the state arrives, before anything is drawn: the truck on the
+// lines, the unloading queue (automatic assignment on), today's weighing totals and bunches.
+function terapkanDemoState(s, sekarangMs) {
+  const awal = awalHariDemo(sekarangMs);
+  const kunjungan = kunjunganDemo(awal, sekarangMs, trukDemo());
+  const k = demoHidup.keadaan = keadaanDemo(kunjungan, awal, sekarangMs);
+  demoHidup.kunjungan = kunjungan;
+  s.lines.forEach((l) => { l.assignment = k.diLine; });
+  terapkanDemoLines(s.lines, janjangHariDemo(kunjungan, awal, sekarangMs, s.lines.length));
+  s.antrean_bongkar = k.antrean;
+  s.penugasan_otomatis = { ...(s.penugasan_otomatis || {}), aktif: true, lines: s.lines.map((l) => l.line_code) };
+  const tb = s.timbangan || {};
+  s.timbangan = {
+    tiket: (tb.tiket || 0) + k.tally.tiket,
+    menunggu_tara: (tb.menunggu_tara || 0) + k.tally.menunggu_tara,
+    neto_kg: (tb.neto_kg || 0) + k.tally.neto_kg,
+  };
 }
 
 function srcFeedDemo(lineCode) {
@@ -8099,13 +8128,13 @@ function bacaanDemo(detik) {
   return { keadaan, kg, umur_detik: 0 };
 }
 
-// Simulated bunches as rows of the Grading table, newest first. One demo truck (a plate from
-// scripts/seed-console-demo.py PLATES, rule 7); the seeded trucks carry no supplier, so no
-// source label. Only Ripe is ACC, as on the factory lines (tagHasil colours by it).
+// Simulated bunches as rows of the Grading table, newest first, under the truck that was on the
+// lines at that tick (a seeded plate, rule 7). Only Ripe is ACC, as on the factory lines
+// (tagHasil colours by it).
 function barisDemoGrading() {
   return demoHidup.baris.map((b) => ({
-    timestamp: new Date(b.pada).toISOString(), line_code: b.line, plate_number: "BE 8605 TSD",
-    source_label: null, ripeness_status: b.kelas === "Ripe" ? "ACC" : "REJ", grade_class: b.kelas,
+    timestamp: new Date(b.pada).toISOString(), line_code: b.line, plate_number: b.plat,
+    source_label: b.sumber || null, ripeness_status: b.kelas === "Ripe" ? "ACC" : "REJ", grade_class: b.kelas,
     image_url: b.src, thumb_url: b.src,
   }));
 }
@@ -9158,7 +9187,7 @@ async function refresh() {
     aktifkanDemo(s.demo_mode === true);
     if (demoHidup.aktif) {
       demoHidup.lines = s.lines.map((l) => l.line_code);
-      terapkanDemoLines(s.lines);
+      terapkanDemoState(s, Date.now());
     }
     cekVersiBaru(s.versi);
     $("tz").textContent = "(" + s.timezone + ")";
@@ -9176,7 +9205,11 @@ async function refresh() {
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     antreanTerakhir = s.antrean_bongkar || [];
-    if (tab === "timbangan") gambarPapan();
+    // Demo mode: the simulated visits move every refresh, not only on the 15 s weighings poll.
+    if (tab === "timbangan") {
+      if (demoHidup.aktif && timbanganAsli) gambarTimbangan(timbanganAsli);
+      else gambarPapan();
+    }
     tulisKalauBeda($("truk-di-line"), htmlTrukDiLine(s.lines));
     // `=== true`: an older server has no field, and that reads as off.
     tampilkanKolomScan(s.scanner_qr === true);
@@ -9255,20 +9288,34 @@ function detakRefresh() {
   if (!kunciRefresh.sibuk()) refresh();
 }
 
+// What the server sent last; demo mode draws its simulated visits on top every refresh.
+let timbanganAsli = null;
 async function muatTimbangan() {
   try {
-    const data = await api("/api/console/weighings");
-    const items = data.items;
-    menungguTimbang = data.waiting || [];
-    papanTimbang = { items, waiting: menungguTimbang };
-    gambarPapan();
-    // Yang menunggu di atas (tertua dulu), lalu tiket terbaru dulu: urutan dari server.
-    const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
-    tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
-    isiPlatTimbang();
-    gambarLencanaAntre(data.waiting);
-    gambarRiwayatBatal(data.dibatalkan);
+    timbanganAsli = await api("/api/console/weighings");
+    gambarTimbangan(timbanganAsli);
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
+}
+
+// Demo mode: today's simulated visits lead, the server's rows follow (none on a read-only demo).
+function gabungTimbanganDemo(data) {
+  const k = demoHidup.aktif && demoHidup.keadaan;
+  if (!k) return data;
+  return { ...data, items: k.tiket.concat(data.items || []), waiting: k.menunggu.concat(data.waiting || []) };
+}
+
+function gambarTimbangan(asli) {
+  const data = gabungTimbanganDemo(asli);
+  const items = data.items;
+  menungguTimbang = data.waiting || [];
+  papanTimbang = { items, waiting: menungguTimbang };
+  gambarPapan();
+  // Yang menunggu di atas (tertua dulu), lalu tiket terbaru dulu: urutan dari server.
+  const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
+  tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
+  isiPlatTimbang();
+  gambarLencanaAntre(data.waiting);
+  gambarRiwayatBatal(data.dibatalkan);
 }
 
 // ---- Timbangan board (owner 2026-10-08) ----
@@ -9659,7 +9706,7 @@ async function muatRiwayat({ ringkasan = true } = {}) {
     q.set("offset", String(riwayatOffset));
   }
   try {
-    const r = await api(`/api/console/riwayat?${q}`);
+    const r = gabungRiwayatDemo(await api(`/api/console/riwayat?${q}`));
     if (nomor !== riwayatMinta) return;
     riwayatHariIni = r.hari_ini;
     riwayatFilter = { ...(riwayatFilter || {}), dari: r.dari, sampai: r.sampai };
@@ -9677,6 +9724,38 @@ async function muatRiwayat({ ringkasan = true } = {}) {
     if (nomor !== riwayatMinta || e.kode === "belum_masuk") return;
     $("riwayat-pesan").textContent = alasan(e);
   }
+}
+
+// Demo mode: today's simulated trucks lead Rekap per truck, only for today with no filter (they
+// belong to no line, plate or result the visitor picked). No truck id: no button that asks the
+// server for a slip or the bunch list of a visit it never stored.
+function gabungRiwayatDemo(r) {
+  const f = riwayatFilter || {};
+  if (!demoHidup.aktif || !demoHidup.kunjungan || riwayatTampilan !== "truk" || r.dari !== r.hari_ini
+      || r.sampai !== r.hari_ini || f.line_code || f.plat || f.hasil) return r;
+  const sekarang = Date.now();
+  const awal = awalHariDemo(sekarang);
+  const jumlahLine = demoHidup.lines.length || 3;
+  const kunci = ["total", "ripe", "unripe", "jk", "tp", "acc"];
+  const baris = demoHidup.kunjungan.filter((v) => v.mulai >= awal && v.mulai <= sekarang).reverse().map((v) => {
+    const j = Object.fromEntries(kunci.map((k) => [k, 0]));
+    for (let i = 0; i < jumlahLine; i++) {
+      const x = janjangDemo(v, i, sekarang);
+      kunci.forEach((k) => { j[k] += x[k]; });
+    }
+    return { ...j, work_date: r.hari_ini, truck_id: null, plate_number: v.truk.plate_number,
+      supplier_name: v.truk.supplier_name, source_label: v.truk.source_label,
+      neto_kg: sekarang >= v.keluar ? v.bruto - v.tara : null };
+  });
+  let ringkasan = r.ringkasan;
+  if (ringkasan) {
+    ringkasan = { ...ringkasan };
+    kunci.forEach((k) => { ringkasan[k] = (ringkasan[k] || 0) + baris.reduce((n, b) => n + b[k], 0); });
+    ringkasan.truk = (ringkasan.truk || 0) + baris.length;
+    ringkasan.neto_kg = (ringkasan.neto_kg || 0) + baris.reduce((n, b) => n + (b.neto_kg || 0), 0);
+    ringkasan.hari = Math.max(ringkasan.hari || 0, baris.length ? 1 : 0);
+  }
+  return { ...r, items: baris.concat(r.items || []), ringkasan };
 }
 
 function bacaFilterRiwayat() {

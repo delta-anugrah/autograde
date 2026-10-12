@@ -131,3 +131,84 @@ def test_todays_bunches_per_line_add_up_the_visits():
     """)
     assert out[0] == out[1]
     assert all(n > 0 for n in out[0])
+
+
+# ── wiring into the screen ───────────────────────────────────────────────
+
+SAMBUNG = FUNGSI + ["terapkanDemoState", "awalHariDemo", "trukDemo", "terapkanDemoLines",
+                    "gabungTimbanganDemo", "gabungRiwayatDemo"]
+
+
+def _layar(isi: str, aktif: bool = True):
+    tambahan = SIAP + f"""
+let trucks = {TRUK};
+const demoHidup = {{ aktif: {str(aktif).lower()}, lines: ["line-1", "line-2", "line-3"], keadaan: null, kunjungan: null }};
+let riwayatTampilan = "truk";
+let riwayatFilter = {{}};
+"""
+    return jalankan(SAMBUNG, f"(() => {{ {isi} }})()", tambahan=tambahan)
+
+
+@butuh_node
+def test_state_gets_one_truck_on_every_line_the_queue_and_todays_weighing():
+    out = _layar("""
+      const hasil = [];
+      const awal = awalHariDemo(Date.now());
+      for (let m = 9 * 60; m < 9 * 60 + 240; m += 3) {
+        const s = { lines: [{line_code: "line-1"}, {line_code: "line-2"}, {line_code: "line-3"}],
+                    timbangan: {tiket: 1, menunggu_tara: 0, neto_kg: 1000}, penugasan_otomatis: {aktif: false} };
+        terapkanDemoState(s, awal + m * 60000);
+        hasil.push(s);
+      }
+      return hasil;
+    """)
+    ada_truk = False
+    for s in out:
+        a = [line["assignment"] for line in s["lines"]]
+        assert a[0] == a[1] == a[2]  # automatic assignment: one truck on all lines
+        ada_truk = ada_truk or a[0] is not None
+        assert s["penugasan_otomatis"]["aktif"] is True
+        assert s["timbangan"]["tiket"] >= 1 and s["timbangan"]["neto_kg"] >= 1000
+    assert ada_truk
+    assert any(s["antrean_bongkar"] for s in out)
+
+
+@butuh_node
+def test_weighbridge_rows_lead_with_the_simulated_visits_only_in_demo_mode():
+    out = _layar("""
+      demoHidup.keadaan = { tiket: [{id: "demo-w-1"}], menunggu: [{id: "demo-a-2"}] };
+      const asli = { items: [{id: 7}], waiting: [], dibatalkan: [] };
+      const demo = gabungTimbanganDemo(asli);
+      demoHidup.aktif = false;
+      return [demo.items.map((w) => w.id), demo.waiting.map((w) => w.id), gabungTimbanganDemo(asli) === asli];
+    """)
+    assert out == [["demo-w-1", 7], ["demo-a-2"], True]
+
+
+@butuh_node
+def test_rekap_adds_todays_trucks_only_for_today_without_a_filter():
+    out = _layar("""
+      const now = Date.now();
+      demoHidup.kunjungan = kunjunganDemo(awalHariDemo(now), now, trucks);
+      const hari = "2026-10-13";
+      const r = { dari: hari, sampai: hari, hari_ini: hari, items: [], ringkasan: {total: 0, truk: 0, hari: 0, neto_kg: 0} };
+      const hariIni = gabungRiwayatDemo(r);
+      riwayatFilter = { plat: "BE" };
+      const disaring = gabungRiwayatDemo(r);
+      riwayatFilter = {};
+      const kemarin = gabungRiwayatDemo({ ...r, dari: "2026-10-12" });
+      riwayatTampilan = "hari";
+      const perHari = gabungRiwayatDemo(r);
+      return [hariIni.items.length, hariIni.ringkasan.truk, hariIni.items.every((b) => b.truck_id === null),
+              hariIni.items.reduce((n, b) => n + b.total, 0) === hariIni.ringkasan.total,
+              disaring === r, kemarin.items.length, perHari === r];
+    """)
+    jumlah, truk, tanpa_id, total_cocok, disaring_sama, kemarin, per_hari_sama = out
+    assert jumlah == truk
+    assert tanpa_id and total_cocok and disaring_sama and per_hari_sama
+    assert kemarin == 0
+
+
+def test_refresh_applies_the_simulation_before_anything_is_drawn():
+    body = HTML.split("async function refresh() {")[1].split("\n}\n")[0]
+    assert body.index("terapkanDemoState(s, Date.now())") < body.index("tulisKepala(s)")
