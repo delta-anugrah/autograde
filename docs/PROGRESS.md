@@ -28,8 +28,13 @@ Changed:        In DEMO_MODE the screen now simulates truck visits computed from
                 so they agree; the camera tick runs only while a truck unloads. The server is
                 read-only in DEMO_MODE: a router-wide dependency (tolak_tulis_saat_demo) answers 403
                 `mode_demo` to every /api/console write except login, logout and session renew, and the
-                screen words it. Odometer digits fade at the edges and the scale rolls in 0.45 s, so a
-                rolling digit no longer reads as broken in a still photo.
+                screen words it; the four routers console_main mounts beside it carry the same guard.
+                Odometer digits fade at the edges only while they roll (an animation with no fill,
+                so the factory scale tile at rest is unchanged) and the scale rolls in 0.45 s.
+                Final review fixes: Rekap summary equal in every view (Per hari's today row includes
+                the trucks), the demo day starts at factory midnight (zonaPabrik), trucks in plate
+                order (a pulled truck does not reshuffle them), Lepas stops at the first mode_demo
+                refusal (one toast), unit tests on a fixed date.
 Validated:      see the PR (unit, e2e, integration, browser in Chromium and Firefox).
 Not validated:  Not on the droplet yet: needs a release.
 Next:           Release, then check demo-autograde.smagri.id.

@@ -212,7 +212,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `gambarTimbangan`, dipisah dari `muatTimbangan`) dan `gabungRiwayatDemo` (Rekap per truk, hari
   ini, tanpa saringan). Angka janjang kartu dari model (`janjangHariDemo`), bukan dari detak kamera;
   detak (`majuDemo`) cuma jalan selama ada truk bongkar. Server hanya-baca saat demo:
-  `console_deps.tolak_tulis_saat_demo` di router konsol (403 `mode_demo`). Test:
+  `console_deps.tolak_tulis_saat_demo` di router konsol dan keempat router yang dipasang di sampingnya di `console_main` (403 `mode_demo`). Hari demo mulai tengah malam pabrik (`awalHariDemo`, `zonaPabrik`); truk diurut plat (`trukDemo`). Test:
   `test_console_html_demo_truk.py`, `test_demo_hanya_baca.py`; tes browser memasang jam lewat
   `halaman.clock.set_system_time` ke saat ada truk bongkar.
 

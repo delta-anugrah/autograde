@@ -6,12 +6,13 @@ and this lane shares nothing with it but the `Support` guard and the line list.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from ..services.roi_bawaan import roi_bawaan
-from .console_deps import Service, Support
+from .console_deps import Service, Support, tolak_tulis_saat_demo
 
-router = APIRouter(tags=["console"])
+# DEMO_MODE read-only, as on console.router (mounted beside it in console_main).
+router = APIRouter(tags=["console"], dependencies=[Depends(tolak_tulis_saat_demo)])
 
 
 @router.get("/api/console/dev/roi-bawaan")

@@ -13,9 +13,10 @@ from fastapi import APIRouter, Depends
 from ..domain.operator_error import InvalidInput
 from ..integrations.notifications.line_client import LineUnavailable
 from ..services.pantau_antrean_line import PantauAntreanLine
-from .console_deps import Support, _operator_error, get_pantau_antrean_line
+from .console_deps import Support, _operator_error, get_pantau_antrean_line, tolak_tulis_saat_demo
 
-router = APIRouter(tags=["console"])
+# DEMO_MODE read-only, as on console.router (mounted beside it in console_main).
+router = APIRouter(tags=["console"], dependencies=[Depends(tolak_tulis_saat_demo)])
 
 PantauAntrean = Annotated[PantauAntreanLine, Depends(get_pantau_antrean_line)]
 

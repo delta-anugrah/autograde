@@ -6,8 +6,11 @@ so a reload shows the same trucks at the same stage. Rendering: test_browser_dem
 """
 from __future__ import annotations
 
+import json
+import subprocess
+
 import pytest
-from konsol_js import HTML, NODE, jalankan
+from konsol_js import HTML, NODE, fungsi, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 
@@ -145,6 +148,9 @@ let trucks = {TRUK};
 const demoHidup = {{ aktif: {str(aktif).lower()}, lines: ["line-1", "line-2", "line-3"], keadaan: null, kunjungan: null }};
 let riwayatTampilan = "truk";
 let riwayatFilter = {{}};
+const AWAL_UJI = {AWAL};
+// The tests pass factory midnight in; awalHariDemo itself is tested on its own.
+awalHariDemo = () => AWAL_UJI;
 """
     return jalankan(SAMBUNG, f"(() => {{ {isi} }})()", tambahan=tambahan)
 
@@ -153,7 +159,7 @@ let riwayatFilter = {{}};
 def test_state_gets_one_truck_on_every_line_the_queue_and_todays_weighing():
     out = _layar("""
       const hasil = [];
-      const awal = awalHariDemo(Date.now());
+      const awal = AWAL_UJI;
       for (let m = 9 * 60; m < 9 * 60 + 240; m += 3) {
         const s = { lines: [{line_code: "line-1"}, {line_code: "line-2"}, {line_code: "line-3"}],
                     timbangan: {tiket: 1, menunggu_tara: 0, neto_kg: 1000}, penugasan_otomatis: {aktif: false} };
@@ -187,28 +193,100 @@ def test_weighbridge_rows_lead_with_the_simulated_visits_only_in_demo_mode():
 
 @butuh_node
 def test_rekap_adds_todays_trucks_only_for_today_without_a_filter():
-    out = _layar("""
-      const now = Date.now();
-      demoHidup.kunjungan = kunjunganDemo(awalHariDemo(now), now, trucks);
+    out = _layar(f"""
+      const now = {AWAL} + 11 * 3600000;
+      demoHidup.kunjungan = kunjunganDemo({AWAL}, now, trucks);
       const hari = "2026-10-13";
-      const r = { dari: hari, sampai: hari, hari_ini: hari, items: [], ringkasan: {total: 0, truk: 0, hari: 0, neto_kg: 0} };
-      const hariIni = gabungRiwayatDemo(r);
-      riwayatFilter = { plat: "BE" };
-      const disaring = gabungRiwayatDemo(r);
-      riwayatFilter = {};
-      const kemarin = gabungRiwayatDemo({ ...r, dari: "2026-10-12" });
-      riwayatTampilan = "hari";
-      const perHari = gabungRiwayatDemo(r);
+      const r = {{ dari: hari, sampai: hari, hari_ini: hari, items: [], ringkasan: {{total: 0, truk: 0, hari: 0, neto_kg: 0}} }};
+      const hariIni = gabungRiwayatDemo(r, now);
+      riwayatFilter = {{ plat: "BE" }};
+      const disaring = gabungRiwayatDemo(r, now);
+      riwayatFilter = {{}};
+      const rKemarin = {{ ...r, dari: "2026-10-12" }};
+      const kemarin = gabungRiwayatDemo(rKemarin, now);
       return [hariIni.items.length, hariIni.ringkasan.truk, hariIni.items.every((b) => b.truck_id === null),
               hariIni.items.reduce((n, b) => n + b.total, 0) === hariIni.ringkasan.total,
-              disaring === r, kemarin.items.length, perHari === r];
+              disaring === r, kemarin === rKemarin];
     """)
-    jumlah, truk, tanpa_id, total_cocok, disaring_sama, kemarin, per_hari_sama = out
-    assert jumlah == truk
-    assert tanpa_id and total_cocok and disaring_sama and per_hari_sama
-    assert kemarin == 0
+    jumlah, truk, tanpa_id, total_cocok, disaring_sama, kemarin_sama = out
+    assert jumlah == truk > 0
+    assert tanpa_id and total_cocok and disaring_sama and kemarin_sama
 
 
 def test_refresh_applies_the_simulation_before_anything_is_drawn():
     body = HTML.split("async function refresh() {")[1].split("\n}\n")[0]
     assert body.index("terapkanDemoState(s, Date.now())") < body.index("tulisKepala(s)")
+
+
+@butuh_node
+def test_rekap_summary_is_the_same_in_every_view_and_the_day_row_includes_the_trucks():
+    """Switching Per truk / Per hari / Per janjang must not make today's totals jump (review 2026-10-13)."""
+    out = _layar(f"""
+      const now = {AWAL} + 11 * 3600000;
+      demoHidup.kunjungan = kunjunganDemo({AWAL}, now, trucks);
+      const r = () => ({{ dari: "2026-10-13", sampai: "2026-10-13", hari_ini: "2026-10-13",
+        items: [{{work_date: "2026-10-13", total: 5, ripe: 5, unripe: 0, jk: 0, tp: 0, acc: 5, truk: 1, neto_kg: 100}}],
+        ringkasan: {{total: 5, ripe: 5, unripe: 0, jk: 0, tp: 0, acc: 5, truk: 1, hari: 1, neto_kg: 100}} }});
+      const hasil = {{}};
+      for (const v of ["truk", "hari", "janjang"]) {{ riwayatTampilan = v; hasil[v] = gabungRiwayatDemo(r(), now); }}
+      return hasil;
+    """)
+    ringkas = {v: out[v]["ringkasan"] for v in out}
+    assert ringkas["truk"] == ringkas["hari"] == ringkas["janjang"]
+    assert ringkas["truk"]["total"] > 5
+    hari = out["hari"]["items"]
+    assert len(hari) == 1 and hari[0]["total"] == ringkas["hari"]["total"]
+    assert hari[0]["truk"] == ringkas["hari"]["truk"]
+    assert out["janjang"]["items"] == [{"work_date": "2026-10-13", "total": 5, "ripe": 5, "unripe": 0, "jk": 0,
+                                        "tp": 0, "acc": 5, "truk": 1, "neto_kg": 100}]
+
+
+@butuh_node
+@pytest.mark.parametrize("tz_browser", ["UTC", "America/New_York", "Asia/Jakarta"])
+def test_the_demo_day_starts_at_factory_midnight_whatever_the_browser_zone(tz_browser):
+    """Times on screen and Rekap's date follow the factory zone (`zonaPabrik`), not the visitor's."""
+    # 2026-10-13 01:30 in Jakarta (UTC+7) = 2026-10-12 18:30 UTC; factory midnight = 2026-10-12 17:00 UTC.
+    out = jalankan(["awalHariDemo"], "awalHariDemo(Date.UTC(2026, 9, 12, 18, 30))",
+                   tz=tz_browser, tambahan='let zonaPabrik = "Asia/Jakarta";')
+    assert out == _utc(2026, 10, 12, 17, 0)
+
+
+def _utc(y, mo, d, h, mi):
+    from datetime import UTC, datetime
+    return int(datetime(y, mo, d, h, mi, tzinfo=UTC).timestamp() * 1000)
+
+
+@butuh_node
+def test_a_new_truck_from_autoerp_does_not_reshuffle_the_plates():
+    """`/api/console/trucks` lists the newest first; a pulled truck must not change which plate is
+    on the lines mid-unload (review 2026-10-13)."""
+    out = _layar("""
+      const a = trukDemo().map((t) => t.plate_number);
+      trucks = [...trucks].reverse();
+      const b = trukDemo().map((t) => t.plate_number);
+      trucks = trucks.concat([{id: "t9", plate_number: "BE 0001 ZZ", status: "inactive"}]);
+      return [a, b, trukDemo().map((t) => t.plate_number)];
+    """)
+    assert out[0] == out[1] == out[2] == sorted(out[0])
+
+
+@butuh_node
+def test_lepas_on_the_demo_shows_one_toast_not_one_per_line():
+    """The truck card's Lepas walks every line; on the read-only demo the first refusal is the answer."""
+    skrip = "\n".join(["""
+const dipanggil = [], toast = [];
+const t = (k) => k;
+const denganSibuk = async (b, fn) => fn();
+const api = async (p) => { dipanggil.push(p); const e = new Error("demo"); e.kode = "mode_demo"; throw e; };
+const toastGagal = (x) => toast.push(x);
+const gagalKarena = (k, e) => k + ":" + e.kode;
+const namaKartuLine = (l) => l;
+const refresh = async () => {};
+const toastSukses = () => {}, umumkanPasang = () => {};
+""", fungsi("lepasTrukSemuaLine"), """
+(async () => { await lepasTrukSemuaLine(null, "BE 1", ["line-1", "line-2", "line-3"]);
+  console.log(JSON.stringify([dipanggil.length, toast])); })();
+"""])
+    hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
+    assert hasil.returncode == 0, hasil.stderr[-800:]
+    assert json.loads(hasil.stdout) == [1, ["gagalLepas:mode_demo"]]

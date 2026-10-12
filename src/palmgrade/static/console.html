@@ -803,10 +803,13 @@
               white-space:nowrap; }
   .odo { display:inline-flex; vertical-align:top; }
   /* The faded edges hide the half digits a column shows while it rolls (a still photo of the demo
-     scale read "0,,400", 2026-10-13); a digit at rest sits inside the clear middle. */
-  .odo-d { position:relative; overflow:hidden;
-           -webkit-mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent);
-           mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent); }
+     scale read "0,,400", 2026-10-13). An animation with no fill, so the fade ends with the roll and
+     a digit at rest (the factory scale tile keeps its odometer) stays crisp. */
+  .odo-d { position:relative; overflow:hidden; animation:odo-tepi .7s; }
+  @keyframes odo-tepi {
+    from, to { -webkit-mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent);
+               mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent); }
+  }
   .odo-d::after { content:attr(data-ke); visibility:hidden; }
   .odo-d::before { content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";
                    white-space:pre;
@@ -829,6 +832,7 @@
   #timbang-kg { flex:none; font:600 3.25rem/1 var(--angka); }
   .odo-berat .redup { opacity:.16; }
   /* The scale changes every second: a shorter roll spends less of it half way between digits. */
+  .odo-berat .odo-d { animation-duration:.45s; }
   .odo-berat .odo-d::before { animation-duration:.45s; }
   .odo-pisah::before, .odo-satuan::before { content:attr(data-c); }
   .odo-satuan { margin-left:6px; font-size:.4em; color:var(--muted); align-self:flex-end; }
@@ -8081,16 +8085,26 @@ function terapkanDemoLines(lines, hari) {
   });
 }
 
-// Local midnight: the demo's working day. A real mill's cutoff does not matter for a showcase.
+// Factory midnight (`zonaPabrik`): the demo's working day, the zone the screen's times and Rekap's
+// date follow, whatever the visitor's own zone. A real mill's shift cutoff does not matter here.
 function awalHariDemo(sekarangMs) {
-  const d = new Date(sekarangMs);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  let bagian;
+  try {
+    bagian = new Intl.DateTimeFormat("en-GB", { timeZone: zonaPabrik || undefined, hourCycle: "h23",
+      hour: "numeric", minute: "numeric", second: "numeric" }).formatToParts(new Date(sekarangMs));
+  } catch (e) {
+    bagian = new Intl.DateTimeFormat("en-GB", { hourCycle: "h23", hour: "numeric", minute: "numeric",
+      second: "numeric" }).formatToParts(new Date(sekarangMs));  // an unknown zone: the browser's own
+  }
+  const b = Object.fromEntries(bagian.map((p) => [p.type, Number(p.value)]));
+  return sekarangMs - ((b.hour * 60 + b.minute) * 60 + b.second) * 1000 - new Date(sekarangMs).getUTCMilliseconds();
 }
 
-// The seeded trucks the console already loaded for the Truk tab (`trucks`).
+// The seeded trucks the console already loaded for the Truk tab (`trucks`), in plate order: the
+// server lists the newest first, and a truck pulled from AutoERP must not reshuffle the plates.
 function trukDemo() {
-  return (trucks || []).filter((t) => t.plate_number && t.status !== "inactive");
+  return (trucks || []).filter((t) => t.plate_number && t.status !== "inactive")
+    .sort((a, b) => a.plate_number.localeCompare(b.plate_number));
 }
 
 // Called in refresh() right after the state arrives, before anything is drawn: the truck on the
@@ -8936,6 +8950,8 @@ async function lepasTrukSemuaLine(tombol, plat, kode) {
         if (r && r.dipasang && r.dipasang.length) dipasang = r.dipasang;
       } catch (e) {
         toastGagal(gagalKarena("gagalLepas", e));
+        // The read-only demo refuses every line the same way: one toast, not one per line.
+        if (e.kode === "mode_demo") break;
       }
     }
     await refresh();
@@ -9732,14 +9748,15 @@ async function muatRiwayat({ ringkasan = true } = {}) {
   }
 }
 
-// Demo mode: today's simulated trucks lead Rekap per truck, only for today with no filter (they
-// belong to no line, plate or result the visitor picked). No truck id: no button that asks the
-// server for a slip or the bunch list of a visit it never stored.
-function gabungRiwayatDemo(r) {
+// Demo mode: today's simulated trucks join Rekap when the period is today and no line, plate or
+// result filter is set (they belong to none the visitor picked). The summary gets them in every
+// view, so switching views does not make today's totals jump; Per truk lists them, Per hari adds
+// them to today's row, Per janjang keeps the server's bunches (the Grading tab shows the simulated
+// ones). No truck id: no button that asks the server for a slip or a visit it never stored.
+function gabungRiwayatDemo(r, sekarang = Date.now()) {
   const f = riwayatFilter || {};
-  if (!demoHidup.aktif || !demoHidup.kunjungan || riwayatTampilan !== "truk" || r.dari !== r.hari_ini
-      || r.sampai !== r.hari_ini || f.line_code || f.plat || f.hasil) return r;
-  const sekarang = Date.now();
+  if (!demoHidup.aktif || !demoHidup.kunjungan || r.dari !== r.hari_ini || r.sampai !== r.hari_ini
+      || f.line_code || f.plat || f.hasil) return r;
   const awal = awalHariDemo(sekarang);
   const jumlahLine = demoHidup.lines.length || 3;
   const kunci = ["total", "ripe", "unripe", "jk", "tp", "acc"];
@@ -9753,15 +9770,26 @@ function gabungRiwayatDemo(r) {
       supplier_name: v.truk.supplier_name, source_label: v.truk.source_label,
       neto_kg: sekarang >= v.keluar ? v.bruto - v.tara : null };
   });
+  const tambahkan = (dasar) => {
+    const hasil = { ...dasar };
+    kunci.forEach((k) => { hasil[k] = (hasil[k] || 0) + baris.reduce((n, b) => n + b[k], 0); });
+    hasil.truk = (hasil.truk || 0) + baris.length;
+    hasil.neto_kg = (hasil.neto_kg || 0) + baris.reduce((n, b) => n + (b.neto_kg || 0), 0);
+    return hasil;
+  };
   let ringkasan = r.ringkasan;
-  if (ringkasan) {
-    ringkasan = { ...ringkasan };
-    kunci.forEach((k) => { ringkasan[k] = (ringkasan[k] || 0) + baris.reduce((n, b) => n + b[k], 0); });
-    ringkasan.truk = (ringkasan.truk || 0) + baris.length;
-    ringkasan.neto_kg = (ringkasan.neto_kg || 0) + baris.reduce((n, b) => n + (b.neto_kg || 0), 0);
-    ringkasan.hari = Math.max(ringkasan.hari || 0, baris.length ? 1 : 0);
+  if (ringkasan && baris.length) {
+    ringkasan = tambahkan(ringkasan);
+    ringkasan.hari = Math.max(ringkasan.hari || 0, 1);
   }
-  return { ...r, items: baris.concat(r.items || []), ringkasan };
+  let items = r.items || [];
+  if (riwayatTampilan === "truk") items = baris.concat(items);
+  else if (riwayatTampilan === "hari" && baris.length) {
+    const ada = items.some((d) => d.work_date === r.hari_ini);
+    items = ada ? items.map((d) => (d.work_date === r.hari_ini ? tambahkan(d) : d))
+      : [tambahkan({ work_date: r.hari_ini })].concat(items);
+  }
+  return { ...r, items, ringkasan };
 }
 
 function bacaFilterRiwayat() {

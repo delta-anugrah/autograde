@@ -311,7 +311,6 @@ def get_demo_mode() -> bool:
     return demo_mode_dari_env()
 
 
-
 def hangatkan_singleton() -> None:
     """Build, before the first request, EVERY `lru_cache` singleton in this module.
 
