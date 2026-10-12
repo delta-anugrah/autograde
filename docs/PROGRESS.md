@@ -35,7 +35,11 @@ Changed:        In DEMO_MODE the screen now simulates truck visits computed from
                 the trucks), the demo day starts at factory midnight (zonaPabrik), trucks in plate
                 order (a pulled truck does not reshuffle them), Lepas stops at the first mode_demo
                 refusal (one toast), unit tests on a fixed date.
-Validated:      see the PR (unit, e2e, integration, browser in Chromium and Firefox).
+Validated:      pytest tests/unit tests/e2e tests/integration → exit 0, 6213 passed, 48 skipped.
+                Browser: Chromium 221/221; Firefox 218/221 in the full run, the 3 failures in
+                test_browser_scan_otomatis.py passed alone (3/3) and the whole file passed (20/20).
+                ruff check src/ tests/ → All checks passed. Screenshots by eye (Grading, Weighbridge,
+                Rekap) on a harness console with DEMO_MODE=1.
 Not validated:  Not on the droplet yet: needs a release.
 Next:           Release, then check demo-autograde.smagri.id.
 
