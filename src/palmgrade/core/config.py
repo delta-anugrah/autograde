@@ -432,7 +432,7 @@ class Settings:
     r2_public_url: str = field(default_factory=lambda: os.getenv("R2_PUBLIC_URL", "").rstrip("/"))
 
     # Training photos to the nexio inbox (nexio spec 6.4). Empty bucket = off.
-    # Its own token, write-only on the inbox bucket, never the captures token.
+    # Its own token, Object Read & Write scoped to the nexio-inbox bucket only, never the captures token.
     training_inbox_bucket: str = field(default_factory=lambda: os.getenv("TRAINING_INBOX_BUCKET", "").strip())
     training_inbox_access_key_id: str = field(default_factory=lambda: os.getenv("TRAINING_INBOX_ACCESS_KEY_ID", ""))
     training_inbox_secret_access_key: str = field(

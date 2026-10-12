@@ -39,6 +39,10 @@ Validated:      ruff check src/ tests/ → All checks passed!
                 in truncated output); browser firefox (two halves) → 125 passed + 96 passed
 Not validated:  Never run against a live container, the real `nexio-inbox` bucket or a real R2 token; no
                 factory PC. The nexio import side is its own PR.
+Risks:          Never run against a live container, the real bucket or a real R2 token. The token is Object
+                Read & Write scoped to `nexio-inbox` only (R2 has no write-only object token). Rows that already
+                failed keep their backoff (up to 1 hour) even after `autograde restart`. The sawit PR
+                (feat/video-to-nexio-inbox) must merge first or together: docs here name its runbook.
 Decisions:      Own outbox file (a dead inbox never holds AutoERP or visit manifests). pending = pending
                 rows only. Unknown machine id not queued. Bucket set without keys = off + one WARNING.
                 `APP_VERSION=unknown` sends null. Up to one picked batch (20) may still upload after a

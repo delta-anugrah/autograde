@@ -65,8 +65,8 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
   disetel). Menyalakannya butuh enam baris di blok `console:` compose host, persis seperti
   `docker-compose.prod.yml` repo (`- TRAINING_INBOX_BUCKET=${TRAINING_INBOX_BUCKET:-}`, `_ACCESS_KEY_ID`,
   `_SECRET_ACCESS_KEY`, `_ENDPOINT` dengan bawaan kosong, `_SEND` bawaan `all`,
-  `_LOW_CONFIDENCE` bawaan `0.60`), nilainya di `.env` (token tulis-saja untuk bucket
-  `nexio-inbox`, bukan token `R2_*`), lalu `autograde restart`. Cek: `docker exec
+  `_LOW_CONFIDENCE` bawaan `0.60`), nilainya di `.env` (token Object Read & Write yang dibatasi ke bucket
+  `nexio-inbox` saja, bukan token `R2_*`), lalu `autograde restart`. Cek: `docker exec
   palmgrade_console printenv TRAINING_INBOX_BUCKET`. Skrip host `kirim-video.sh` (repo sawit)
   membaca empat kunci yang sama langsung dari `.env` plus saklarnya sendiri
   `TRAINING_INBOX_VIDEOS`, jadi satu blok `.env` dipakai berdua dan tidak perlu baris compose.

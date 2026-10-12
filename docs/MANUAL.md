@@ -550,7 +550,7 @@ sendiri; tiap baris menyebut sebabnya, misalnya R2 tidak terjangkau atau kunci P
 **Kiriman foto training ke nexio belum disetel di PKS ini** itu normal di PKS yang tidak mengisi
 `TRAINING_INBOX_BUCKET` dan kuncinya di `.env`: tidak ada yang dikirim dan grading tidak
 terganggu. Internet putus tidak menghilangkan foto: semuanya menunggu di PC dan terkirim begitu
-tersambung lagi. Foto yang keburu terhapus retensi sebelum terkirim dilewati. Last Sync tetap dua
+tersambung lagi. Foto yang keburu terhapus retensi sebelum terkirim dilewati. Baris yang sudah gagal tetap menunggu jedanya (paling lama 1 jam) walau `autograde restart`; sendirinya terkirim dalam satu jam. Last Sync tetap dua
 baris; antrean ini cuma tampil di tab Status. Hapus data di Danger Zone ikut mengosongkannya.
 
 ### 3.6 Layar penuh di PC pabrik
@@ -762,7 +762,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `300`, `tegak`, `false` | **nilai awal saja**: yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
 | `BORDER_THICKNESS`, `FONT_SCALE`, `FONT_THICKNESS` | 8, 2.5, 5 | frame kamera besar (1224×1024 di Lampung) butuh angka besar |
 | `R2_ACCOUNT_ID` … `R2_PUBLIC_URL` | dari Cloudflare, atau kosong | kosong = foto tidak diunggah, tidak ada `detail_url` di tiket ERP |
-| `TRAINING_INBOX_BUCKET`, `TRAINING_INBOX_ACCESS_KEY_ID`, `TRAINING_INBOX_SECRET_ACCESS_KEY` (+ `TRAINING_INBOX_ENDPOINT`, `TRAINING_INBOX_SEND`, `TRAINING_INBOX_LOW_CONFIDENCE` opsional) | `nexio-inbox` + token tulis-saja dari tim AI, atau kosong | foto training ke nexio (§3.5). Kosong = tidak dikirim. Pakai token khusus inbox, bukan token `R2_*`. Di PC yang sudah terpasang, keenam baris juga ditulis tangan di blok `console:` `/opt/palmgrade/autograde/docker-compose.prod.yml`, lalu `autograde restart`. Skrip host `kirim-video.sh` (repo sawit) memakai kunci yang sama plus saklar `TRAINING_INBOX_VIDEOS` |
+| `TRAINING_INBOX_BUCKET`, `TRAINING_INBOX_ACCESS_KEY_ID`, `TRAINING_INBOX_SECRET_ACCESS_KEY` (+ `TRAINING_INBOX_ENDPOINT`, `TRAINING_INBOX_SEND`, `TRAINING_INBOX_LOW_CONFIDENCE` opsional) | `nexio-inbox` + token Object Read & Write yang dibatasi ke bucket `nexio-inbox` saja (dari tim AI), atau kosong | foto training ke nexio (§3.5). Kosong = tidak dikirim. Pakai token khusus inbox, bukan token `R2_*`. Di PC yang sudah terpasang, keenam baris juga ditulis tangan di blok `console:` `/opt/palmgrade/autograde/docker-compose.prod.yml`, lalu `autograde restart`. Skrip host `kirim-video.sh` (repo sawit) memakai kunci yang sama plus saklar `TRAINING_INBOX_VIDEOS` |
 | `UPLOAD_API_URL`, `UPLOAD_API_SECRET` | **kosong** | penerima teks per janjang sudah pensiun |
 | `UPLOAD_RETENTION_DAYS`, `UPLOAD_DISK_MIN_FREE_GB` | 180, 20 | penjaga disk membuang arsip `done` tertua saat disk tinggal 20 GB |
 | `DISK_PERINGATAN_GB`, `DISK_KRITIS_GB` | 15, 5 | pita disk di layar konsol (kuning / merah), dengan atau tanpa R2, tidak menghapus apa pun. Peringatan wajib di bawah `UPLOAD_DISK_MIN_FREE_GB` |

@@ -1504,7 +1504,8 @@ end of this file.
     leftover `.tmp` (terminal, the pass goes on; retention under rule 9 can cause it after a long
     outage); `error` with backoff (30 s doubling to 1 h, no give-up limit) when an upload fails,
     which also stops the pass with one WARNING per tick, or when one photo or manifest cannot be
-    read, which holds that row only. `sent` and `gone` rows are pruned after 7 days.
+    read, which holds that row only. Rows that already failed keep their backoff (up to 1 hour) even after
+    `autograde restart`; they leave on their own within the hour. `sent` and `gone` rows are pruned after 7 days.
     **Seen on Status, not Last Sync**: support sub-tab Status → Foto training
     (`GET /api/console/dev/antrean/training`) shows waiting, failed and the last send, rows worded
     from `error_kind`; "belum disetel" when off, never a zero. Last Sync keeps its two rows (rule 27).
