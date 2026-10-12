@@ -8110,6 +8110,113 @@ function barisDemoGrading() {
   }));
 }
 
+// ── demo truk (DEMO_MODE): today's truck visits, computed from the clock ─────────────────
+// A truck arrives, weighs in, waits its turn, unloads on every line at once (automatic
+// assignment, rule 36), weighs out and leaves. Pure functions of (start of day, now, trucks):
+// a reload shows the same trucks at the same stage. Nothing here is stored or sent.
+const MENIT_DEMO = 60000;
+// Bunches graded per line per minute while a truck unloads, about one camera tick per line.
+const JANJANG_MENIT_DEMO = 7;
+
+// A fixed number in [0, 1) for a whole number: the same visit gets the same times every day it is
+// computed, without storing anything.
+function acakDemo(n) {
+  let x = (Math.imul(n | 0, 2654435761) ^ 0x9e3779b9) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0;
+  x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0;
+  return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+}
+
+// The chain starts 90 minutes before midnight, so a truck still unloading at 00:00 holds the lines.
+function kunjunganDemo(awalHariMs, sekarangMs, truk) {
+  if (!truk.length) return [];
+  const hari = Math.floor(awalHariMs / 86400000);
+  const hasil = [];
+  let datang = awalHariMs - 90 * MENIT_DEMO;
+  let lineBebas = 0;
+  for (let no = 0; datang <= sekarangMs; no++) {
+    const kunci = (hari % 100000) * 1000 + no;
+    const r = (k) => acakDemo(kunci * 16 + k);
+    const masuk = datang + (2 + r(1) * 4) * MENIT_DEMO;
+    const mulai = Math.max(masuk + MENIT_DEMO, lineBebas + MENIT_DEMO);
+    const selesai = mulai + (9 + r(2) * 7) * MENIT_DEMO;
+    const keluar = selesai + (2 + r(3) * 3) * MENIT_DEMO;
+    const pergi = keluar + (1 + r(4) * 3) * MENIT_DEMO;
+    lineBebas = selesai;
+    const ripe = 0.72 + r(7) * 0.2;
+    const jk = 0.02 + r(8) * 0.04;
+    hasil.push({
+      no, kunci, truk: truk[(hari + no) % truk.length], datang, masuk, mulai, selesai, keluar, pergi,
+      bruto: Math.round((17000 + r(5) * 11000) / 10) * 10,
+      tara: Math.round((6500 + r(6) * 2500) / 10) * 10,
+      rasio: { ripe, jk },
+    });
+    datang += (10 + r(0) * 10) * MENIT_DEMO;
+  }
+  return hasil;
+}
+
+function keadaanDemo(kunjungan, awalHariMs, sekarangMs) {
+  const iso = (ms) => new Date(ms).toISOString();
+  const menit = (ms) => Math.max(0, Math.floor(ms / MENIT_DEMO));
+  const t = (v) => v.truk;
+  const menunggu = kunjungan.filter((v) => v.datang <= sekarangMs && sekarangMs < v.masuk && v.datang >= awalHariMs)
+    .map((v) => ({ id: `demo-a-${v.no}`, plate_number: t(v).plate_number, arrived_at: iso(v.datang),
+      tahap: "datang", menit: menit(sekarangMs - v.datang) }));
+  const tiket = kunjungan.filter((v) => v.masuk >= awalHariMs && v.masuk <= sekarangMs)
+    .sort((a, b) => b.masuk - a.masuk)
+    .map((v) => {
+      const kosong = sekarangMs >= v.keluar;
+      const pulang = sekarangMs >= v.pergi;
+      return {
+        id: `demo-w-${v.no}`, ref: null, truck_id: t(v).id, plate_number: t(v).plate_number,
+        supplier_name: t(v).supplier_name, source_label: t(v).source_label,
+        arrived_at: iso(v.datang), entered_at: iso(v.masuk), exited_at: kosong ? iso(v.keluar) : null,
+        left_at: pulang ? iso(v.pergi) : null, gross_kg: v.bruto, tare_kg: kosong ? v.tara : null,
+        net_kg: kosong ? v.bruto - v.tara : null, tahap: pulang ? "selesai" : kosong ? "timbang_kosong" : "bongkar",
+        antre_menit: menit(v.masuk - v.datang), total_menit: pulang ? menit(v.pergi - v.datang) : null,
+        tanpa_scan_1: false, tanpa_scan_4: false, erp_perlu_dicek: false, erp_ticket: null,
+      };
+    });
+  const bongkar = kunjungan.find((v) => v.mulai <= sekarangMs && sekarangMs < v.selesai);
+  return {
+    menunggu, tiket,
+    diLine: bongkar ? { assignment_id: `demo-${bongkar.no}`, truck_id: t(bongkar).id, plate_number: t(bongkar).plate_number,
+      supplier_name: t(bongkar).supplier_name, source_label: t(bongkar).source_label } : null,
+    antrean: kunjungan.filter((v) => v.masuk <= sekarangMs && sekarangMs < v.mulai)
+      .map((v) => ({ weighing_id: `demo-w-${v.no}`, plate_number: t(v).plate_number, menit: menit(sekarangMs - v.masuk) })),
+    tally: {
+      tiket: tiket.length,
+      neto_kg: tiket.reduce((n, w) => n + (w.net_kg || 0), 0),
+      menunggu_tara: tiket.filter((w) => w.exited_at === null).length,
+    },
+  };
+}
+
+// One visit's bunches on one line so far. Each line grades at its own steady pace.
+function janjangDemo(v, line, sekarangMs) {
+  const menit = Math.min(Math.max(0, sekarangMs - v.mulai), v.selesai - v.mulai) / MENIT_DEMO;
+  const total = Math.floor(menit * JANJANG_MENIT_DEMO * (0.85 + 0.3 * acakDemo(v.kunci * 16 + 9 + line)));
+  const jk = Math.round(total * v.rasio.jk);
+  const ripe = Math.min(total - jk, Math.round(total * v.rasio.ripe));
+  const unripe = total - ripe - jk;
+  return { total, ripe, unripe, jk, tp: Math.floor(total * 0.03), acc: ripe, rej: unripe + jk };
+}
+
+// Today's bunches per line: every visit whose unloading began today.
+function janjangHariDemo(kunjungan, awalHariMs, sekarangMs, jumlahLine) {
+  const nol = () => ({ total: 0, ripe: 0, unripe: 0, jk: 0, tp: 0, acc: 0, rej: 0 });
+  const hasil = Array.from({ length: jumlahLine }, nol);
+  for (const v of kunjungan) {
+    if (v.mulai < awalHariMs) continue;
+    hasil.forEach((h, i) => {
+      const j = janjangDemo(v, i, sekarangMs);
+      for (const k of Object.keys(h)) h[k] += j[k];
+    });
+  }
+  return hasil;
+}
+
 async function cekKamera() {
   // No line answers /health on the demo droplet: the demo frames are the picture.
   if (demoHidup.aktif) return;
