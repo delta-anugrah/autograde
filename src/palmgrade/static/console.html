@@ -802,7 +802,11 @@
   .odo-baca { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
               white-space:nowrap; }
   .odo { display:inline-flex; vertical-align:top; }
-  .odo-d { position:relative; overflow:hidden; }
+  /* The faded edges hide the half digits a column shows while it rolls (a still photo of the demo
+     scale read "0,,400", 2026-10-13); a digit at rest sits inside the clear middle. */
+  .odo-d { position:relative; overflow:hidden;
+           -webkit-mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent);
+           mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent); }
   .odo-d::after { content:attr(data-ke); visibility:hidden; }
   .odo-d::before { content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";
                    white-space:pre;
@@ -824,6 +828,8 @@
   .timbang-angka { display:flex; align-items:flex-end; gap:14px; min-width:0; }
   #timbang-kg { flex:none; font:600 3.25rem/1 var(--angka); }
   .odo-berat .redup { opacity:.16; }
+  /* The scale changes every second: a shorter roll spends less of it half way between digits. */
+  .odo-berat .odo-d::before { animation-duration:.45s; }
   .odo-pisah::before, .odo-satuan::before { content:attr(data-c); }
   .odo-satuan { margin-left:6px; font-size:.4em; color:var(--muted); align-self:flex-end; }
   .timbang-jejak { flex:1 1 auto; min-width:60px; display:flex; align-items:flex-end; gap:2px; height:40px; }
