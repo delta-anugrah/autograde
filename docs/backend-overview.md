@@ -359,7 +359,7 @@ result.json  {"schema": 1, "id": "<uuid>", "state": "ok", "target": "v1.22.1", "
 
 ### Lane support (`require_support`)
 
-Melayani tab support: **Log**, **Status** (lima sub-tab: Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2), **Akun**, **Line**
+Melayani tab support: **Log**, **Status** (enam sub-tab: Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2, Foto training), **Akun**, **Line**
 (Sumber Kamera, Model Deteksi, Uji PLC, Rekam Video), dan **Setelan** (termasuk Danger Zone).
 Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasionalnya:
 `docs/rules.md`, Critical Rule 21.

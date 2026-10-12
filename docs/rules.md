@@ -514,8 +514,9 @@ end of this file.
     (`pastikanTabTersedia`). Dulu cuma dibuang: operator yang mewarisi tab Setelan dapat
     layar kosong, dan support sesudahnya harus memuat ulang halaman (tes staging 2026-09-28).
     **Sembilan tab sejak 2026-09-28** (dulu 15, "tab kebanyakan"): **Rekap** = Rekap + Riwayat
-    (dibuka di Hari ini, Per truk), **Status** = lima sub-tab sejak 2026-10-05 (Versi & pembaruan,
-    Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2; `SUB_STATUS`, diingat
+    (dibuka di Hari ini, Per truk), **Status** = sub-tab sejak 2026-10-05 (Versi & pembaruan,
+    Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2, dan Foto training sejak
+    2026-10-13; `SUB_STATUS`, diingat
     `subStatus`, satu bagian tampil sekaligus; dulu bertumpuk),
     **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat sub-tab
     bergaris bawah (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang

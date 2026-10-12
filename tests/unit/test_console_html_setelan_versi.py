@@ -84,14 +84,14 @@ def test_setelan_form_tidak_dipatok_sempit():
 
 # ── Status: sub-tabs (user 2026-10-05), the Settings pattern ────────────────
 
-SUB_STATUS = ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest")
+SUB_STATUS = ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest", "training")
 
 
 def _status() -> str:
     return HTML.split('<section id="sec-status"', 1)[1].split("</section>", 1)[0]
 
 
-def test_status_lima_sub_tab_berlabel_dua_bahasa():
+def test_status_enam_sub_tab_berlabel_dua_bahasa():
     bar = re.search(r'<div class="sub-tab" id="status-sub" role="group">(.*?)</div>', _status(), re.S)
     assert bar, "the Status sub-tab bar is missing"
     tombol = re.findall(r'<button type="button" data-sub="([\w-]+)" data-t="(\w+)">', bar.group(1))
@@ -104,7 +104,8 @@ def test_status_tiap_bagian_punya_panel_dan_isinya():
     """Every section the tab had is still there, each inside its own sub-tab panel."""
     isi = {"versi": ("versi-daftar", "pembaruan-support"), "diagnostik": ("diagnostik-kartu",),
            "antrean-line": ("antrean-line-baris",), "antrean-erp": ("antrean-kirim-ulang", "antrean-baris"),
-           "manifest": ("manifest-nonaktif", "manifest-baris")}
+           "manifest": ("manifest-nonaktif", "manifest-baris"),
+           "training": ("training-nonaktif", "training-ringkas", "training-baris")}
     potong = re.split(r'<div class="status-bagian" data-status-sub="([\w-]+)"', _status())
     panel = dict(zip(potong[1::2], potong[2::2], strict=True))
     assert list(panel) == list(SUB_STATUS)
