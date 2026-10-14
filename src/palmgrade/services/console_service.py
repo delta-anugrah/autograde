@@ -21,7 +21,7 @@ import time
 import uuid
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
@@ -53,6 +53,11 @@ from .penugasan_otomatis import PenugasanOtomatis
 from .status_sinkron import StatusSinkron
 from .tampilan_baris import _assignment_view, _tiket_view, _with_foto, _with_source_label
 from .tampilan_baris import _capture_url as _capture_url  # re-exported: demo seeder tests
+from .training_inbox import TrainingInbox
+
+if TYPE_CHECKING:
+    # Only an annotation: the worker module is not imported while the console is assembled.
+    from ..workers.training_upload_worker import TrainingUploadWorker
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +85,8 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         erp_queue: ErpQueue | None = None,
         manifest_queue: VisitManifestWorker | None = None,
         status_sinkron: StatusSinkron | None = None,
+        training_inbox: TrainingInbox | None = None,
+        training_worker: TrainingUploadWorker | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -92,6 +99,10 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         # `detail_url` in what erp_queue sends — but the AutoERP link (if any)
         # still works. See _queue_grading: the two are independent.
         self.manifest_queue = manifest_queue
+        # None when TRAINING_INBOX_BUCKET is empty: no training photos leave the mill.
+        # The worker is held here only so console_main can start it (like manifest_queue).
+        self.training_inbox = training_inbox
+        self.training_worker = training_worker
         # Last Sync (2026-09-27). Dibuat di sini kalau pemanggil tidak memberi, supaya
         # test lama yang merakit ConsoleService sendiri tetap mendapat bagian ini.
         self.status_sinkron = status_sinkron or StatusSinkron(
@@ -192,13 +203,14 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         work_date = self.hari_kerja.untuk(timestamp)
 
         line = self._by_machine.get(machine_id)
+        line_code = line.line_code if line else machine_id
         baru = self.store.add_inspection(
             {
                 "event_id": event_id,
                 "machine_id": machine_id,
                 # Unknown machine is stored as-is: the row shows up as a
                 # foreign line, far quicker to spot than a swallowed event.
-                "line_code": line.line_code if line else machine_id,
+                "line_code": line_code,
                 "work_date": work_date,
                 "timestamp": timestamp,
                 "ripeness_status": verdict,
@@ -223,7 +235,25 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         )
         if baru:
             self._kunjungan_susulan(payload.get("assignment_id"))
+            self._foto_training(payload, line, line_code)
         return work_date
+
+    def _foto_training(self, payload: dict[str, Any], line: LineEndpoint | None, line_code: str) -> None:
+        """Queue the bunch's clean photo for nexio. Never raises: see TrainingInbox.offer."""
+        if self.training_inbox is None:
+            return
+        event_id = payload.get("event_id")
+        if line is None:
+            # No /captures mount for an unknown machine id, so its photo cannot be read.
+            logger.info("Janjang %s dari mesin asing %s tidak dikirim ke nexio", event_id, line_code)
+            return
+        truck_id = payload.get("truck_id")
+        try:
+            plate = self._plate(truck_id) if truck_id else None
+        except Exception:
+            logger.exception("Plat truk %s tidak terbaca untuk foto training %s", truck_id, event_id)
+            plate = None
+        self.training_inbox.offer(payload, line_code=line_code, plate=plate)
 
     # ------------------------------------------------------------- read
 

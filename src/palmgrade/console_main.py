@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
+from .core.head_request import HeadAsGetMiddleware
 from .core.log_sink import SqliteLogHandler
 from .core.logging import KONTEKS_KONSOL, configure_logging
 from .repositories.log_repository import LogStore
@@ -132,6 +133,11 @@ async def lifespan(app: FastAPI):
     if service.manifest_queue is not None:
         tasks.append(asyncio.create_task(service.manifest_queue.run_loop()))
 
+    # Training photos to the nexio inbox: the worker exists only when TRAINING_INBOX_* is
+    # complete (get_console_service logs once when it is off).
+    if service.training_worker is not None:
+        tasks.append(asyncio.create_task(service.training_worker.run_loop()))
+
     # Live weighbridge reading (2026-10-06): its own MC Protocol connection to the PLC.
     # None while SCALE_PLC_REGISTER is empty; the tile then says "not connected".
     timbangan_live = build_timbangan_live(service.settings, get_timbangan_live())
@@ -174,6 +180,8 @@ def create_console_app() -> FastAPI:
     service = get_console_service()
     settings = service.settings
     app = FastAPI(title="Palmgrade Operator Console", lifespan=lifespan)
+    # HEAD answers like GET with no body: the uptime monitor checks with HEAD.
+    app.add_middleware(HeadAsGetMiddleware)
 
     # Images stay on each line's own disk, mounted read-only here by
     # docker-compose. The URL shape mirrors palmgrade-api. Batch 1.3: only for a

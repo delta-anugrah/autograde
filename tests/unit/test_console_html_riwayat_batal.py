@@ -80,7 +80,7 @@ def test_panel_di_bawah_tabel_timbangan_tersembunyi_sampai_ada_isi():
 
 
 def test_muat_timbangan_menggambar_riwayat_dari_payload():
-    assert "gambarRiwayatBatal(data.dibatalkan)" in _fungsi("muatTimbangan")
+    assert "gambarRiwayatBatal(data.dibatalkan)" in _fungsi("gambarTimbangan")
 
 
 def test_poll_tidak_menulis_ulang_details_hanya_judul_dan_isi():

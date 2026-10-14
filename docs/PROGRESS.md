@@ -18,6 +18,104 @@ Next:           ...
 
 ---
 
+## 2026-10-14 · console + line · Support HEAD requests for uptime monitoring (PR #270)
+Changed:        New `core/head_request.py` (`HeadAsGetMiddleware`) installed in `console_main.py`
+                and `main.py`: HEAD is served through the GET route, same status and headers, no
+                body; a streaming answer is stopped after its headers. GET, POST and auth unchanged.
+                Cause: UptimeRobot free checks `demo-autograde.smagri.id` with HEAD and got 405.
+                Tests `tests/unit/test_head_request.py` (8). Doc: `docs/backend-overview.md`.
+Validated:      pytest unit+e2e+integration → 6186 passed, 48 skipped; ruff → All checks passed;
+                local console on :8177: `curl -I /health` 200, `curl -I /console` 200,
+                `curl -I /` 307 to /console (same as GET), POST /health 405.
+Not validated:  the line app over real HTTP (needs torch); covered by the stream unit test.
+Next:           release, then point UptimeRobot at `/health` or keep `/` (it follows the 307).
+
+## 2026-10-13 · training · Clean grading photos to the nexio inbox (PR pending, branch feat/training-inbox)
+Changed:        The console queues each bunch's `clean/` photo plus a JSON manifest
+                (`autograde-training-sample/v1`, `domain/training_sample.py`, fixtures shared with nexio)
+                in its own `state/training_outbox.db` at ingest (first arrival only), and
+                `TrainingUploadWorker` PUTs photo then manifest to R2 bucket `autograde-training`
+                (`v1/<machine_id>/<UTC day>/<event_id>.webp|.json`). Lines now send `tp_bounding_box`
+                and `model_file` on the event. Six `TRAINING_INBOX_*` settings (both compose console
+                blocks, demo kit blank, `.env.example`); off unless bucket, endpoint and both keys are set.
+                New support sub-tab Status → Foto training; Danger Zone empties the queue. Rule 40 added,
+                rules 7 and 25 amended; MANUAL 2.31 + PDF (49 pages); README, overview, backend-overview,
+                skills compose-host-pabrik, konsol-autograde, panduan-autograde, spek-pc-pabrik.
+Validated:      ruff check src/ tests/ → All checks passed!
+                pytest tests/unit → 5681 passed, 28 skipped
+                pytest tests/e2e → 428 passed, 20 skipped (AutoERP services and docker images not set)
+                pytest tests/integration → 196 passed (4 new: real WebP from CaptureRepository → ingest →
+                outbox → worker → in-memory bucket, and → local S3 on 127.0.0.1 through the real
+                `_build_training` wiring; 403 → kunci_ditolak, closed port → tak_terjangkau)
+                browser chromium → 1 failed, 220 passed; the failure passed alone on --lf (flaky, name lost
+                in truncated output); browser firefox (two halves) → 125 passed + 96 passed
+Not validated:  Never run against a live container, the real `autograde-training` bucket or a real R2 token; no
+                factory PC. The nexio import side is its own PR.
+Risks:          Never run against a live container, the real bucket or a real R2 token. The token is Object
+                Read & Write scoped to `autograde-training` only (R2 has no write-only object token). Rows that already
+                failed keep their backoff (up to 1 hour) even after `autograde restart`. The sawit PR
+                (feat/video-to-nexio-inbox) must merge first or together: docs here name its runbook.
+Decisions:      Own outbox file (a dead inbox never holds AutoERP or visit manifests). pending = pending
+                rows only. Unknown machine id not queued. Bucket set without keys = off + one WARNING.
+                `APP_VERSION=unknown` sends null. Up to one picked batch (20) may still upload after a
+                Danger Zone wipe (rule 25).
+Next:           Factory PC: add the six `TRAINING_INBOX_*` lines to the host compose `console:` block and
+                the values to `.env`, `autograde restart`, then watch Status → Foto training.
+
+## 2026-10-13 · console · Demo: simulated trucks, weighbridge and Rekap; demo is read-only (PR #268)
+Changed:        In DEMO_MODE the screen now simulates truck visits computed from the clock (pure
+                functions kunjunganDemo/keadaanDemo, no storage): a truck every 10 to 20 minutes from
+                the seeded trucks arrives, weighs in, queues, unloads on every line (automatic
+                assignment), weighs out and leaves. The truck card and the unloading queue, the
+                Weighbridge board and table (gambarTimbangan split out of muatTimbangan), today's
+                tally, Rekap per truck for today, and the line counters all come from that one model,
+                so they agree; the camera tick runs only while a truck unloads. The server is
+                read-only in DEMO_MODE: a router-wide dependency (tolak_tulis_saat_demo) answers 403
+                `mode_demo` to every /api/console write except login, logout and session renew, and the
+                screen words it; the four routers console_main mounts beside it carry the same guard.
+                Odometer digits fade at the edges only while they roll (an animation with no fill,
+                so the factory scale tile at rest is unchanged) and the scale rolls in 0.45 s.
+                Final review fixes: Rekap summary equal in every view (Per hari's today row includes
+                the trucks), the demo day starts at factory midnight (zonaPabrik), trucks in plate
+                order (a pulled truck does not reshuffle them), Lepas stops at the first mode_demo
+                refusal (one toast), unit tests on a fixed date.
+Validated:      pytest tests/unit tests/e2e tests/integration → exit 0, 6213 passed, 48 skipped.
+                Browser: Chromium 221/221; Firefox 218/221 in the full run, the 3 failures in
+                test_browser_scan_otomatis.py passed alone (3/3) and the whole file passed (20/20).
+                ruff check src/ tests/ → All checks passed. Screenshots by eye (Grading, Weighbridge,
+                Rekap) on a harness console with DEMO_MODE=1.
+Not validated:  Not on the droplet yet: needs a release.
+Next:           Release, then check demo-autograde.smagri.id.
+
+## 2026-10-10 · docs · README rewritten in English (PR #267)
+Changed:        README.md rewritten in English for an engineer opening the repo: what it is, system
+                context, line and console flow, grading rules, quick start (Mac and Linux),
+                configuration, make targets, operator console, demo data, camera sources, HTTP API,
+                evidence and upload, per-truck R2 detail, licence guard, testing, release and
+                deployment, contributing, documentation map. 843 mixed-language lines became 624.
+                Stale facts fixed: licence tokens are issued in AutoERP (not "the cloud API"),
+                captures.smagri.id is behind a password gate (not "public"), the hard-coded
+                /home/nexio video mount is gone (sources come from media.env), camera selection
+                names CAMERA_SERIAL and MEDIA_FILE. Long rationale stays in docs/ and is linked.
+Validated:      test_doc_links.py, test_dokumen_tanpa_em_dash.py → pass; every path and test file the
+                README names exists; make targets checked against the Makefile; package pins
+                against requirements-ci.txt; PLC coil map against docs/plc-mc-handoff.md.
+Not validated:  Rendering on GitHub (badges, alert blocks) not seen.
+Next:           None.
+
+## 2026-10-10 · ci · deploy-demo passes the secrets on (PR #266)
+Changed:        deploy.yml job deploy-demo gets `secrets: inherit`. On the v1.27.0 tag the called job ran
+                in environment `demo` and still read all four DEMO_SSH_* as empty (ssh printed its usage,
+                exit 255): a reusable workflow only sees the secrets its caller hands over, environment
+                secrets included. This reverses the "no secrets: inherit" decision of PR #264. The
+                images were not affected; the demo was upgraded with Run workflow on demo-deploy.yml
+                from main (run 37980888231: "OK: the demo runs v1.27.0.").
+Validated:      pytest test_demo_image_workflow.py test_ci_gerbang_rilis.py test_rilis_lewat_smoke.py
+                tests/integration/test_alur_rilis_integrasi.py → all pass (the new assertion failed first).
+                demo-autograde.smagri.id/health → v1.27.0; /demo/frames.json → 200 (DEMO_MODE on).
+Not validated:  The automatic path is proven only on the next tag.
+Next:           Watch deploy-demo on the next tag.
+
 ## 2026-10-09 · ci · The demo console upgrades itself after every release (PR #264)
 Changed:        New workflow demo-deploy.yml (workflow_call + Run workflow for rollback), called by
                 deploy.yml as job deploy-demo once BOTH the factory promote and the demo image are

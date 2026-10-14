@@ -126,8 +126,8 @@ def test_dropdown_timbang_isi_ikut_poll_tanpa_mengganggu_operator():
     assert 'dataset.buka === "1"' in isi_ulang, "never rebuilt while the operator has it open"
     assert "tulisKalauBeda(" in isi_ulang, "an unchanged picker is not redrawn"
     assert "isiPlatTimbang()" in _fungsi("isiTrucks")
-    assert "isiPlatTimbang()" in _fungsi("muatTimbangan")
-    assert "menungguTimbang = " in _fungsi("muatTimbangan")
+    assert "isiPlatTimbang()" in _fungsi("gambarTimbangan")
+    assert "menungguTimbang = " in _fungsi("gambarTimbangan")
 
 
 def test_langkah_1_tidak_berubah():
@@ -162,7 +162,7 @@ def test_kolom_status_paling_kiri_dua_belas_kolom():
     kepala = _kepala_tabel()
     assert len(re.findall(r"<th\b", kepala)) == 12
     assert re.search(r"<tr><th data-t=\"thStatus\">", kepala), "Status is the FIRST column"
-    assert "barisKosong(12" in _fungsi("muatTimbangan") and "barisKosong(11" not in _fungsi("muatTimbangan")
+    assert "barisKosong(12" in _fungsi("gambarTimbangan") and "barisKosong(11" not in _fungsi("gambarTimbangan")
 
 
 @butuh_node
@@ -220,7 +220,7 @@ def test_baris_tiket_diawali_lencana_dua_belas_sel():
 
 
 def test_yang_menunggu_jadi_baris_paling_atas():
-    fn = _fungsi("muatTimbangan")
+    fn = _fungsi("gambarTimbangan")
     assert re.search(r"menungguTimbang\.map\(barisMenunggu\)[\s\S]*items\.map\(barisTimbangan\)", fn)
 
 

@@ -802,7 +802,14 @@
   .odo-baca { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
               white-space:nowrap; }
   .odo { display:inline-flex; vertical-align:top; }
-  .odo-d { position:relative; overflow:hidden; }
+  /* The faded edges hide the half digits a column shows while it rolls (a still photo of the demo
+     scale read "0,,400", 2026-10-13). An animation with no fill, so the fade ends with the roll and
+     a digit at rest (the factory scale tile keeps its odometer) stays crisp. */
+  .odo-d { position:relative; overflow:hidden; animation:odo-tepi .7s; }
+  @keyframes odo-tepi {
+    from, to { -webkit-mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent);
+               mask-image:linear-gradient(transparent, #000 16%, #000 84%, transparent); }
+  }
   .odo-d::after { content:attr(data-ke); visibility:hidden; }
   .odo-d::before { content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";
                    white-space:pre;
@@ -824,6 +831,9 @@
   .timbang-angka { display:flex; align-items:flex-end; gap:14px; min-width:0; }
   #timbang-kg { flex:none; font:600 3.25rem/1 var(--angka); }
   .odo-berat .redup { opacity:.16; }
+  /* The scale changes every second: a shorter roll spends less of it half way between digits. */
+  .odo-berat .odo-d { animation-duration:.45s; }
+  .odo-berat .odo-d::before { animation-duration:.45s; }
   .odo-pisah::before, .odo-satuan::before { content:attr(data-c); }
   .odo-satuan { margin-left:6px; font-size:.4em; color:var(--muted); align-self:flex-end; }
   .timbang-jejak { flex:1 1 auto; min-width:60px; display:flex; align-items:flex-end; gap:2px; height:40px; }
@@ -1702,7 +1712,7 @@
   #line-sub button { width:100%; min-width:0; }
   @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Status sub-tabs (user 2026-10-05): one section of the tab at a time. */
-  #status-sub { flex:1 1 100%; grid-template-columns:repeat(5, minmax(0, 1fr)); }
+  #status-sub { flex:1 1 100%; grid-template-columns:repeat(6, minmax(0, 1fr)); }
   @media (max-width:800px) { #status-sub { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
   .status-bagian[hidden] { display:none; }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
@@ -1718,6 +1728,10 @@
      own top edge. A browser without :has() just keeps the empty bar. */
   .tools:has(> #manifest-ringkas:empty) { display:none; }
   .tools:has(> #manifest-ringkas:empty) + .tabel { border-top:1px solid var(--line); border-radius:var(--r-md); }
+  /* Training photo queue: same layout rules as the manifest queue above. */
+  #training-nonaktif { margin:0 0 8px; }
+  .tools:has(> #training-ringkas:empty) { display:none; }
+  .tools:has(> #training-ringkas:empty) + .tabel { border-top:1px solid var(--line); border-radius:var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
      sengaja tanpa garis bawah karena menempel ke `.tabel`; tanpa tabel, kotaknya
      menggantung dengan bawah terbuka (keluhan 2026-09-25). Di sini kotaknya
@@ -3157,6 +3171,7 @@
       <button type="button" data-sub="antrean-line" data-t="judulAntreanLine">Antrean line ke konsol</button>
       <button type="button" data-sub="antrean-erp" data-t="judulAntrean">Antrean ERP</button>
       <button type="button" data-sub="manifest" data-t="judulManifest">Manifest R2</button>
+      <button type="button" data-sub="training" data-t="judulTraining">Foto training</button>
     </div>
   </div>
   <div class="status-bagian" data-status-sub="versi">
@@ -3225,6 +3240,26 @@
         <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
         <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
       <tbody id="manifest-baris"></tbody>
+    </table>
+  </div>
+  </div>
+  <!--
+    Its own sub-tab (2026-10-13): clean grading photos waiting for the nexio training inbox
+    (TrainingUploadWorker, training_outbox.db). Same table as the manifest queue; the feature
+    switched off reads as its own sentence, never as zeros. Support only: Last Sync keeps its
+    two rows (rule 27).
+  -->
+  <div class="status-bagian" data-status-sub="training" hidden>
+  <p id="training-nonaktif" hidden class="muted" data-t="trainingNonaktif">Kiriman foto training ke nexio belum disetel.</p>
+  <div class="tools">
+    <span id="training-ringkas" class="muted"></span>
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
+        <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
+      <tbody id="training-baris"></tbody>
     </table>
   </div>
   </div>
@@ -3962,6 +3997,7 @@ const KAMUS = {
     err_slip_mati:"Slip grading sedang dimatikan. Minta support menyalakannya di tab Setelan",
     err_slip_tidak_ada:"Truk ini tidak punya janjang pada tanggal itu",
     err_cutoff_tidak_sah:"Jam tidak sah. Isi antara 00:00 dan 23:59",
+    err_mode_demo:"Ini layar demo: tidak ada yang disimpan. Truk, timbangan, dan angka di layar disimulasikan",
     konfirmasiCutoffJudul:"Hari kerja mulai jam {jam}?",
     konfirmasiCutoffPesan:"Lewat jam 12:00, hari kerja tetap memakai tanggal jam mulainya.\n\nContoh: janjang Selasa jam 09:00 masuk hari kerja Senin.\n\nDi AutoERP, tiket truk yang timbang antara 00:00 dan {jam} tetap bertanggal hari timbangnya.",
     grupHariKerja:"Hari kerja", labelCutoff:"Hari kerja mulai jam",
@@ -4161,6 +4197,9 @@ const KAMUS = {
     judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
     kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
     manifestNonaktif:"R2 belum disetel, jadi halaman detail truk tidak jalan di PKS ini.",
+    judulTraining:"Foto training", ringkasTraining:"{pending} menunggu · {gagal} gagal · terakhir terkirim {jam}",
+    trainingNonaktif:"Kiriman foto training ke nexio belum disetel di PKS ini.",
+    kosongTraining:"Tidak ada foto yang tertahan.", gagalTraining:"Antrean foto training tidak terbaca.",
     judulAntreanLine:"Antrean line ke konsol", thMenunggu:"Menunggu", thTertua:"Tertua", thKeadaan:"Keadaan",
     kosongAntreanLine:"Belum ada line yang dikenal konsol",
     gagalAntreanLine:"Gagal memuat antrean line. Buka tab Log untuk rinciannya.",
@@ -4555,6 +4594,7 @@ const KAMUS = {
     err_slip_mati:"The grading slip is switched off. Ask support to switch it on in the Settings tab",
     err_slip_tidak_ada:"This truck has no bunches on that day",
     err_cutoff_tidak_sah:"Not a valid time. Enter one between 00:00 and 23:59",
+    err_mode_demo:"This is a demo screen: nothing is saved. Trucks, weighings and the numbers on screen are simulated",
     konfirmasiCutoffJudul:"Start the working day at {jam}?",
     konfirmasiCutoffPesan:"After 12:00, the working day keeps the date it starts on.\n\nExample: a bunch graded Tuesday 09:00 belongs to Monday's working day.\n\nIn AutoERP, tickets of trucks weighed between 00:00 and {jam} keep the date they were weighed.",
     grupHariKerja:"Working day", labelCutoff:"Working day starts at",
@@ -4742,6 +4782,9 @@ const KAMUS = {
     judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
     kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
     manifestNonaktif:"R2 is not configured, so the truck detail page does not work at this mill.",
+    judulTraining:"Training photos", ringkasTraining:"{pending} pending · {gagal} failed · last sent {jam}",
+    trainingNonaktif:"Training photos to nexio are not configured at this mill.",
+    kosongTraining:"No photo is held.", gagalTraining:"The training photo queue could not be read.",
     judulAntreanLine:"Line queue to console", thMenunggu:"Waiting", thTertua:"Oldest", thKeadaan:"State",
     kosongAntreanLine:"The console knows no lines yet",
     gagalAntreanLine:"Failed to load the line queue. Open the Log tab for details.",
@@ -5405,7 +5448,7 @@ $("setelan-sub").addEventListener("click", (ev) => {
 
 // Status sub-tabs (user 2026-10-05): one section at a time, remembered like Settings. All of
 // them keep loading together when the tab opens, so switching never waits on the network.
-const SUB_STATUS = ["versi", "diagnostik", "antrean-line", "antrean-erp", "manifest"];
+const SUB_STATUS = ["versi", "diagnostik", "antrean-line", "antrean-erp", "manifest", "training"];
 let subStatus = SUB_STATUS.includes(baca("subStatus", "versi")) ? baca("subStatus", "versi") : "versi";
 
 function terapkanSubStatus() {
@@ -8017,9 +8060,7 @@ function capFeedBaru(sekarang) {
 // of the seeded data. Browser memory only: nothing is posted, a reload starts over.
 const JEDA_DEMO_MS = 2600;
 const BATAS_BARIS_DEMO = 30;
-const demoHidup = { aktif: false, memuat: false, frames: null, lines: [], mulai: 0, langkah: 0, idx: {}, tambah: {}, baris: [] };
-
-function nolDemo() { return { ripe: 0, unripe: 0, jk: 0, tp: 0 }; }
+const demoHidup = { aktif: false, memuat: false, frames: null, lines: [], mulai: 0, langkah: 0, idx: {}, baris: [], keadaan: null };
 
 async function aktifkanDemo(on) {
   // refresh() calls this every 2 s: `memuat` keeps a slow first fetch from starting twice.
@@ -8039,40 +8080,81 @@ async function aktifkanDemo(on) {
   demoHidup.mulai = Date.now();
   dipasang = false;  // redraw the cards so their <img> points at the demo frames
   // A hidden tab (left open overnight) does no work: nothing moves that nobody sees.
-  setInterval(() => { if (!document.hidden) { majuDemo(Date.now()); gambarFeedDemo(); } }, JEDA_DEMO_MS);
+  setInterval(() => {
+    if (!document.hidden) { majuDemo(Date.now(), demoHidup.keadaan && demoHidup.keadaan.diLine); gambarFeedDemo(); }
+  }, JEDA_DEMO_MS);
 }
 
 // Five photos shared by every line. Line n starts at photo 2n (mod 5) so neighbours never
-// show the same one; each tick moves ONE line, in turn, to its next photo and counts it.
+// show the same one; each tick moves ONE line, in turn, to its next photo and adds a Grading row
+// for the truck on the lines. No truck unloading = no tick: the lines wait, as at the mill.
 function idxDemo(line) {
   return demoHidup.idx[line] ?? (2 * Math.max(0, demoHidup.lines.indexOf(line))) % demoHidup.frames.length;
 }
 
-function majuDemo(sekarangMs) {
-  if (!demoHidup.lines.length) return;
+function majuDemo(sekarangMs, truk) {
+  if (!demoHidup.lines.length || !truk) return;
   const line = demoHidup.lines[demoHidup.langkah % demoHidup.lines.length];
   demoHidup.langkah += 1;
   const i = demoHidup.idx[line] = (idxDemo(line) + 1) % demoHidup.frames.length;
   const frame = demoHidup.frames[i];
-  const t = demoHidup.tambah[line] = demoHidup.tambah[line] || nolDemo();
   for (const k of frame.kelas) {
-    t[k.toLowerCase()] += 1;
-    demoHidup.baris.unshift({ pada: sekarangMs, line, kelas: k, src: frame.src });
+    demoHidup.baris.unshift({ pada: sekarangMs, line, kelas: k, src: frame.src,
+      plat: truk.plate_number, sumber: truk.source_label });
   }
   demoHidup.baris.length = Math.min(demoHidup.baris.length, BATAS_BARIS_DEMO);
 }
 
-// Called in refresh() right after the state arrives, before anything draws a number.
-// Ripe counts as ACC and Unripe/JK as REJ, the factory rule (only ACC and REJ reach the PLC).
-function terapkanDemoLines(lines) {
-  for (const l of lines) {
-    const t = demoHidup.tambah[l.line_code];
-    if (!t) continue;
-    for (const k of ["ripe", "unripe", "jk", "tp"]) l[k] = (l[k] || 0) + t[k];
-    l.total = (l.total || 0) + t.ripe + t.unripe + t.jk + t.tp;
-    l.acc = (l.acc || 0) + t.ripe;
-    l.rej = (l.rej || 0) + t.unripe + t.jk;
+// Today's simulated bunches per line (janjangHariDemo, same order as `lines`) on top of what the
+// server counted. Ripe is ACC, Unripe and JK are REJ: the factory rule (only ACC and REJ reach
+// the PLC).
+function terapkanDemoLines(lines, hari) {
+  lines.forEach((l, i) => {
+    const h = hari[i];
+    if (!h) return;
+    for (const k of ["ripe", "unripe", "jk", "tp", "total", "acc", "rej"]) l[k] = (l[k] || 0) + h[k];
+  });
+}
+
+// Factory midnight (`zonaPabrik`): the demo's working day, the zone the screen's times and Rekap's
+// date follow, whatever the visitor's own zone. A real mill's shift cutoff does not matter here.
+function awalHariDemo(sekarangMs) {
+  let bagian;
+  try {
+    bagian = new Intl.DateTimeFormat("en-GB", { timeZone: zonaPabrik || undefined, hourCycle: "h23",
+      hour: "numeric", minute: "numeric", second: "numeric" }).formatToParts(new Date(sekarangMs));
+  } catch (e) {
+    bagian = new Intl.DateTimeFormat("en-GB", { hourCycle: "h23", hour: "numeric", minute: "numeric",
+      second: "numeric" }).formatToParts(new Date(sekarangMs));  // an unknown zone: the browser's own
   }
+  const b = Object.fromEntries(bagian.map((p) => [p.type, Number(p.value)]));
+  return sekarangMs - ((b.hour * 60 + b.minute) * 60 + b.second) * 1000 - new Date(sekarangMs).getUTCMilliseconds();
+}
+
+// The seeded trucks the console already loaded for the Truk tab (`trucks`), in plate order: the
+// server lists the newest first, and a truck pulled from AutoERP must not reshuffle the plates.
+function trukDemo() {
+  return (trucks || []).filter((t) => t.plate_number && t.status !== "inactive")
+    .sort((a, b) => a.plate_number.localeCompare(b.plate_number));
+}
+
+// Called in refresh() right after the state arrives, before anything is drawn: the truck on the
+// lines, the unloading queue (automatic assignment on), today's weighing totals and bunches.
+function terapkanDemoState(s, sekarangMs) {
+  const awal = awalHariDemo(sekarangMs);
+  const kunjungan = kunjunganDemo(awal, sekarangMs, trukDemo());
+  const k = demoHidup.keadaan = keadaanDemo(kunjungan, awal, sekarangMs);
+  demoHidup.kunjungan = kunjungan;
+  s.lines.forEach((l) => { l.assignment = k.diLine; });
+  terapkanDemoLines(s.lines, janjangHariDemo(kunjungan, awal, sekarangMs, s.lines.length));
+  s.antrean_bongkar = k.antrean;
+  s.penugasan_otomatis = { ...(s.penugasan_otomatis || {}), aktif: true, lines: s.lines.map((l) => l.line_code) };
+  const tb = s.timbangan || {};
+  s.timbangan = {
+    tiket: (tb.tiket || 0) + k.tally.tiket,
+    menunggu_tara: (tb.menunggu_tara || 0) + k.tally.menunggu_tara,
+    neto_kg: (tb.neto_kg || 0) + k.tally.neto_kg,
+  };
 }
 
 function srcFeedDemo(lineCode) {
@@ -8097,15 +8179,122 @@ function bacaanDemo(detik) {
   return { keadaan, kg, umur_detik: 0 };
 }
 
-// Simulated bunches as rows of the Grading table, newest first. One demo truck (a plate from
-// scripts/seed-console-demo.py PLATES, rule 7); the seeded trucks carry no supplier, so no
-// source label. Only Ripe is ACC, as on the factory lines (tagHasil colours by it).
+// Simulated bunches as rows of the Grading table, newest first, under the truck that was on the
+// lines at that tick (a seeded plate, rule 7). Only Ripe is ACC, as on the factory lines
+// (tagHasil colours by it).
 function barisDemoGrading() {
   return demoHidup.baris.map((b) => ({
-    timestamp: new Date(b.pada).toISOString(), line_code: b.line, plate_number: "BE 8605 TSD",
-    source_label: null, ripeness_status: b.kelas === "Ripe" ? "ACC" : "REJ", grade_class: b.kelas,
+    timestamp: new Date(b.pada).toISOString(), line_code: b.line, plate_number: b.plat,
+    source_label: b.sumber || null, ripeness_status: b.kelas === "Ripe" ? "ACC" : "REJ", grade_class: b.kelas,
     image_url: b.src, thumb_url: b.src,
   }));
+}
+
+// ── demo truk (DEMO_MODE): today's truck visits, computed from the clock ─────────────────
+// A truck arrives, weighs in, waits its turn, unloads on every line at once (automatic
+// assignment, rule 36), weighs out and leaves. Pure functions of (start of day, now, trucks):
+// a reload shows the same trucks at the same stage. Nothing here is stored or sent.
+const MENIT_DEMO = 60000;
+// Bunches graded per line per minute while a truck unloads, about one camera tick per line.
+const JANJANG_MENIT_DEMO = 7;
+
+// A fixed number in [0, 1) for a whole number: the same visit gets the same times every day it is
+// computed, without storing anything.
+function acakDemo(n) {
+  let x = (Math.imul(n | 0, 2654435761) ^ 0x9e3779b9) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0;
+  x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0;
+  return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+}
+
+// The chain starts 90 minutes before midnight, so a truck still unloading at 00:00 holds the lines.
+function kunjunganDemo(awalHariMs, sekarangMs, truk) {
+  if (!truk.length) return [];
+  const hari = Math.floor(awalHariMs / 86400000);
+  const hasil = [];
+  let datang = awalHariMs - 90 * MENIT_DEMO;
+  let lineBebas = 0;
+  for (let no = 0; datang <= sekarangMs; no++) {
+    const kunci = (hari % 100000) * 1000 + no;
+    const r = (k) => acakDemo(kunci * 16 + k);
+    const masuk = datang + (2 + r(1) * 4) * MENIT_DEMO;
+    const mulai = Math.max(masuk + MENIT_DEMO, lineBebas + MENIT_DEMO);
+    const selesai = mulai + (9 + r(2) * 7) * MENIT_DEMO;
+    const keluar = selesai + (2 + r(3) * 3) * MENIT_DEMO;
+    const pergi = keluar + (1 + r(4) * 3) * MENIT_DEMO;
+    lineBebas = selesai;
+    const ripe = 0.72 + r(7) * 0.2;
+    const jk = 0.02 + r(8) * 0.04;
+    hasil.push({
+      no, kunci, truk: truk[(hari + no) % truk.length], datang, masuk, mulai, selesai, keluar, pergi,
+      bruto: Math.round((17000 + r(5) * 11000) / 10) * 10,
+      tara: Math.round((6500 + r(6) * 2500) / 10) * 10,
+      rasio: { ripe, jk },
+    });
+    datang += (10 + r(0) * 10) * MENIT_DEMO;
+  }
+  return hasil;
+}
+
+function keadaanDemo(kunjungan, awalHariMs, sekarangMs) {
+  const iso = (ms) => new Date(ms).toISOString();
+  const menit = (ms) => Math.max(0, Math.floor(ms / MENIT_DEMO));
+  const t = (v) => v.truk;
+  const menunggu = kunjungan.filter((v) => v.datang <= sekarangMs && sekarangMs < v.masuk && v.datang >= awalHariMs)
+    .map((v) => ({ id: `demo-a-${v.no}`, plate_number: t(v).plate_number, arrived_at: iso(v.datang),
+      tahap: "datang", menit: menit(sekarangMs - v.datang) }));
+  const tiket = kunjungan.filter((v) => v.masuk >= awalHariMs && v.masuk <= sekarangMs)
+    .sort((a, b) => b.masuk - a.masuk)
+    .map((v) => {
+      const kosong = sekarangMs >= v.keluar;
+      const pulang = sekarangMs >= v.pergi;
+      return {
+        id: `demo-w-${v.no}`, ref: null, truck_id: t(v).id, plate_number: t(v).plate_number,
+        supplier_name: t(v).supplier_name, source_label: t(v).source_label,
+        arrived_at: iso(v.datang), entered_at: iso(v.masuk), exited_at: kosong ? iso(v.keluar) : null,
+        left_at: pulang ? iso(v.pergi) : null, gross_kg: v.bruto, tare_kg: kosong ? v.tara : null,
+        net_kg: kosong ? v.bruto - v.tara : null, tahap: pulang ? "selesai" : kosong ? "timbang_kosong" : "bongkar",
+        antre_menit: menit(v.masuk - v.datang), total_menit: pulang ? menit(v.pergi - v.datang) : null,
+        tanpa_scan_1: false, tanpa_scan_4: false, erp_perlu_dicek: false, erp_ticket: null,
+      };
+    });
+  const bongkar = kunjungan.find((v) => v.mulai <= sekarangMs && sekarangMs < v.selesai);
+  return {
+    menunggu, tiket,
+    diLine: bongkar ? { assignment_id: `demo-${bongkar.no}`, truck_id: t(bongkar).id, plate_number: t(bongkar).plate_number,
+      supplier_name: t(bongkar).supplier_name, source_label: t(bongkar).source_label } : null,
+    antrean: kunjungan.filter((v) => v.masuk <= sekarangMs && sekarangMs < v.mulai)
+      .map((v) => ({ weighing_id: `demo-w-${v.no}`, plate_number: t(v).plate_number, menit: menit(sekarangMs - v.masuk) })),
+    tally: {
+      tiket: tiket.length,
+      neto_kg: tiket.reduce((n, w) => n + (w.net_kg || 0), 0),
+      menunggu_tara: tiket.filter((w) => w.exited_at === null).length,
+    },
+  };
+}
+
+// One visit's bunches on one line so far. Each line grades at its own steady pace.
+function janjangDemo(v, line, sekarangMs) {
+  const menit = Math.min(Math.max(0, sekarangMs - v.mulai), v.selesai - v.mulai) / MENIT_DEMO;
+  const total = Math.floor(menit * JANJANG_MENIT_DEMO * (0.85 + 0.3 * acakDemo(v.kunci * 16 + 9 + line)));
+  const jk = Math.round(total * v.rasio.jk);
+  const ripe = Math.min(total - jk, Math.round(total * v.rasio.ripe));
+  const unripe = total - ripe - jk;
+  return { total, ripe, unripe, jk, tp: Math.floor(total * 0.03), acc: ripe, rej: unripe + jk };
+}
+
+// Today's bunches per line: every visit whose unloading began today.
+function janjangHariDemo(kunjungan, awalHariMs, sekarangMs, jumlahLine) {
+  const nol = () => ({ total: 0, ripe: 0, unripe: 0, jk: 0, tp: 0, acc: 0, rej: 0 });
+  const hasil = Array.from({ length: jumlahLine }, nol);
+  for (const v of kunjungan) {
+    if (v.mulai < awalHariMs) continue;
+    hasil.forEach((h, i) => {
+      const j = janjangDemo(v, i, sekarangMs);
+      for (const k of Object.keys(h)) h[k] += j[k];
+    });
+  }
+  return hasil;
 }
 
 async function cekKamera() {
@@ -8792,6 +8981,8 @@ async function lepasTrukSemuaLine(tombol, plat, kode) {
         if (r && r.dipasang && r.dipasang.length) dipasang = r.dipasang;
       } catch (e) {
         toastGagal(gagalKarena("gagalLepas", e));
+        // The read-only demo refuses every line the same way: one toast, not one per line.
+        if (e.kode === "mode_demo") break;
       }
     }
     await refresh();
@@ -9049,7 +9240,7 @@ async function refresh() {
     aktifkanDemo(s.demo_mode === true);
     if (demoHidup.aktif) {
       demoHidup.lines = s.lines.map((l) => l.line_code);
-      terapkanDemoLines(s.lines);
+      terapkanDemoState(s, Date.now());
     }
     cekVersiBaru(s.versi);
     $("tz").textContent = "(" + s.timezone + ")";
@@ -9067,7 +9258,11 @@ async function refresh() {
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     antreanTerakhir = s.antrean_bongkar || [];
-    if (tab === "timbangan") gambarPapan();
+    // Demo mode: the simulated visits move every refresh, not only on the 15 s weighings poll.
+    if (tab === "timbangan") {
+      if (demoHidup.aktif && timbanganAsli) gambarTimbangan(timbanganAsli);
+      else gambarPapan();
+    }
     tulisKalauBeda($("truk-di-line"), htmlTrukDiLine(s.lines));
     // `=== true`: an older server has no field, and that reads as off.
     tampilkanKolomScan(s.scanner_qr === true);
@@ -9146,20 +9341,34 @@ function detakRefresh() {
   if (!kunciRefresh.sibuk()) refresh();
 }
 
+// What the server sent last; demo mode draws its simulated visits on top every refresh.
+let timbanganAsli = null;
 async function muatTimbangan() {
   try {
-    const data = await api("/api/console/weighings");
-    const items = data.items;
-    menungguTimbang = data.waiting || [];
-    papanTimbang = { items, waiting: menungguTimbang };
-    gambarPapan();
-    // Yang menunggu di atas (tertua dulu), lalu tiket terbaru dulu: urutan dari server.
-    const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
-    tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
-    isiPlatTimbang();
-    gambarLencanaAntre(data.waiting);
-    gambarRiwayatBatal(data.dibatalkan);
+    timbanganAsli = await api("/api/console/weighings");
+    gambarTimbangan(timbanganAsli);
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
+}
+
+// Demo mode: today's simulated visits lead, the server's rows follow (none on a read-only demo).
+function gabungTimbanganDemo(data) {
+  const k = demoHidup.aktif && demoHidup.keadaan;
+  if (!k) return data;
+  return { ...data, items: k.tiket.concat(data.items || []), waiting: k.menunggu.concat(data.waiting || []) };
+}
+
+function gambarTimbangan(asli) {
+  const data = gabungTimbanganDemo(asli);
+  const items = data.items;
+  menungguTimbang = data.waiting || [];
+  papanTimbang = { items, waiting: menungguTimbang };
+  gambarPapan();
+  // Yang menunggu di atas (tertua dulu), lalu tiket terbaru dulu: urutan dari server.
+  const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
+  tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
+  isiPlatTimbang();
+  gambarLencanaAntre(data.waiting);
+  gambarRiwayatBatal(data.dibatalkan);
 }
 
 // ---- Timbangan board (owner 2026-10-08) ----
@@ -9550,7 +9759,7 @@ async function muatRiwayat({ ringkasan = true } = {}) {
     q.set("offset", String(riwayatOffset));
   }
   try {
-    const r = await api(`/api/console/riwayat?${q}`);
+    const r = gabungRiwayatDemo(await api(`/api/console/riwayat?${q}`));
     if (nomor !== riwayatMinta) return;
     riwayatHariIni = r.hari_ini;
     riwayatFilter = { ...(riwayatFilter || {}), dari: r.dari, sampai: r.sampai };
@@ -9568,6 +9777,50 @@ async function muatRiwayat({ ringkasan = true } = {}) {
     if (nomor !== riwayatMinta || e.kode === "belum_masuk") return;
     $("riwayat-pesan").textContent = alasan(e);
   }
+}
+
+// Demo mode: today's simulated trucks join Rekap when the period is today and no line, plate or
+// result filter is set (they belong to none the visitor picked). The summary gets them in every
+// view, so switching views does not make today's totals jump; Per truk lists them, Per hari adds
+// them to today's row, Per janjang keeps the server's bunches (the Grading tab shows the simulated
+// ones). No truck id: no button that asks the server for a slip or a visit it never stored.
+function gabungRiwayatDemo(r, sekarang = Date.now()) {
+  const f = riwayatFilter || {};
+  if (!demoHidup.aktif || !demoHidup.kunjungan || r.dari !== r.hari_ini || r.sampai !== r.hari_ini
+      || f.line_code || f.plat || f.hasil) return r;
+  const awal = awalHariDemo(sekarang);
+  const jumlahLine = demoHidup.lines.length || 3;
+  const kunci = ["total", "ripe", "unripe", "jk", "tp", "acc"];
+  const baris = demoHidup.kunjungan.filter((v) => v.mulai >= awal && v.mulai <= sekarang).reverse().map((v) => {
+    const j = Object.fromEntries(kunci.map((k) => [k, 0]));
+    for (let i = 0; i < jumlahLine; i++) {
+      const x = janjangDemo(v, i, sekarang);
+      kunci.forEach((k) => { j[k] += x[k]; });
+    }
+    return { ...j, work_date: r.hari_ini, truck_id: null, plate_number: v.truk.plate_number,
+      supplier_name: v.truk.supplier_name, source_label: v.truk.source_label,
+      neto_kg: sekarang >= v.keluar ? v.bruto - v.tara : null };
+  });
+  const tambahkan = (dasar) => {
+    const hasil = { ...dasar };
+    kunci.forEach((k) => { hasil[k] = (hasil[k] || 0) + baris.reduce((n, b) => n + b[k], 0); });
+    hasil.truk = (hasil.truk || 0) + baris.length;
+    hasil.neto_kg = (hasil.neto_kg || 0) + baris.reduce((n, b) => n + (b.neto_kg || 0), 0);
+    return hasil;
+  };
+  let ringkasan = r.ringkasan;
+  if (ringkasan && baris.length) {
+    ringkasan = tambahkan(ringkasan);
+    ringkasan.hari = Math.max(ringkasan.hari || 0, 1);
+  }
+  let items = r.items || [];
+  if (riwayatTampilan === "truk") items = baris.concat(items);
+  else if (riwayatTampilan === "hari" && baris.length) {
+    const ada = items.some((d) => d.work_date === r.hari_ini);
+    items = ada ? items.map((d) => (d.work_date === r.hari_ini ? tambahkan(d) : d))
+      : [tambahkan({ work_date: r.hari_ini })].concat(items);
+  }
+  return { ...r, items, ringkasan };
 }
 
 function bacaFilterRiwayat() {
@@ -10430,6 +10683,7 @@ async function muatAntrean() {
     if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(5, "gagalAntrean");
   }
   await muatManifest();
+  await muatTraining();
 }
 
 // Second row, same screen: the R2 manifest queue. Row shape is the same
@@ -10458,6 +10712,35 @@ async function muatManifest() {
     if (e.kode !== "belum_masuk") {
       $("manifest-nonaktif").hidden = true;
       $("manifest-baris").innerHTML = barisKosong(5, "gagalManifest");
+    }
+  }
+}
+
+// Third queue, its own sub-tab: clean grading photos on their way to the nexio training inbox
+// (an R2 bucket of its own). Rows have the same shape as the two queues above, so
+// barisAntrean() words them from `error_kind`, naming R2; the raw error stays in the Log tab.
+// `aktif: false` is its own branch for the same reason as the manifest card. A failed read
+// also clears the summary: old counts next to "could not be read" would look current.
+async function muatTraining() {
+  try {
+    const r = await api("/api/console/dev/antrean/training");
+    if (!r.aktif) {
+      $("training-nonaktif").hidden = false;
+      $("training-ringkas").textContent = "";
+      $("training-baris").innerHTML = "";
+      return;
+    }
+    $("training-nonaktif").hidden = true;
+    $("training-ringkas").textContent = t("ringkasTraining")
+      .replace("{pending}", r.pending).replace("{gagal}", r.gagal)
+      .replace("{jam}", r.terakhir_terkirim ? waktu(r.terakhir_terkirim * 1000) : KOSONG);
+    $("training-baris").innerHTML = r.items.length
+      ? r.items.map((x) => barisAntrean(x, "R2")).join("") : barisKosong(5, "kosongTraining");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") {
+      $("training-nonaktif").hidden = true;
+      $("training-ringkas").textContent = "";
+      $("training-baris").innerHTML = barisKosong(5, "gagalTraining");
     }
   }
 }

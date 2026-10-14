@@ -127,8 +127,10 @@ def test_demo_upgrades_only_after_both_images_are_released():
     assert set(job["needs"]) == {"promote", "demo"}
     assert job["uses"] == "./.github/workflows/demo-deploy.yml"
     assert job["with"]["version"] == "${{ github.ref_name }}"
-    # Environment secrets reach the called job through `environment: demo`; nothing else.
-    assert "secrets" not in job
+    # v1.27.0 (2026-10-10): without `secrets: inherit` the called job ran in environment `demo`
+    # and still read all four DEMO_SSH_* as empty (ssh printed its usage). A reusable workflow
+    # only sees the secrets its caller hands over, environment secrets included.
+    assert job["secrets"] == "inherit"
     # A manual demo-image run (an older version) does not deploy; Run workflow on demo-deploy does.
     assert "deploy-demo" not in _workflow()["jobs"]
 

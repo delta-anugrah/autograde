@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Body, Cookie, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -62,6 +62,7 @@ from .console_deps import (
     Scan,
     Service,
     Support,
+    tolak_tulis_saat_demo,
 )
 from .console_deps import _operator_error as _operator_error
 from .console_deps import get_auth_service as get_auth_service
@@ -100,7 +101,8 @@ _CONSOLE_HTML_CACHE = "no-cache"
 # Every operator lane needs a session (Fase 4, plan §6.5). Open on purpose: the page
 # itself (it draws the sign-in gate), the accounts the gate offers, and signing in.
 # The machine lanes below keep the webhook secret and never see a cookie.
-router = APIRouter(tags=["console"])
+# Router-wide: DEMO_MODE refuses every write except signing in and out (console_deps).
+router = APIRouter(tags=["console"], dependencies=[Depends(tolak_tulis_saat_demo)])
 
 # Route yang memanggil SQLite berat dideklarasikan `def`, bukan `async def` (batch 2.5):
 # FastAPI menjalankannya di thread pool, jadi query-nya tidak menahan event loop yang
@@ -501,6 +503,13 @@ async def dev_manifest_queue(dev: Dev, operator: Support) -> dict:
     `ErpOutboxStore`, see VisitManifestWorker). `{"aktif": false}` when R2 is
     not configured — the screen must say so, not show zeros."""
     return dev.manifest_queue()
+
+
+@router.get("/api/console/dev/antrean/training")
+async def dev_training_queue(dev: Dev, operator: Support) -> dict:
+    """Status sub-tab `training`: training photos to the nexio inbox (its own
+    `training_outbox.db`). `{"aktif": false}` when the feature is off."""
+    return dev.training_queue()
 
 
 @router.get("/api/console/dev/versi")

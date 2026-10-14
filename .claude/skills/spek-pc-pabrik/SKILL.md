@@ -71,7 +71,7 @@ retensi karena melihat foto lama hilang.
 
 Angka di atas **sudah** menghitung salinan `clean/` (polos, buat latih ulang model). Dulu tabel ini
 cuma menghitung satu gambar dan menyebut salinan kedua sebagai kemungkinan; sekarang itu keadaan
-sebenarnya. `clean/` tidak naik ke R2 dan ikut dihapus bersama `bbox/` oleh retensi.
+sebenarnya. `clean/` tidak naik ke bucket captures (sejak 2026-10-13 cuma ke inbox nexio kalau `TRAINING_INBOX_BUCKET` diisi, aturan 40; itu menambah unggahan, bukan disk) dan ikut dihapus bersama `bbox/` oleh retensi.
 
 ## GPU
 

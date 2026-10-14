@@ -14,10 +14,11 @@ from konsol_js import HTML, NODE, fungsi, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 
-FUNGSI = ["majuDemo", "terapkanDemoLines", "srcFeedDemo", "idxDemo", "nolDemo"]
+FUNGSI = ["majuDemo", "terapkanDemoLines", "srcFeedDemo", "idxDemo"]
 SIAP = """
 const JEDA_DEMO_MS = 2600, BATAS_BARIS_DEMO = 30;
-const demoHidup = { aktif: true, mulai: 0, langkah: 0, idx: {}, tambah: {}, baris: [],
+const TRUK = { truck_id: "t1", plate_number: "BE 6311 TSA", source_label: "External" };
+const demoHidup = { aktif: true, mulai: 0, langkah: 0, idx: {}, baris: [], keadaan: null,
   lines: ["Line 1", "Line 2", "Line 3"],
   frames: ["Ripe", "Ripe", "Unripe", "Unripe", "Ripe"].map((k, i) => ({src: `/demo/frame-${i + 1}.webp`, kelas: [k]})) };
 """
@@ -31,46 +32,52 @@ def _jalan(isi: str, fungsi: list[str] = FUNGSI, tambahan: str = SIAP):
 
 
 @butuh_node
-def test_each_tick_advances_one_line_and_adds_its_classes():
-    out = _jalan(f"""
-      for (let i = 0; i < 6; i++) majuDemo(1000 * i);
-      const lines = {LINES};
-      terapkanDemoLines(lines);
-      return lines.map((l) => [l.ripe, l.unripe, l.tp, l.total]);
+def test_each_tick_moves_one_line_and_adds_a_row_for_the_truck_on_the_lines():
+    out = _jalan("""
+      for (let i = 0; i < 6; i++) majuDemo(1000 * i, TRUK);
+      return demoHidup.baris.map((b) => [b.line, b.kelas, b.plat, b.sumber]);
     """)
-    # Line n starts at frame (2n mod 5) and moves one frame per tick, 2 ticks each:
-    # line 1 frames 1,2 = Ripe+Unripe; line 2 frames 3,4 = Unripe+Ripe; line 3 frames 0,1 = Ripe+Ripe
-    assert out == [[11, 2, 0, 13], [1, 1, 0, 2], [2, 0, 0, 2]]
+    # Line n starts at frame (2n mod 5) and moves one frame per tick, in turn, newest row first.
+    assert [r[:2] for r in out] == [["Line 3", "Ripe"], ["Line 2", "Ripe"], ["Line 1", "Unripe"],
+                                    ["Line 3", "Ripe"], ["Line 2", "Unripe"], ["Line 1", "Ripe"]]
+    assert {(r[2], r[3]) for r in out} == {("BE 6311 TSA", "External")}
 
 
 @butuh_node
-def test_ripe_counts_as_acc_and_the_rest_as_rej():
-    """The ripe rate on the day strip reads `acc`: the factory rule, only ACC and REJ reach the PLC."""
+def test_no_truck_on_the_lines_means_no_tick():
+    """Between two trucks the lines wait, as at the mill: no new photo, no new row."""
+    out = _jalan("majuDemo(0, null); return [demoHidup.langkah, demoHidup.baris.length];")
+    assert out == [0, 0]
+
+
+@butuh_node
+def test_todays_simulated_bunches_add_to_the_server_counts():
+    """Ripe is ACC and Unripe/JK are REJ: the ripe rate on the day strip reads `acc`."""
     out = _jalan(f"""
-      for (let i = 0; i < 6; i++) majuDemo(1000 * i);
       const lines = {LINES};
-      terapkanDemoLines(lines);
-      return lines.map((l) => [l.acc, l.rej]);
+      terapkanDemoLines(lines, [{{total: 5, ripe: 3, unripe: 1, jk: 1, tp: 0, acc: 3, rej: 2}}, null,
+                                {{total: 2, ripe: 2, unripe: 0, jk: 0, tp: 1, acc: 2, rej: 0}}]);
+      return lines.map((l) => [l.total, l.ripe, l.unripe, l.jk, l.tp, l.acc, l.rej]);
     """)
-    assert out == [[11, 2], [1, 1], [2, 0]]
+    assert out == [[16, 13, 2, 1, 0, 13, 3], [0, 0, 0, 0, 0, 0, 0], [2, 2, 0, 0, 1, 2, 0]]
 
 
 @butuh_node
 def test_rows_are_capped():
-    assert _jalan("for (let i = 0; i < 100; i++) majuDemo(i); return demoHidup.baris.length;") == 30
+    assert _jalan("for (let i = 0; i < 100; i++) majuDemo(i, TRUK); return demoHidup.baris.length;") == 30
 
 
 @butuh_node
 def test_feed_points_at_the_current_frame():
     out = _jalan("const awal = ['Line 1', 'Line 2', 'Line 3'].map(srcFeedDemo);"
-                 " majuDemo(0); return awal.concat(srcFeedDemo('Line 1'));")
+                 " majuDemo(0, TRUK); return awal.concat(srcFeedDemo('Line 1'));")
     # Before any tick each line shows a different photo; one tick moves Line 1 on.
     assert out == ["/demo/frame-1.webp", "/demo/frame-3.webp", "/demo/frame-5.webp", "/demo/frame-2.webp"]
 
 
 @butuh_node
 def test_no_lines_yet_means_no_tick():
-    out = _jalan("demoHidup.lines = []; majuDemo(0); return [demoHidup.langkah, demoHidup.baris.length];")
+    out = _jalan("demoHidup.lines = []; majuDemo(0, TRUK); return [demoHidup.langkah, demoHidup.baris.length];")
     assert out == [0, 0]
 
 
@@ -118,17 +125,17 @@ def test_scale_tile_reads_the_demo_curve_in_demo_mode():
 
 @butuh_node
 def test_demo_row_has_every_field_the_table_reads():
-    out = _jalan("majuDemo(0); return barisDemoGrading()[0];", FUNGSI + ["barisDemoGrading"])
+    out = _jalan("majuDemo(0, TRUK); return barisDemoGrading()[0];", FUNGSI + ["barisDemoGrading"])
     assert set(out) >= {"timestamp", "line_code", "plate_number", "source_label",
                         "ripeness_status", "grade_class", "image_url", "thumb_url"}
-    assert out["plate_number"] == "BE 8605 TSD"
+    assert (out["plate_number"], out["source_label"]) == ("BE 6311 TSA", "External")
     assert (out["grade_class"], out["ripeness_status"]) == ("Ripe", "ACC")
 
 
 @butuh_node
 def test_only_ripe_is_acc_in_demo_rows():
     """`tagHasil` colours by ripeness_status: a REJ class must not draw green."""
-    out = _jalan("for (let i = 0; i < 6; i++) majuDemo(i);"
+    out = _jalan("for (let i = 0; i < 6; i++) majuDemo(i, TRUK);"
                  " return barisDemoGrading().map((r) => [r.grade_class, r.ripeness_status]);",
                  FUNGSI + ["barisDemoGrading"])
     assert {tuple(r) for r in out} == {("Ripe", "ACC"), ("Unripe", "REJ")}
@@ -142,7 +149,7 @@ const STRIP_N = 4;
 const paramGrading = () => "";
 const api = async () => ({ items: [{ line_code: "Line 1", image_url: "/seed.webp", timestamp: "2026-10-09T01:00:00Z" }] });
 """, *(fungsi(n) for n in FUNGSI + ["barisDemoGrading", "ambilStrip"]), """
-(async () => { majuDemo(0); const r = await ambilStrip(["Line 1"]);
+(async () => { majuDemo(0, TRUK); const r = await ambilStrip(["Line 1"]);
   console.log(JSON.stringify(r.map((x) => [x.line_code, x.image_url]))); })();
 """])
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
+from datetime import UTC, datetime
 
 import httpx
 import pytest
 from harness import KonsolUji, port_bebas
-from langkah import OPERATOR, masuk
+from langkah import OPERATOR, kamus, masuk
 from playwright.sync_api import expect
 
 # A tick every 2.6 s and a 2 s state poll; generous for a slow CI runner.
@@ -41,6 +42,7 @@ class TestDemoHidup:
 
     def test_frames_counters_rows_and_scale_move(self, halaman):
         masuk(halaman, OPERATOR)
+        _saat_truk_bongkar(halaman)
         kartu = halaman.locator("#lines .card")
         expect(kartu).to_have_count(3)
         feed = halaman.locator("#lines .card .feed img")
@@ -63,6 +65,42 @@ class TestDemoHidup:
         halaman.wait_for_function(
             "(awal) => document.getElementById('timbang-kg').textContent !== awal", arg=kg_awal, timeout=DEMO_MAKS_MS
         )
+
+    def test_trucks_unload_and_the_weighbridge_and_rekap_follow(self, halaman):
+        masuk(halaman, OPERATOR)
+        plat = _saat_truk_bongkar(halaman)
+        # One truck on every line (automatic assignment), named on the truck card and in Grading.
+        expect(halaman.locator("#truk-di-line .plat")).to_have_text(plat, timeout=DEMO_MAKS_MS)
+        expect(halaman.locator("#recent tr").first).to_contain_text(plat, timeout=DEMO_MAKS_MS)
+        expect(halaman.locator("#tot-tiket")).not_to_have_text(kamus(halaman, "timbangBelumAda"))
+
+        halaman.click('#tabs button[data-tab="timbangan"]')
+        expect(halaman.locator("#papan-isi-bongkar")).to_contain_text(plat, timeout=DEMO_MAKS_MS)
+        expect(halaman.locator("#timbangan tr")).not_to_have_count(0)
+
+        halaman.click('#tabs button[data-tab="rekap"]')
+        expect(halaman.locator("#riwayat-baris")).to_contain_text(plat, timeout=DEMO_MAKS_MS)
+
+    def test_a_click_that_would_store_something_says_demo(self, halaman):
+        """The demo is read-only: the server refuses, and the toast says why in plain words."""
+        masuk(halaman, OPERATOR)
+        _saat_truk_bongkar(halaman)
+        halaman.locator('#truk-di-line button[data-aksi="lepas-truk"]').click()
+        expect(halaman.locator(".toast").last).to_contain_text(kamus(halaman, "err_mode_demo"), timeout=DEMO_MAKS_MS)
+
+
+def _saat_truk_bongkar(halaman) -> str:
+    """Move the browser clock to three minutes into the next unloading of the day, so the test
+    does not depend on when it runs (the lines wait between trucks, as at the mill). Returns the
+    plate on the lines."""
+    halaman.wait_for_function("() => trukDemo().length > 0", timeout=DEMO_MAKS_MS)
+    tujuan, plat = halaman.evaluate("""() => {
+      const awal = awalHariDemo(Date.now());
+      const v = kunjunganDemo(awal, awal + 86400000, trukDemo()).find((x) => x.mulai >= awal + 10 * 3600000);
+      return [v.mulai + 3 * 60000, v.truk.plate_number];
+    }""")
+    halaman.clock.set_system_time(datetime.fromtimestamp(tujuan / 1000, tz=UTC))
+    return plat
 
 
 def test_without_demo_mode_nothing_is_simulated(halaman, konsol):
