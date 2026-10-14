@@ -30,7 +30,6 @@ Validated:      pytest unit+e2e+integration → 6186 passed, 48 skipped; ruff �
 Not validated:  the line app over real HTTP (needs torch); covered by the stream unit test.
 Next:           release, then point UptimeRobot at `/health` or keep `/` (it follows the 307).
 
----
 ## 2026-10-13 · training · Clean grading photos to the nexio inbox (PR pending, branch feat/training-inbox)
 Changed:        The console queues each bunch's `clean/` photo plus a JSON manifest
                 (`autograde-training-sample/v1`, `domain/training_sample.py`, fixtures shared with nexio)
