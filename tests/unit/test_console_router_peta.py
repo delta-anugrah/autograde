@@ -55,6 +55,7 @@ RUTE_OPERATOR = [
     ("GET", "/api/console/dev/antrean"),
     ("POST", "/api/console/dev/antrean/kirim-ulang"),
     ("GET", "/api/console/dev/antrean/manifest"),
+    ("GET", "/api/console/dev/antrean/training"),
     ("GET", "/api/console/dev/versi"),
     ("GET", "/api/console/dev/akun"),
     ("POST", "/api/console/dev/akun"),

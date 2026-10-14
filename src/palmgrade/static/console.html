@@ -1712,7 +1712,7 @@
   #line-sub button { width:100%; min-width:0; }
   @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Status sub-tabs (user 2026-10-05): one section of the tab at a time. */
-  #status-sub { flex:1 1 100%; grid-template-columns:repeat(5, minmax(0, 1fr)); }
+  #status-sub { flex:1 1 100%; grid-template-columns:repeat(6, minmax(0, 1fr)); }
   @media (max-width:800px) { #status-sub { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
   .status-bagian[hidden] { display:none; }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
@@ -1728,6 +1728,10 @@
      own top edge. A browser without :has() just keeps the empty bar. */
   .tools:has(> #manifest-ringkas:empty) { display:none; }
   .tools:has(> #manifest-ringkas:empty) + .tabel { border-top:1px solid var(--line); border-radius:var(--r-md); }
+  /* Training photo queue: same layout rules as the manifest queue above. */
+  #training-nonaktif { margin:0 0 8px; }
+  .tools:has(> #training-ringkas:empty) { display:none; }
+  .tools:has(> #training-ringkas:empty) + .tabel { border-top:1px solid var(--line); border-radius:var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
      sengaja tanpa garis bawah karena menempel ke `.tabel`; tanpa tabel, kotaknya
      menggantung dengan bawah terbuka (keluhan 2026-09-25). Di sini kotaknya
@@ -3167,6 +3171,7 @@
       <button type="button" data-sub="antrean-line" data-t="judulAntreanLine">Antrean line ke konsol</button>
       <button type="button" data-sub="antrean-erp" data-t="judulAntrean">Antrean ERP</button>
       <button type="button" data-sub="manifest" data-t="judulManifest">Manifest R2</button>
+      <button type="button" data-sub="training" data-t="judulTraining">Foto training</button>
     </div>
   </div>
   <div class="status-bagian" data-status-sub="versi">
@@ -3235,6 +3240,26 @@
         <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
         <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
       <tbody id="manifest-baris"></tbody>
+    </table>
+  </div>
+  </div>
+  <!--
+    Its own sub-tab (2026-10-13): clean grading photos waiting for the nexio training inbox
+    (TrainingUploadWorker, training_outbox.db). Same table as the manifest queue; the feature
+    switched off reads as its own sentence, never as zeros. Support only: Last Sync keeps its
+    two rows (rule 27).
+  -->
+  <div class="status-bagian" data-status-sub="training" hidden>
+  <p id="training-nonaktif" hidden class="muted" data-t="trainingNonaktif">Kiriman foto training ke nexio belum disetel.</p>
+  <div class="tools">
+    <span id="training-ringkas" class="muted"></span>
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
+        <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
+      <tbody id="training-baris"></tbody>
     </table>
   </div>
   </div>
@@ -4172,6 +4197,9 @@ const KAMUS = {
     judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
     kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
     manifestNonaktif:"R2 belum disetel, jadi halaman detail truk tidak jalan di PKS ini.",
+    judulTraining:"Foto training", ringkasTraining:"{pending} menunggu · {gagal} gagal · terakhir terkirim {jam}",
+    trainingNonaktif:"Kiriman foto training ke nexio belum disetel di PKS ini.",
+    kosongTraining:"Tidak ada foto yang tertahan.", gagalTraining:"Antrean foto training tidak terbaca.",
     judulAntreanLine:"Antrean line ke konsol", thMenunggu:"Menunggu", thTertua:"Tertua", thKeadaan:"Keadaan",
     kosongAntreanLine:"Belum ada line yang dikenal konsol",
     gagalAntreanLine:"Gagal memuat antrean line. Buka tab Log untuk rinciannya.",
@@ -4754,6 +4782,9 @@ const KAMUS = {
     judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
     kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
     manifestNonaktif:"R2 is not configured, so the truck detail page does not work at this mill.",
+    judulTraining:"Training photos", ringkasTraining:"{pending} pending · {gagal} failed · last sent {jam}",
+    trainingNonaktif:"Training photos to nexio are not configured at this mill.",
+    kosongTraining:"No photo is held.", gagalTraining:"The training photo queue could not be read.",
     judulAntreanLine:"Line queue to console", thMenunggu:"Waiting", thTertua:"Oldest", thKeadaan:"State",
     kosongAntreanLine:"The console knows no lines yet",
     gagalAntreanLine:"Failed to load the line queue. Open the Log tab for details.",
@@ -5417,7 +5448,7 @@ $("setelan-sub").addEventListener("click", (ev) => {
 
 // Status sub-tabs (user 2026-10-05): one section at a time, remembered like Settings. All of
 // them keep loading together when the tab opens, so switching never waits on the network.
-const SUB_STATUS = ["versi", "diagnostik", "antrean-line", "antrean-erp", "manifest"];
+const SUB_STATUS = ["versi", "diagnostik", "antrean-line", "antrean-erp", "manifest", "training"];
 let subStatus = SUB_STATUS.includes(baca("subStatus", "versi")) ? baca("subStatus", "versi") : "versi";
 
 function terapkanSubStatus() {
@@ -10652,6 +10683,7 @@ async function muatAntrean() {
     if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(5, "gagalAntrean");
   }
   await muatManifest();
+  await muatTraining();
 }
 
 // Second row, same screen: the R2 manifest queue. Row shape is the same
@@ -10680,6 +10712,35 @@ async function muatManifest() {
     if (e.kode !== "belum_masuk") {
       $("manifest-nonaktif").hidden = true;
       $("manifest-baris").innerHTML = barisKosong(5, "gagalManifest");
+    }
+  }
+}
+
+// Third queue, its own sub-tab: clean grading photos on their way to the nexio training inbox
+// (an R2 bucket of its own). Rows have the same shape as the two queues above, so
+// barisAntrean() words them from `error_kind`, naming R2; the raw error stays in the Log tab.
+// `aktif: false` is its own branch for the same reason as the manifest card. A failed read
+// also clears the summary: old counts next to "could not be read" would look current.
+async function muatTraining() {
+  try {
+    const r = await api("/api/console/dev/antrean/training");
+    if (!r.aktif) {
+      $("training-nonaktif").hidden = false;
+      $("training-ringkas").textContent = "";
+      $("training-baris").innerHTML = "";
+      return;
+    }
+    $("training-nonaktif").hidden = true;
+    $("training-ringkas").textContent = t("ringkasTraining")
+      .replace("{pending}", r.pending).replace("{gagal}", r.gagal)
+      .replace("{jam}", r.terakhir_terkirim ? waktu(r.terakhir_terkirim * 1000) : KOSONG);
+    $("training-baris").innerHTML = r.items.length
+      ? r.items.map((x) => barisAntrean(x, "R2")).join("") : barisKosong(5, "kosongTraining");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") {
+      $("training-nonaktif").hidden = true;
+      $("training-ringkas").textContent = "";
+      $("training-baris").innerHTML = barisKosong(5, "gagalTraining");
     }
   }
 }

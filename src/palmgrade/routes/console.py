@@ -505,6 +505,13 @@ async def dev_manifest_queue(dev: Dev, operator: Support) -> dict:
     return dev.manifest_queue()
 
 
+@router.get("/api/console/dev/antrean/training")
+async def dev_training_queue(dev: Dev, operator: Support) -> dict:
+    """Status sub-tab `training`: training photos to the nexio inbox (its own
+    `training_outbox.db`). `{"aktif": false}` when the feature is off."""
+    return dev.training_queue()
+
+
 @router.get("/api/console/dev/versi")
 async def dev_version(dev: Dev, operator: Support) -> dict:
     return await dev.version()

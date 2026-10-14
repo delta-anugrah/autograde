@@ -52,7 +52,7 @@ def test_a_narrow_screen_never_scrolls_sideways(halaman):
     # Status shows one section at a time since 2026-10-05: each of them is measured too.
     buka_tab(halaman, "status")
     halaman.evaluate(_MUAT_TAB, "status")
-    for sub in ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest"):
+    for sub in ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest", "training"):
         buka_status(halaman, sub)
         lebar = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
         assert lebar[0] <= lebar[1], f"Status {sub} is {lebar[0]} px wide on a {lebar[1]} px screen"

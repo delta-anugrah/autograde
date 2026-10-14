@@ -47,6 +47,7 @@ from ..domain.operator_error import OperatorError
 from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
+from ..integrations.upload.training_outbox_store import TrainingOutboxStore
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from .akun_bawaan import hash_is_usable, seed_default_accounts
@@ -116,6 +117,7 @@ class BahayaService:
         hash_support: str = "",
         hari_kerja: Callable[[], str],
         tarik_master: Callable[[], Awaitable[Any]] | None = None,
+        training_outbox: TrainingOutboxStore | None = None,
         tunggu_mati_s: float = 12.0,
         jeda_cek_s: float = 0.25,
     ) -> None:
@@ -126,6 +128,8 @@ class BahayaService:
         self._erp_outbox = erp_outbox
         # None kalau R2 tidak disetel — tidak ada antrean manifest sama sekali.
         self._manifest_outbox = manifest_outbox
+        # None kalau TRAINING_INBOX_BUCKET kosong: tidak ada antrean foto training.
+        self._training_outbox = training_outbox
         self._erp_aktif = erp_aktif
         self._hash_bawaan = hash_bawaan
         self._hash_support = hash_support
@@ -323,6 +327,8 @@ class BahayaService:
         antrean = self._erp_outbox.hapus_semua()
         if self._manifest_outbox is not None:
             antrean += self._manifest_outbox.hapus_semua()
+        if self._training_outbox is not None:
+            antrean += self._training_outbox.hapus_semua()
         self._log.hapus_semua()
         if mode == MODE_SEMUA:
             seed_default_accounts(

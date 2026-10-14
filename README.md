@@ -387,7 +387,8 @@ Camera tuning and network: [`docs/camera-spec.md`](docs/camera-spec.md),
 
 The complete, current list of line and console endpoints, payloads and environment variables is in
 [`docs/backend-overview.md`](docs/backend-overview.md) § HTTP Surface. Every `/api/console/*` route
-needs a session; the support routes `/api/console/dev/*` need the `support` role.
+needs a session; the support routes `/api/console/dev/*` need the `support` role. Every GET route
+also answers HEAD (same status and headers, no body), so an uptime monitor can use `curl -I /health`.
 
 ```bash
 # Line
@@ -410,13 +411,19 @@ curl -b /tmp/console.jar http://localhost:8100/api/console/state
 
 ## Evidence, upload and storage
 
-Every graded bunch is written to disk first. Two paths deliver it, independently:
+Every graded bunch is written to disk first. Two paths deliver it, independently, and a third
+one is optional:
 
 1. **Realtime to the console:** one outbox row per bunch in `state/line-N/outbox.db`, sent by
    `OutboxRetryWorker` (1 s poll, backoff from 5 s to 10 min per row, never gives up).
 2. **Hourly to Cloudflare R2:** `BatchUploadWorker` scans the result folders, records each item in
    `state/upload_manifest.db` (`pending` -> `image_uploaded` -> `done`, or `poisoned`), and PUTs the
    images. Retries never give up; only the backoff grows.
+3. **Training photos to the nexio inbox** (optional, since 2026-10-13, rule 40): with
+   `TRAINING_INBOX_BUCKET` set, the console queues each bunch's `clean/` photo plus a JSON manifest
+   in `state/training_outbox.db` at ingest, and `TrainingUploadWorker` PUTs photo then manifest to
+   the R2 bucket `nexio-inbox` for the nexio training app. Off while the bucket is empty; shown on
+   Status → Foto training.
 
 ```
 artifacts/line-1/results/2026-05-18/                     date folder (UTC)
@@ -424,7 +431,7 @@ artifacts/line-1/results/2026-05-18/                     date folder (UTC)
   2026-05-18_103000_auto_tp.json                         long stalk, when detected
   083000_B1234XY_a3f9c201/                               one folder per truck visit (factory time)
     bbox/{acc,rej}/2026-05-18_103000_auto.webp            with boxes; uploaded to R2
-    clean/{acc,rej}/2026-05-18_103000_auto.webp           without boxes; for retraining, never uploaded
+    clean/{acc,rej}/2026-05-18_103000_auto.webp           without boxes; for retraining, only to the nexio inbox
     thumb/{acc,rej}/2026-05-18_103000_auto.webp           400 px; uploaded to R2 for the viewer
   _belum-assign/                                         graded before a truck was assigned
 
