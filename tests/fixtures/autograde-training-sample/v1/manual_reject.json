@@ -1,0 +1,15 @@
+{
+  "schema": "autograde-training-sample/v1",
+  "event_id": "8d4b2f8e-0c3a-5f2e-8b1a-6e2d9c4f7a11",
+  "captured_at": "2026-10-05T04:00:01.000001+00:00",
+  "capture_type": "manual",
+  "folder": {"day": "2026-10-05", "truck": "101244_BE1234XY_a3f9c201"},
+  "source": {"company": "PT Contoh", "machine_id": "M1", "line_code": "line-2",
+             "autograde_version": "v1.23.0", "model_file": null},
+  "visit": {"truck_id": "t-1", "assignment_id": "a3f9c201-0000-0000-0000-000000000000", "plate": "BE 1234 XY"},
+  "prediction": null,
+  "priority": {"reasons": ["MANUAL_REJECT"], "rule_version": 1},
+  "image": {"key": "v1/M1/2026-10-05/8d4b2f8e-0c3a-5f2e-8b1a-6e2d9c4f7a11.webp",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "bytes": 150000, "content_type": "image/webp"}
+}

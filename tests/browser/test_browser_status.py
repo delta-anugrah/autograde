@@ -58,7 +58,7 @@ def test_camera_health_rows_and_the_closed_group_flags_a_problem(halaman):
     expect(_baris(halaman, "line-1", kamus(halaman, "thPutusKamera"))).to_have_text("0")
 
 
-_BAGIAN = ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest")
+_BAGIAN = ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest", "training")
 
 
 def test_status_sub_tabs_show_one_section_and_remember_it(halaman):
@@ -72,9 +72,36 @@ def test_status_sub_tabs_show_one_section_and_remember_it(halaman):
     halaman.reload()
     expect(halaman.locator("#keluar")).to_be_visible()
     expect(halaman.locator("#sec-status")).to_be_visible()
-    expect(halaman.locator('#status-sub button[data-sub="manifest"]')).to_have_attribute("aria-pressed", "true")
-    expect(halaman.locator('#sec-status [data-status-sub="manifest"]')).to_be_visible()
+    terakhir = _BAGIAN[-1]
+    expect(halaman.locator(f'#status-sub button[data-sub="{terakhir}"]')).to_have_attribute("aria-pressed", "true")
+    expect(halaman.locator(f'#sec-status [data-status-sub="{terakhir}"]')).to_be_visible()
     expect(halaman.locator('#sec-status [data-status-sub="versi"]')).to_be_hidden()
+
+
+def test_training_queue_not_configured_says_so(halaman):
+    """The test console has no TRAINING_INBOX_BUCKET: the sub-tab says so instead of zeros."""
+    masuk(halaman, SUPPORT)
+    buka_status(halaman, "training")
+    expect(halaman.locator("#training-nonaktif")).to_be_visible()
+    expect(halaman.locator("#training-nonaktif")).to_have_text(kamus(halaman, "trainingNonaktif"))
+    expect(halaman.locator("#training-baris tr")).to_have_count(0)
+
+
+def test_training_queue_rows_are_worded_never_raw(halaman):
+    """A failed upload reads as a sentence from its kind; the raw R2 error stays in the Log tab."""
+    jawaban = {"aktif": True, "pending": 4, "gagal": 1, "terakhir_terkirim": None, "items": [
+        {"kind": "line-2", "key": "ev-0001", "error_kind": "tak_terjangkau", "attempts": 3,
+         "next_attempt_at": 0, "last_error": "Could not connect to the endpoint URL"}]}
+    halaman.route("**/api/console/dev/antrean/training", lambda route: route.fulfill(json=jawaban))
+    masuk(halaman, SUPPORT)
+    buka_status(halaman, "training")
+    expect(halaman.locator("#training-nonaktif")).to_be_hidden()
+    expect(halaman.locator("#training-ringkas")).to_contain_text("4")
+    baris = halaman.locator("#training-baris tr")
+    expect(baris).to_have_count(1)
+    expect(baris).to_contain_text("ev-0001")
+    expect(baris).to_contain_text(kamus(halaman, "antreanSebab_tak_terjangkau").replace("{tujuan}", "R2"))
+    expect(baris).not_to_contain_text("endpoint")
 
 
 def test_sub_tab_bars_span_their_panel(halaman):

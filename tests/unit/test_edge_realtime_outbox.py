@@ -109,6 +109,9 @@ def test_payload_bawa_field_yang_diminta_api() -> None:
         # field tambahan diabaikan, bukan ditolak. `ripeness_status` dan
         # `prediction` di atas TETAP biner: piston dan buku besar cuma punya dua.
         "grade_class",
+        # Training manifest for nexio (2026-10-03): optional, None when unknown.
+        "tp_bounding_box",
+        "model_file",
     }
     assert p["capture_type"] == "manual"
     assert p["truck_id"] == "truck-7"

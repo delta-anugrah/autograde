@@ -31,6 +31,37 @@ Not validated:  the line app over real HTTP (needs torch); covered by the stream
 Next:           release, then point UptimeRobot at `/health` or keep `/` (it follows the 307).
 
 ---
+## 2026-10-13 · training · Clean grading photos to the nexio inbox (PR pending, branch feat/training-inbox)
+Changed:        The console queues each bunch's `clean/` photo plus a JSON manifest
+                (`autograde-training-sample/v1`, `domain/training_sample.py`, fixtures shared with nexio)
+                in its own `state/training_outbox.db` at ingest (first arrival only), and
+                `TrainingUploadWorker` PUTs photo then manifest to R2 bucket `nexio-inbox`
+                (`v1/<machine_id>/<UTC day>/<event_id>.webp|.json`). Lines now send `tp_bounding_box`
+                and `model_file` on the event. Six `TRAINING_INBOX_*` settings (both compose console
+                blocks, demo kit blank, `.env.example`); off unless bucket, endpoint and both keys are set.
+                New support sub-tab Status → Foto training; Danger Zone empties the queue. Rule 40 added,
+                rules 7 and 25 amended; MANUAL 2.31 + PDF (49 pages); README, overview, backend-overview,
+                skills compose-host-pabrik, konsol-autograde, panduan-autograde, spek-pc-pabrik.
+Validated:      ruff check src/ tests/ → All checks passed!
+                pytest tests/unit → 5681 passed, 28 skipped
+                pytest tests/e2e → 428 passed, 20 skipped (AutoERP services and docker images not set)
+                pytest tests/integration → 196 passed (4 new: real WebP from CaptureRepository → ingest →
+                outbox → worker → in-memory bucket, and → local S3 on 127.0.0.1 through the real
+                `_build_training` wiring; 403 → kunci_ditolak, closed port → tak_terjangkau)
+                browser chromium → 1 failed, 220 passed; the failure passed alone on --lf (flaky, name lost
+                in truncated output); browser firefox (two halves) → 125 passed + 96 passed
+Not validated:  Never run against a live container, the real `nexio-inbox` bucket or a real R2 token; no
+                factory PC. The nexio import side is its own PR.
+Risks:          Never run against a live container, the real bucket or a real R2 token. The token is Object
+                Read & Write scoped to `nexio-inbox` only (R2 has no write-only object token). Rows that already
+                failed keep their backoff (up to 1 hour) even after `autograde restart`. The sawit PR
+                (feat/video-to-nexio-inbox) must merge first or together: docs here name its runbook.
+Decisions:      Own outbox file (a dead inbox never holds AutoERP or visit manifests). pending = pending
+                rows only. Unknown machine id not queued. Bucket set without keys = off + one WARNING.
+                `APP_VERSION=unknown` sends null. Up to one picked batch (20) may still upload after a
+                Danger Zone wipe (rule 25).
+Next:           Factory PC: add the six `TRAINING_INBOX_*` lines to the host compose `console:` block and
+                the values to `.env`, `autograde restart`, then watch Status → Foto training.
 
 ## 2026-10-10 · docs · README rewritten in English (PR #267)
 Changed:        README.md rewritten in English for an engineer opening the repo: what it is, system

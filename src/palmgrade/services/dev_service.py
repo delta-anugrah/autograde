@@ -30,6 +30,7 @@ from ..domain.operator_error import (
 )
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LinePlcTolak, LineUnavailable
+from ..integrations.upload.training_outbox_store import TrainingOutboxStore
 from ..license.manager import LicenseManager
 from ..license.summary import license_summary
 from ..license.types import EffectiveLicense
@@ -84,6 +85,7 @@ class DevService:
         console_store: ConsoleStore | None = None,
         jam: Callable[[], float] = time.monotonic,
         tenggang_start_s: float = TENGGANG_START_S,
+        training_outbox: TrainingOutboxStore | None = None,
     ) -> None:
         self._log = log_store
         # Kartu Diagnostik menunjuk ke tab Log untuk line yang tidak terbaca; di sinilah
@@ -97,6 +99,8 @@ class DevService:
         # is None) — see `manifest_queue()` below, which is the whole reason
         # this is a separate field instead of folding into `_erp_outbox`.
         self._manifest_outbox = manifest_outbox
+        # None when TRAINING_INBOX_BUCKET is off: see `training_queue()`.
+        self._training_outbox = training_outbox
         self._settings = settings
         # Built by the caller, not here: the console is a separate process from
         # the three camera lines, so it verifies the same `LICENSE_TOKEN` itself
@@ -193,6 +197,22 @@ class DevService:
             "pending": self._manifest_outbox.pending_count(),
             "gagal": self._manifest_outbox.failed_count(),
             "items": self._manifest_outbox.failed_rows(limit=50),
+        }
+
+    def training_queue(self) -> dict[str, Any]:
+        """Status sub-tab `training`: training photos waiting for the nexio inbox.
+
+        `aktif: False` when the feature is off, for the same reason as manifest_queue():
+        a queue that never started must not read as a healthy empty one.
+        """
+        if self._training_outbox is None:
+            return {"aktif": False}
+        return {
+            "aktif": True,
+            "pending": self._training_outbox.pending_count(),
+            "gagal": self._training_outbox.failed_count(),
+            "terakhir_terkirim": self._training_outbox.last_sent_at(),
+            "items": self._training_outbox.failed_rows(limit=50),
         }
 
     async def plc_read(self, line_code: str) -> dict[str, Any]:

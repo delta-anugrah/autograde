@@ -301,7 +301,7 @@ def test_mulai_hapus_dicatat_sebelum_menghapus(tmp_path, caplog):
 
 # ── penjaga: setiap berkas .db di state/ harus tergolong ────────────────────
 
-_DB_KONSOL = {"console.db", "erp_outbox.db", "log_kejadian.db", "manifest_outbox.db", "lapor_discord.db"}
+_DB_KONSOL = {"console.db", "erp_outbox.db", "log_kejadian.db", "manifest_outbox.db", "lapor_discord.db", "training_outbox.db"}
 
 
 def test_semua_berkas_db_di_state_digolongkan():

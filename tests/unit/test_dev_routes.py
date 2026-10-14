@@ -59,7 +59,9 @@ class _LineClientMati:
         raise LineUnavailable("LINE_TIDAK_MENJAWAB", f"{line.line_code} tidak menjawab: timeout", line=line.name)
 
 
-def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2), manifest_outbox="default"):
+def _app_dev(
+    tmp_path, *, line_client=None, lines=(LINE_1, LINE_2), manifest_outbox="default", training_outbox=None
+):
     store = ConsoleStore(tmp_path / "console.db")
     log_store = LogStore(tmp_path / "log.db")
     erp_outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
@@ -80,6 +82,7 @@ def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2), manifest_out
         lines=lines,
         erp_outbox=erp_outbox,
         manifest_outbox=manifest_outbox,
+        training_outbox=training_outbox,
         settings=_FakeSettings(),
         console_store=store,
     )
@@ -379,6 +382,25 @@ def test_manifest_butuh_peran_support(dev):
     client.post("/api/console/login", json={"email": "o6@b.c", "sandi": SANDI})
 
     assert client.get("/api/console/dev/antrean/manifest").status_code == 403
+
+
+def test_training_tidak_aktif_saat_tidak_disetel(tmp_path):
+    """TRAINING_INBOX_BUCKET empty: an explicit off, not an idle queue of zeros."""
+    app, store, _, _, _ = _app_dev(tmp_path)
+    client = _client_support(app, store)
+
+    assert client.get("/api/console/dev/antrean/training").json() == {"aktif": False}
+
+
+def test_training_butuh_peran_support(dev):
+    app, store, _, _, _ = dev
+    store.upsert_operator_manual(
+        {"email": "o7@b.c", "nama": "O7", "password_hash": hash_password(SANDI)}
+    )
+    client = TestClient(app)
+    client.post("/api/console/login", json={"email": "o7@b.c", "sandi": SANDI})
+
+    assert client.get("/api/console/dev/antrean/training").status_code == 403
 
 
 # ── versi: version, machine id, licence state — never a secret ─────────────

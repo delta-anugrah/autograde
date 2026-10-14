@@ -468,7 +468,7 @@ artifacts/line-N/   (host) ↔ /app/artifacts (container)
     {HHMMSS}_{plat}_{assign8}/                       # satu folder per kunjungan truk
       bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp      # bergambar kotak → image_path, naik R2
       thumb/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp     # bbox 400 px → naik R2 (grid backoffice)
-      clean/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp     # polos → latih model, TIDAK diupload
+      clean/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp     # polos → latih model; cuma ke inbox nexio (aturan 40)
     _belum-assign/                                   # ter-grading sebelum truk dipasang
 
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures
