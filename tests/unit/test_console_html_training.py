@@ -1,6 +1,6 @@
 """Status tab: support sees the training photo queue, worded, never raw errors.
 
-The queue of clean grading photos waiting for the nexio inbox (R2 bucket `nexio-inbox`) gets
+The queue of clean grading photos waiting for the nexio inbox (R2 bucket `autograde-training`) gets
 its own Status sub-tab `training` (ruling D2). Last Sync keeps its two rows; this queue is
 support-only. Two layers, like `test_console_html_teks_ramah.py`: text invariants, and the
 real `muatTraining()` run through node with the real KAMUS and the real row helpers.

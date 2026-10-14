@@ -422,7 +422,7 @@ one is optional:
 3. **Training photos to the nexio inbox** (optional, since 2026-10-13, rule 40): with
    `TRAINING_INBOX_BUCKET` set, the console queues each bunch's `clean/` photo plus a JSON manifest
    in `state/training_outbox.db` at ingest, and `TrainingUploadWorker` PUTs photo then manifest to
-   the R2 bucket `nexio-inbox` for the nexio training app. Off while the bucket is empty; shown on
+   the R2 bucket `autograde-training` for the nexio training app. Off while the bucket is empty; shown on
    Status → Foto training.
 
 ```
