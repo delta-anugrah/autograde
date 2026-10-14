@@ -18,6 +18,18 @@ Next:           ...
 
 ---
 
+## 2026-10-14 · console + line · Support HEAD requests for uptime monitoring (PR #270)
+Changed:        New `core/head_request.py` (`HeadAsGetMiddleware`) installed in `console_main.py`
+                and `main.py`: HEAD is served through the GET route, same status and headers, no
+                body; a streaming answer is stopped after its headers. GET, POST and auth unchanged.
+                Cause: UptimeRobot free checks `demo-autograde.smagri.id` with HEAD and got 405.
+                Tests `tests/unit/test_head_request.py` (8). Doc: `docs/backend-overview.md`.
+Validated:      pytest unit+e2e+integration → 6186 passed, 48 skipped; ruff → All checks passed;
+                local console on :8177: `curl -I /health` 200, `curl -I /console` 200,
+                `curl -I /` 307 to /console (same as GET), POST /health 405.
+Not validated:  the line app over real HTTP (needs torch); covered by the stream unit test.
+Next:           release, then point UptimeRobot at `/health` or keep `/` (it follows the 307).
+
 ## 2026-10-13 · training · Clean grading photos to the nexio inbox (PR pending, branch feat/training-inbox)
 Changed:        The console queues each bunch's `clean/` photo plus a JSON manifest
                 (`autograde-training-sample/v1`, `domain/training_sample.py`, fixtures shared with nexio)

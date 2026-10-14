@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
+from .core.head_request import HeadAsGetMiddleware
 from .core.log_sink import SqliteLogHandler
 from .core.logging import KONTEKS_KONSOL, configure_logging
 from .repositories.log_repository import LogStore
@@ -179,6 +180,8 @@ def create_console_app() -> FastAPI:
     service = get_console_service()
     settings = service.settings
     app = FastAPI(title="Palmgrade Operator Console", lifespan=lifespan)
+    # HEAD answers like GET with no body: the uptime monitor checks with HEAD.
+    app.add_middleware(HeadAsGetMiddleware)
 
     # Images stay on each line's own disk, mounted read-only here by
     # docker-compose. The URL shape mirrors palmgrade-api. Batch 1.3: only for a
