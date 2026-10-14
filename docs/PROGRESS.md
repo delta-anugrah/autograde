@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-14 · console + line · Support HEAD requests for uptime monitoring (PR not opened)
+## 2026-10-14 · console + line · Support HEAD requests for uptime monitoring (PR #270)
 Changed:        New `core/head_request.py` (`HeadAsGetMiddleware`) installed in `console_main.py`
                 and `main.py`: HEAD is served through the GET route, same status and headers, no
                 body; a streaming answer is stopped after its headers. GET, POST and auth unchanged.
