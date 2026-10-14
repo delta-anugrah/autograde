@@ -53,3 +53,38 @@ def test_put_bytes_with_a_content_type():
     up.put_bytes(b'{"a":1}', "visits/v-1.json", content_type="application/json")
     kwargs = fake.put_object.call_args.kwargs
     assert (kwargs["Key"], kwargs["ContentType"], kwargs["Body"]) == ("visits/v-1.json", "application/json", b'{"a":1}')
+
+
+def test_endpoint_override_and_config_reach_boto(monkeypatch):
+    from botocore.config import Config
+
+    from palmgrade.integrations.upload import r2_uploader as mod
+
+    seen = {}
+
+    class FakeSession:
+        def client(self, *args, **kwargs):
+            seen.update(kwargs)
+            return object()
+
+    monkeypatch.setattr(mod.boto3.session, "Session", lambda: FakeSession())
+    cfg = Config(connect_timeout=1)
+    up = mod.R2Uploader("acct", "k", "s", "b", endpoint_url="http://127.0.0.1:9000", config=cfg)
+    up._get_client()
+    assert seen["endpoint_url"] == "http://127.0.0.1:9000"
+    assert seen["config"] is cfg
+
+
+def test_default_endpoint_is_the_account(monkeypatch):
+    from palmgrade.integrations.upload import r2_uploader as mod
+
+    seen = {}
+
+    class FakeSession:
+        def client(self, *args, **kwargs):
+            seen.update(kwargs)
+            return object()
+
+    monkeypatch.setattr(mod.boto3.session, "Session", lambda: FakeSession())
+    mod.R2Uploader("acct", "k", "s", "b")._get_client()
+    assert seen["endpoint_url"] == "https://acct.r2.cloudflarestorage.com"

@@ -1,0 +1,18 @@
+{
+  "schema": "autograde-training-sample/v1",
+  "event_id": "5b0e0c1e-6f0a-5d6e-9a43-2c8f2f2d7a10",
+  "captured_at": "2026-10-05T03:12:44.123456+00:00",
+  "capture_type": "auto",
+  "folder": {"day": "2026-10-05", "truck": "101244_BE1234XY_a3f9c201"},
+  "source": {"company": "PT Contoh", "machine_id": "M1", "line_code": "line-2",
+             "autograde_version": "v1.23.0", "model_file": "ripe_v7.pt"},
+  "visit": {"truck_id": "t-1", "assignment_id": "a3f9c201-0000-0000-0000-000000000000", "plate": "BE 1234 XY"},
+  "prediction": {"class": "Ripe", "confidence": 0.55,
+                 "bunch_box": {"x_min": 812, "y_min": 404, "x_max": 1630, "y_max": 1488},
+                 "tp": {"present": true, "confidence": 0.71,
+                        "box": {"x_min": 1102, "y_min": 1290, "x_max": 1380, "y_max": 1488}}},
+  "priority": {"reasons": ["LOW_CONFIDENCE", "RARE_CLASS"], "rule_version": 1},
+  "image": {"key": "v1/M1/2026-10-05/5b0e0c1e-6f0a-5d6e-9a43-2c8f2f2d7a10.webp",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "bytes": 182311, "content_type": "image/webp"}
+}

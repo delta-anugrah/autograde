@@ -359,7 +359,7 @@ result.json  {"schema": 1, "id": "<uuid>", "state": "ok", "target": "v1.22.1", "
 
 ### Lane support (`require_support`)
 
-Melayani tab support: **Log**, **Status** (lima sub-tab: Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2), **Akun**, **Line**
+Melayani tab support: **Log**, **Status** (enam sub-tab: Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2, Foto training), **Akun**, **Line**
 (Sumber Kamera, Model Deteksi, Uji PLC, Rekam Video), dan **Setelan** (termasuk Danger Zone).
 Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasionalnya:
 `docs/rules.md`, Critical Rule 21.
@@ -372,6 +372,7 @@ Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasio
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu jawaban; line yang tidak terbaca: `{terjangkau: false, sebab, sebab_kode}` (`sebab_kode` dari `domain/line_tak_terbaca.py`, yang diterjemahkan layar; `sebab` mentah cuma untuk curl) |
 | GET | `/api/console/dev/antrean` | `erp_outbox`: jumlah pending/gagal + daftar gagal (tiap baris `last_error` mentah + `error_kind` yang diterjemahkan layar: `tak_terjangkau`, `kunci_ditolak`, `ditolak`, `galat_tujuan`, `galat_konsol`, kosong di baris lama; Kirim Ulang mengosongkannya, dan build lama yang dipakai sesudah mundur versi mengabaikan kolom itu). `ErpClient` membalas empat jawaban (`ErpRejected` 4xx, `ErpServerError` 5xx beramplop Frappe, `ErpUnavailable` tidak terjangkau, atau terkirim); dua yang pertama dicatat per pesan dan batch lanjut, `ErpUnavailable` menahan batch dan Last Sync membaca putus (`integrations/erp/client.py`) |
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
+| GET | `/api/console/dev/antrean/training` | antrean foto training ke inbox nexio (`training_outbox.db` terpisah, aturan 40); `{"aktif": false}` kalau fitur mati (`TRAINING_INBOX_BUCKET` kosong, atau endpoint/kunci kosong). Hidup: `{aktif, pending, gagal, terakhir_terkirim, items}`; `pending` = baris `pending` saja, `gagal` = baris `error`, `terakhir_terkirim` = epoch detik (float) atau `null` kalau belum ada yang terkirim; `items` = maks 50 baris gagal, terbaru dulu, bentuknya sama dengan `/antrean` (`kind` = kode line, `key` = `event_id`, `last_error` mentah cuma untuk curl, `error_kind` yang diterjemahkan layar, `attempts`, `next_attempt_at`). Ikut dikosongkan Danger Zone |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox`. **`attempts` sengaja tidak di-reset**: itu yang membedakan "macet selamanya" dari "gangguan sesaat" |
 | GET | `/api/console/dev/antrean/line` | antrean janjang tiap line ke konsol, satu baris per line; line mati atau menolak kunci tetap 200 dengan `kode`/`status`/`pesan`/`sebab_kode` (layar cuma memakai `sebab_kode`) |
 | POST | `/api/console/dev/antrean/line/{line}/kirim-ulang` | → `/internal/outbox/requeue` line itu → `{line_code, dijadwalkan}`. **404** `line_tidak_dikenal`, **502** `line_tidak_menjawab`/`line_menolak`. Tiap tekanan satu WARNING menyebut pelakunya |
@@ -424,11 +425,15 @@ konsol. Nama field dan nilainya HARUS tepat:
   "tp_confidence": 0.88,
   "capture_type": "auto | manual",
   "image_path": "captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp",
-  "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
+  "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 },
+  "tp_bounding_box": { "x_min": 1102, "y_min": 1290, "x_max": 1380, "y_max": 1488 } | null,
+  "model_file": "ripe_v7.pt | null"
 }
 ```
 
 **Kontrak penting:**
+- `tp_bounding_box` dan `model_file` (2026-10): opsional, `null` kalau tidak diketahui (reject manual,
+  line lama); keduanya dipakai manifest training nexio.
 - `event_id`: kunci idempotensi di sisi penerima. uuid5 deterministik dari `machine_id:timestamp`
   untuk **auto maupun manual**; `BatchUploadWorker` menghitungnya ulang dari **nama file**, jadi
   dua jalur tidak pernah dobel.
@@ -542,6 +547,11 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `DISCORD_WEBHOOK_URL` | kosong | Konsol, opsional. Kosong = fitur Lapor Discord mati total (aturan 34); rahasia, tidak pernah dicatat atau dikirim ke layar. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC, lalu `autograde restart` |
 | `DEMO_MODE` | `false` | Konsol, **demo droplet saja**: layar menyimulasikan line dan timbangan di browser (tidak ada yang disimpan atau dikirim), `/demo/<nama>` menyajikan lima foto bawaan. Hanya `deploy/demo/docker-compose.yml` yang meneruskannya; konsol menolak menyala kalau bersamaan dengan `PLC_ENABLED`, `PLC_HOST`, `SCALE_PLC_HOST` atau `SCALE_PLC_REGISTER` |
 | `SCALE_PLC_REGISTER` / `SCALE_PLC_HOST` / `SCALE_PLC_PORT` / `SCALE_PLC_WORDS` / `SCALE_PLC_DECIMALS` / `SCALE_PLC_STABLE_BIT` / `SCALE_PLC_ERROR_BIT` / `SCALE_POLL_MS` | kosong / `PLC_HOST` / `1028` / `2` / `0` / kosong / kosong / `500` | Konsol, opsional: timbangan live dari register PLC (aturan 39). `SCALE_PLC_REGISTER` kosong = mati, kotak menulis Belum tersambung. Tabel lengkap: `docs/plc-integration.md` § Timbangan live. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC |
+| `TRAINING_INBOX_BUCKET` | kosong | Konsol, opsional: bucket R2 inbox nexio untuk foto latihan (satu foto bersih + manifest JSON per buah). Kosong = mati. Hidup hanya kalau bucket, endpoint dan kedua kunci terisi; bucket terisi tapi kunci kosong = mati + satu WARNING. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC. Skrip host `kirim-video.sh` (repo sawit, `sawit/docs/runbooks/2026-10-13-kirim-video-ke-nexio-inbox.md`) membaca empat kunci `TRAINING_INBOX_*` yang sama dari `.env` PC plus saklarnya sendiri `TRAINING_INBOX_VIDEOS` (bawaan mati), jadi blok `.env` itu dipakai bersama; konsol tidak membaca `TRAINING_INBOX_VIDEOS` |
+| `TRAINING_INBOX_ACCESS_KEY_ID` / `TRAINING_INBOX_SECRET_ACCESS_KEY` | kosong | Konsol: token R2 Object Read & Write yang dibatasi ke bucket `nexio-inbox` saja, jangan pakai token captures. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC |
+| `TRAINING_INBOX_ENDPOINT` | kosong = `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com` | Konsol: alamat S3 tujuan foto latihan (isi untuk MinIO/tes). Lampung: tambahkan di blok `console:` compose host DAN `.env` PC |
+| `TRAINING_INBOX_SEND` | `all` | Konsol: `all` = semua foto bersih, `priority` = hanya reject manual, keyakinan rendah, JK atau TP. Salah ketik = `all` + satu WARNING |
+| `TRAINING_INBOX_LOW_CONFIDENCE` | `0.60` | Konsol: batas keyakinan yang menjadi alasan keyakinan rendah, di mode `priority` (menentukan apa yang dikirim) dan juga di mode `all` (hanya mengisi alasan di manifest).  Salah ketik atau di luar 0-1 = `0.60` + satu WARNING; kosong = `0.60` tanpa WARNING |
 | `REKAMAN_TAMPIL` | `/opt/palmgrade/autograde/videos` (compose) | Jalur rekaman yang **ditampilkan** di Rekam Video: jalur host, bukan `/app/videos` |
 | `CONSOLE_MACHINE_ID` | `konsol` (compose prod) | Diteruskan sebagai `MACHINE_ID` konsol, untuk kartu Versi |
 

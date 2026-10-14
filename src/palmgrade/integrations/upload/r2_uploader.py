@@ -25,6 +25,11 @@ KUNCI_CEK = "viewer.html"
 _CONFIG_CEK = Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 1})
 
 
+#: Training photos: ~180 KB each, thousands a day. A dead uplink must fail fast so the
+#: worker can stop the pass; one retry absorbs a dropped packet.
+KIRIM_CONFIG = Config(connect_timeout=10, read_timeout=60, retries={"max_attempts": 2})
+
+
 class R2Uploader:
     def __init__(
         self,
@@ -33,8 +38,12 @@ class R2Uploader:
         secret_access_key: str,
         bucket: str,
         client=None,
+        endpoint_url: str | None = None,
+        config: Config | None = None,
     ) -> None:
         self._account_id = account_id
+        self._endpoint_url = endpoint_url or f"https://{account_id}.r2.cloudflarestorage.com"
+        self._config = config
         self._access_key_id = access_key_id
         self._secret_access_key = secret_access_key
         self.bucket = bucket
@@ -43,12 +52,16 @@ class R2Uploader:
 
     def _get_client(self):
         if self._client is None:
-            self._client = boto3.client(
-                "s3",
-                endpoint_url=f"https://{self._account_id}.r2.cloudflarestorage.com",
-                aws_access_key_id=self._access_key_id,
-                aws_secret_access_key=self._secret_access_key,
-            )
+            # Own session: the default boto3 session is not safe when two threads create
+            # clients at once (manifest worker and training worker both run in to_thread).
+            kwargs = {
+                "endpoint_url": self._endpoint_url,
+                "aws_access_key_id": self._access_key_id,
+                "aws_secret_access_key": self._secret_access_key,
+            }
+            if self._config is not None:
+                kwargs["config"] = self._config
+            self._client = boto3.session.Session().client("s3", **kwargs)
         return self._client
 
     def cek(self) -> None:
@@ -58,7 +71,7 @@ class R2Uploader:
             # klien bersamaan (cek ini di satu thread, manifest kunjungan di thread lain).
             self._client_cek = boto3.session.Session().client(
                 "s3",
-                endpoint_url=f"https://{self._account_id}.r2.cloudflarestorage.com",
+                endpoint_url=self._endpoint_url,
                 aws_access_key_id=self._access_key_id,
                 aws_secret_access_key=self._secret_access_key,
                 config=_CONFIG_CEK,

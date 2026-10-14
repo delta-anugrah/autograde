@@ -27,7 +27,8 @@ COMPOSE_PROD = REPO_ROOT / "docker-compose.prod.yml"
 # per-truck detail pages, independent of the line's batch-upload R2 usage.
 # DISCORD_ since batch 3.5: only the console sends the error digest.
 # SCALE_ since 2026-10-06: only the console reads the live weighbridge weight.
-CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_", "LICENSE_", "DISCORD_", "SCALE_")
+# TRAINING_ since 2026-10-13: only the console sends training photos to the nexio inbox.
+CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_", "LICENSE_", "DISCORD_", "SCALE_", "TRAINING_")
 
 
 def _settings_env_names() -> set[str]:

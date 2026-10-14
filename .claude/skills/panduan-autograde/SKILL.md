@@ -5,7 +5,7 @@ description: Use when working on or operating AutoGrade (repo autograde) as some
 
 # Panduan AutoGrade: peta untuk pemegang baru
 
-Sumber utama: **`docs/MANUAL.md`** (Bahasa Indonesia, versi 2.29; PDF 49 halaman di sampingnya, dibuat ulang dengan `scripts/md_to_pdf.py docs/MANUAL.md` tiap MANUAL berubah).
+Sumber utama: **`docs/MANUAL.md`** (Bahasa Indonesia, versi 2.31; PDF 49 halaman di sampingnya, dibuat ulang dengan `scripts/md_to_pdf.py docs/MANUAL.md` tiap MANUAL berubah).
 Baca bagian yang relevan dari situ dulu, bukan menyusun ulang dari kode. Skill ini
 cuma peta: ke mana melihat, apa yang tidak boleh, dan jawaban cepat yang paling sering
 ditanya.
@@ -57,8 +57,8 @@ ditanya.
   ("AutoERP terputus: …" / "Cloud Photo line-N terputus: …"); data menunggu di antrean,
   tidak hilang. Line mati atau versi lama tidak membuat Cloud Photo kuning (aturan 27).
 - **Tab support** (Log, Status, Akun, Line, Setelan; digabung 2026-09-28: **Status** =
-  lima sub-tab sejak 2026-10-05: Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP,
-  Manifest R2; **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat sub-tab) hanya untuk peran `support`; 403 untuk operator,
+  enam sub-tab: Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP,
+  Manifest R2, Foto training (sejak 2026-10-13); **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat sub-tab) hanya untuk peran `support`; 403 untuk operator,
   401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/
   terkunci) + tombol untuk akun lokal (akun AutoERP tanpa tombol; akun sendiri cuma ganti
   sandi): sandi tidak bisa dilihat (cuma hash yang disimpan); lupa sandi: akun AutoERP

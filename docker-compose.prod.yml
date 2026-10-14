@@ -145,6 +145,13 @@ services:
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
       - R2_BUCKET=${R2_BUCKET:-}
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      # Training photos to the nexio inbox (nexio spec 6.4). Empty bucket = off.
+      - TRAINING_INBOX_BUCKET=${TRAINING_INBOX_BUCKET:-}
+      - TRAINING_INBOX_ACCESS_KEY_ID=${TRAINING_INBOX_ACCESS_KEY_ID:-}
+      - TRAINING_INBOX_SECRET_ACCESS_KEY=${TRAINING_INBOX_SECRET_ACCESS_KEY:-}
+      - TRAINING_INBOX_ENDPOINT=${TRAINING_INBOX_ENDPOINT:-}
+      - TRAINING_INBOX_SEND=${TRAINING_INBOX_SEND:-all}
+      - TRAINING_INBOX_LOW_CONFIDENCE=${TRAINING_INBOX_LOW_CONFIDENCE:-0.60}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # ⚠️ Saklarnya WAJIB ikut, bukan cuma tokennya. Konsol membaca
       # `LICENSE_ENABLED` untuk memutuskan apakah gerbang lisensi menyala; tanpa
