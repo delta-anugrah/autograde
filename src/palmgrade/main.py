@@ -24,6 +24,7 @@ from .core.dependencies import (
     get_webhook_client,
     set_camera,
 )
+from .core.head_request import HeadAsGetMiddleware
 from .core.logging import configure_logging
 from .domain.setelan_grading import KOTAK, bersihkan_setelan, kotak_dari
 from .domain.sumber_kamera_resolver import rencana_kamera
@@ -481,6 +482,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Added last, so outermost: HEAD reaches CORS, the licence guard and the routes
+    # as GET, and leaves with GET's status and headers and no body.
+    app.add_middleware(HeadAsGetMiddleware)
 
     # Static files — path /captures/... → artifacts/ directory
     # image_url format: "captures/results/{date}/{timestamp}.webp"

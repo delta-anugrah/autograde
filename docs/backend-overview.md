@@ -101,6 +101,15 @@ per `track_id`): `docs/overview.md` §3.
 
 ---
 
+## HEAD on every GET route (both apps, 2026-10-14)
+
+Every path that answers GET also answers HEAD, on the lines and on the console, with the same
+status and headers and no body (RFC 9110). One middleware does it,
+`core/head_request.py` (`HeadAsGetMiddleware`), installed outermost: the request reaches
+routing, auth and the licence guard as GET. Reason: an uptime monitor that checks with HEAD
+(UptimeRobot free) read `demo-autograde.smagri.id` as down on 405. `HEAD /` on the console is
+the same 307 to `/console` as GET; a stream (`/video_feed`) is stopped after its headers.
+
 ## Endpoint line (port 8001 / 8002 / 8003)
 
 ### Publik (tanpa auth)
