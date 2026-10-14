@@ -385,7 +385,8 @@ Camera tuning and network: [`docs/camera-spec.md`](docs/camera-spec.md),
 
 The complete, current list of line and console endpoints, payloads and environment variables is in
 [`docs/backend-overview.md`](docs/backend-overview.md) § HTTP Surface. Every `/api/console/*` route
-needs a session; the support routes `/api/console/dev/*` need the `support` role.
+needs a session; the support routes `/api/console/dev/*` need the `support` role. Every GET route
+also answers HEAD (same status and headers, no body), so an uptime monitor can use `curl -I /health`.
 
 ```bash
 # Line
