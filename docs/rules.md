@@ -1478,7 +1478,7 @@ end of this file.
     Every graded bunch's `clean/` photo (rule 7) plus one JSON manifest (contract
     `autograde-training-sample/v1`, `domain/training_sample.py`, fixtures in
     `tests/fixtures/autograde-training-sample/v1/`, copied byte for byte by nexio) goes to the R2
-    bucket `nexio-inbox`, where the nexio training app imports it.
+    bucket `autograde-training`, where the nexio training app imports it.
     **On only when complete**: `TRAINING_INBOX_BUCKET`, the endpoint (`TRAINING_INBOX_ENDPOINT`, or
     derived from `R2_ACCOUNT_ID`) and both keys. Bucket empty = off: no outbox file, no worker, no
     ingest hook. Bucket set but a key or the endpoint empty = off with one WARNING at start
