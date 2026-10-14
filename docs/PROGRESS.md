@@ -62,6 +62,31 @@ Decisions:      Own outbox file (a dead inbox never holds AutoERP or visit manif
 Next:           Factory PC: add the six `TRAINING_INBOX_*` lines to the host compose `console:` block and
                 the values to `.env`, `autograde restart`, then watch Status → Foto training.
 
+## 2026-10-13 · console · Demo: simulated trucks, weighbridge and Rekap; demo is read-only (PR #268)
+Changed:        In DEMO_MODE the screen now simulates truck visits computed from the clock (pure
+                functions kunjunganDemo/keadaanDemo, no storage): a truck every 10 to 20 minutes from
+                the seeded trucks arrives, weighs in, queues, unloads on every line (automatic
+                assignment), weighs out and leaves. The truck card and the unloading queue, the
+                Weighbridge board and table (gambarTimbangan split out of muatTimbangan), today's
+                tally, Rekap per truck for today, and the line counters all come from that one model,
+                so they agree; the camera tick runs only while a truck unloads. The server is
+                read-only in DEMO_MODE: a router-wide dependency (tolak_tulis_saat_demo) answers 403
+                `mode_demo` to every /api/console write except login, logout and session renew, and the
+                screen words it; the four routers console_main mounts beside it carry the same guard.
+                Odometer digits fade at the edges only while they roll (an animation with no fill,
+                so the factory scale tile at rest is unchanged) and the scale rolls in 0.45 s.
+                Final review fixes: Rekap summary equal in every view (Per hari's today row includes
+                the trucks), the demo day starts at factory midnight (zonaPabrik), trucks in plate
+                order (a pulled truck does not reshuffle them), Lepas stops at the first mode_demo
+                refusal (one toast), unit tests on a fixed date.
+Validated:      pytest tests/unit tests/e2e tests/integration → exit 0, 6213 passed, 48 skipped.
+                Browser: Chromium 221/221; Firefox 218/221 in the full run, the 3 failures in
+                test_browser_scan_otomatis.py passed alone (3/3) and the whole file passed (20/20).
+                ruff check src/ tests/ → All checks passed. Screenshots by eye (Grading, Weighbridge,
+                Rekap) on a harness console with DEMO_MODE=1.
+Not validated:  Not on the droplet yet: needs a release.
+Next:           Release, then check demo-autograde.smagri.id.
+
 ## 2026-10-10 · docs · README rewritten in English (PR #267)
 Changed:        README.md rewritten in English for an engineer opening the repo: what it is, system
                 context, line and console flow, grading rules, quick start (Mac and Linux),

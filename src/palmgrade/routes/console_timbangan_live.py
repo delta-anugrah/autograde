@@ -12,9 +12,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from ..services.timbangan_live import TimbanganLive
-from .console_deps import Operator, get_timbangan_live
+from .console_deps import Operator, get_timbangan_live, tolak_tulis_saat_demo
 
-router = APIRouter(tags=["console"])
+# DEMO_MODE read-only, as on console.router (mounted beside it in console_main).
+router = APIRouter(tags=["console"], dependencies=[Depends(tolak_tulis_saat_demo)])
 
 Live = Annotated[TimbanganLive, Depends(get_timbangan_live)]
 

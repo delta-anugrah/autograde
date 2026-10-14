@@ -160,3 +160,15 @@ def test_kartu_yang_baru_digambar_jadi_titik_awal():
     instead of writing plain as if it were the first write (found by the browser test)."""
     awal = HTML.index('$("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada))')
     assert "el._angka = Number(el.textContent) || 0" in HTML[awal : awal + 500]
+
+
+def test_the_edge_fade_shows_only_while_a_digit_rolls():
+    """A factory scale tile at rest keeps crisp digits: the fade that hides the half digits of a
+    roll is an animation with no fill, so it ends with the roll (review 2026-10-13)."""
+    css = HTML[: HTML.index("</style>")]
+    regel_d = css[css.index("  .odo-d {") : css.index("}", css.index("  .odo-d {"))]
+    assert "mask-image" not in regel_d
+    assert "animation:odo-tepi" in regel_d.replace(" ", "")
+    tepi = css[css.index("@keyframes odo-tepi") :]
+    assert "mask-image" in tepi[: tepi.index("}\n")]
+    assert "animation-duration:.45s" in css[css.index(".odo-berat .odo-d {") :].split("}")[0]

@@ -10,9 +10,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from ..services.lapor_discord import LaporDiscord
-from .console_deps import Support, get_lapor_discord
+from .console_deps import Support, get_lapor_discord, tolak_tulis_saat_demo
 
-router = APIRouter(tags=["console"])
+# DEMO_MODE read-only, as on console.router (mounted beside it in console_main).
+router = APIRouter(tags=["console"], dependencies=[Depends(tolak_tulis_saat_demo)])
 
 Lapor = Annotated[LaporDiscord, Depends(get_lapor_discord)]
 
