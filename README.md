@@ -534,6 +534,28 @@ the launcher, `palmgrade license <token>`. With an expired licence every route e
 PLC alive coil drops, so an expired subscription is visible on the floor. Details:
 [`docs/overview.md`](docs/overview.md) §10.
 
+### Which signing key (checked on the server 2026-10-15)
+
+No key material belongs here or anywhere in this repo. Fingerprint = first 16 hex characters of
+the sha256 of the raw 32-byte ed25519 public key.
+
+| Key | Fingerprint | Status |
+|---|---|---|
+| `license_ed25519_v2` | `f0910dda56b359bc` | **Active.** `LICENSE_PUBLIC_KEY_BAKED` in `core/config.py` is this key's public half; AutoERP signs with its private half (`autograde_license_private_key` in the production `site_config.json`) |
+| `license_ed25519` (v1) | `86d78969238a5cad` | Not used by AutoERP. Kept only for an AutoGrade installed before the 2026-08-21 rotation |
+
+- AutoERP's `autograde_license_kid` says `v1` although the key is v2. It is only a label:
+  `license/manager.py` checks that the header `kid` equals the payload `kid` and never compares it
+  with a fixed value. Leave it as it is.
+- The demo console sets its own `LICENSE_PUBLIC_KEY`, neither v1 nor v2, so a mismatch there
+  proves nothing about the factory key.
+- The pair came from palmgrade-api (retired; removed from the droplet on 2026-10-15, archived).
+  That removal did not retire this key: losing v2 means no licence can be issued or extended for any
+  mill. Replacing it is its own project: release an image with the new public key first, then
+  reissue every mill's token.
+- Where the private key is kept and how to check a fingerprint without printing the key:
+  `autoerp/docs/operations.md` § Lisensi AutoGrade.
+
 ## Testing
 
 Unit tests are pure logic: no torch, OpenCV, camera SDK or GPU, so they run on a plain CI runner.

@@ -18,6 +18,15 @@ Next:           ...
 
 ---
 
+## 2026-10-15 · licence · Record which key signs AutoGrade licences (docs)
+Changed:        README "Which signing key": active key is license_ed25519_v2 (fingerprint f0910dda56b359bc), the
+                pair of LICENSE_PUBLIC_KEY_BAKED; v1 (86d78969238a5cad) unused by AutoERP; kid label "v1" is cosmetic.
+                Stale comment in core/config.py fixed (private key is in AutoERP, not "the cloud API"). No behaviour change.
+Validated:      ruff check src/palmgrade/core/config.py → All checks passed; fingerprints from the user's server check
+Not validated:  test suite not run (comment-only code change)
+Decisions:      kid label stays "v1"; manager.py only checks header kid == payload kid
+Next:           autoerp PR #81 holds the copies of the private key and the fingerprint commands
+
 ## 2026-10-15 · factory · v1.28.0 installed on PC Sawit, training photos ON in priority mode (release PR #272)
 Changed:        Docs only. v1.28.0 (released 2026-10-14) installed on the factory PC ("PC Sawit", older docs say
                 "Lampung") with `autograde use v1.28.0`. Training photos ON: `.env` has `TRAINING_INBOX_BUCKET=autograde-training`,

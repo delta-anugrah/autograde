@@ -15,16 +15,17 @@ logger = logging.getLogger(__name__)
 
 # Production license public key, baked into the image.
 #
-# One key pair serves every mill and it is never rotated, so putting it in each
+# One key pair serves every mill and is rarely rotated (last: 2026-08-21), so putting it in each
 # factory PC's `.env` only adds a manual step that can be missed — and was: the
 # Lampung PC ran for months with no `LICENSE_*` at all, which means the guard
 # checked nothing. Baked in, a new factory PC is protected from first boot.
 #
 # Safe to commit: a public key can only VERIFY a signature. Forging one needs
-# the private key, and that never leaves the cloud API.
+# the private key, which AutoERP keeps in its production `site_config.json`.
 #
 # `LICENSE_PUBLIC_KEY` still wins when set, so a developer laptop can use its
-# own DEV key pair. palmgrade-api's `utils/license.ts` bakes the same constant.
+# own DEV key pair. This is the v2 pair (fingerprint f0910dda56b359bc), README
+# "Which signing key".
 LICENSE_PUBLIC_KEY_BAKED = (
     "-----BEGIN PUBLIC KEY-----\n"
     "MCowBQYDK2VwAyEARvT6i531BDKvqg/j4glZoIAgvuKofP87Q6gkodLizyM=\n"
