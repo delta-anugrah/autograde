@@ -18,6 +18,21 @@ Next:           ...
 
 ---
 
+## 2026-10-15 · factory · v1.28.0 installed on PC Sawit, training photos ON in priority mode (release PR #272)
+Changed:        Docs only. v1.28.0 (released 2026-10-14) installed on the factory PC ("PC Sawit", older docs say
+                "Lampung") with `autograde use v1.28.0`. Training photos ON: `.env` has `TRAINING_INBOX_BUCKET=autograde-training`,
+                keys of token `autograde-pc-sawit` (Object Read & Write on that bucket),
+                `TRAINING_INBOX_ENDPOINT=https://<account>.r2.cloudflarestorage.com`, `TRAINING_INBOX_SEND=priority`
+                (first week, then `all`). The six `TRAINING_INBOX_*` lines were added by hand to the console `environment:`
+                block of the host `/opt/palmgrade/autograde/docker-compose.prod.yml` (backup `.bak-2026-10-14`).
+                The factory console container is `autograde-console-1`, not `palmgrade_console`;
+                `compose-host-pabrik` skill commands fixed to match.
+Validated:      Status > Training photos shows "0 pending, 0 failed" on PC Sawit (reported by the user). No package
+                queued yet: every bunch since enabling was Ripe/Unripe at about 0.92 confidence, which `priority`
+                does not send (it sends manual rejects, confidence < 0.60, JK, TP).
+Not validated:  a real priority photo reaching R2; the video outage test (cable pulled during an upload).
+Next:           Wait for the first priority photo, then switch `TRAINING_INBOX_SEND=all` after a week.
+
 ## 2026-10-14 · console + line · Support HEAD requests for uptime monitoring (PR #270)
 Changed:        New `core/head_request.py` (`HeadAsGetMiddleware`) installed in `console_main.py`
                 and `main.py`: HEAD is served through the GET route, same status and headers, no

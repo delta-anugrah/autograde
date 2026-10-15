@@ -53,7 +53,7 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
   change required" (tanpa variabel ini kotak menulis Belum tersambung). Menyalakannya butuh
   sembilan baris di blok `console:` compose host (`- PLC_HOST=${PLC_HOST:-}` plus delapan
   `- SCALE_...` persis seperti `docker-compose.prod.yml` repo), nilainya di `.env`, port 1028
-  dibuka di PLC, lalu `autograde restart`. Cek: `docker exec palmgrade_console printenv
+  dibuka di PLC, lalu `autograde restart`. Cek: `docker exec autograde-console-1 printenv
   SCALE_PLC_REGISTER`.
 - **`DEMO_MODE`** (2026-10-09): **khusus demo droplet** (`deploy/demo/docker-compose.yml`).
   Jangan pernah menambah `- DEMO_MODE=...` ke compose host atau `.env` PC pabrik: layar akan
@@ -67,7 +67,7 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
   `_SECRET_ACCESS_KEY`, `_ENDPOINT` dengan bawaan kosong, `_SEND` bawaan `all`,
   `_LOW_CONFIDENCE` bawaan `0.60`), nilainya di `.env` (token Object Read & Write yang dibatasi ke bucket
   `autograde-training` saja, bukan token `R2_*`), lalu `autograde restart`. Cek: `docker exec
-  palmgrade_console printenv TRAINING_INBOX_BUCKET`. Skrip host `kirim-video.sh` (repo sawit)
+  autograde-console-1 printenv TRAINING_INBOX_BUCKET` (di PC Sawit; 2026-10-14 keenam baris ditambah dengan tangan ke blok `environment:` konsol di host, cadangan `docker-compose.prod.yml.bak-2026-10-14`). Skrip host `kirim-video.sh` (repo sawit)
   membaca empat kunci yang sama langsung dari `.env` plus saklarnya sendiri
   `TRAINING_INBOX_VIDEOS`, jadi satu blok `.env` dipakai berdua dan tidak perlu baris compose.
 - **`AI_MATI_DETIK`** (batch 2.1, opsional): bawaan 30 jalan tanpa perubahan host, jadi rilisnya
