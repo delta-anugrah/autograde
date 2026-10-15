@@ -549,8 +549,8 @@ the sha256 of the raw 32-byte ed25519 public key.
   with a fixed value. Leave it as it is.
 - The demo console sets its own `LICENSE_PUBLIC_KEY`, neither v1 nor v2, so a mismatch there
   proves nothing about the factory key.
-- The pair came from palmgrade-api (retired, archived 2026-10-15). Removing PalmGrade from the
-  droplet does not retire this key: losing v2 means no licence can be issued or extended for any
+- The pair came from palmgrade-api (retired; removed from the droplet on 2026-10-15, archived).
+  That removal did not retire this key: losing v2 means no licence can be issued or extended for any
   mill. Replacing it is its own project: release an image with the new public key first, then
   reissue every mill's token.
 - Where the private key is kept and how to check a fingerprint without printing the key:
